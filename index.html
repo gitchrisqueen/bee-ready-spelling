@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="theme-color" content="#261d48"/>
+  <meta name="description" content="Bee Ready: 1,155 spelling bee words, cheerful practice rounds, and free natural speaking voices with clear download progress."/>
+  <title>Bee Ready · Spelling Practice</title>
+  <link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+  <div class="site-frame">
+    <header class="header">
+      <a class="brand" href="#practice" aria-label="Bee Ready home"><span class="brand-mark" aria-hidden="true">🐝</span><span><strong>Bee Ready</strong><small>Spell with confidence</small></span></a>
+      <nav aria-label="Main navigation" class="nav">
+        <button data-tab="practice" class="nav-button active" aria-current="page">Practice</button>
+        <button data-tab="words" class="nav-button">Word bank</button>
+        <button data-tab="voices" class="nav-button">🎙️ Voices</button>
+        <button data-tab="grownups" class="nav-button">Grown-ups</button>
+      </nav>
+    </header>
+    <main id="mainContent">
+      <section class="tab-panel active" id="tab-practice" aria-labelledby="practice-title">
+        <div class="hero">
+          <div class="hero-copy">
+            <span class="eyebrow">🐝 THE SPELLING BEE TRAINING CLUB</span>
+            <h1 id="practice-title">Big words.<br><em>Brave spellers.</em></h1>
+            <p>Hear a word, ask for clues, and spell it like a champion. Every try makes your brain stronger.</p>
+            <div class="statbar"><span><b id="heroWordCount">1,155</b> words</span><span><b id="heroBest">0</b> practiced</span><span><b id="heroMissed">0</b> to review</span></div>
+          </div>
+          <div class="hero-art" aria-hidden="true"><div class="bee-orbit">✦</div><div class="bee-friend">🐝</div><span class="star star-a">✧</span><span class="star star-b">✶</span><span class="star star-c">★</span><span class="hero-speech">You got this!</span></div>
+        </div>
+        <div class="content-grid">
+          <div class="panel" id="roundBuilder">
+            <div class="section-title"><div><span class="mini-kicker">YOUR PRACTICE ROUND</span><h2>How many words today?</h2></div><span class="pill">✨ Pick your challenge</span></div>
+            <div class="count-picker" role="group" aria-label="Number of words">
+              <button class="count-option active" data-count="5" aria-pressed="true">5<small>Quick</small></button>
+              <button class="count-option" data-count="10" aria-pressed="false">10<small>Steady</small></button>
+              <button class="count-option" data-count="15" aria-pressed="false">15<small>Strong</small></button>
+              <button class="count-option" data-count="20" aria-pressed="false">20<small>Super</small></button>
+              <label class="custom-count">Your number<input id="wordCount" type="number" min="1" max="1155" value="5" inputmode="numeric" aria-label="Custom number of words"></label>
+            </div>
+            <div class="form-row">
+              <label class="field">Choose words from <select id="pool"><option value="all">All 1,155 words</option><option value="study">Study words</option><option value="challenge">Challenge words</option><option value="missed">Words to review</option></select></label>
+              <label class="field">Spelling mode <select id="practiceMode"><option value="type">Type the letters</option><option value="oral">Say it out loud (with a grown-up)</option></select></label>
+            </div>
+            <button id="startRound" class="primary-btn big-btn">🐝 Start my spelling bee <span aria-hidden="true">→</span></button>
+            <p class="helper">Words are chosen randomly with no repeats in a round. Clues are always free!</p>
+          </div>
+          <aside class="panel side-note">
+            <div class="note-icon">🔊</div><h3>Meet your spelling bee host</h3><p>Choose a natural female or male voice in <strong>Voices</strong>. No account, no subscription.</p>
+            <button class="soft-btn" data-go="voices">Choose my voice <span aria-hidden="true">↗</span></button>
+            <div class="note-divider"></div><p class="small-note">Natural voice files download the first time. You'll see a progress bar, and the device voice is always available.</p>
+          </aside>
+        </div>
+        <div id="roundArea" class="round-panel hidden" aria-live="polite">
+          <div class="round-head"><span class="mini-kicker" id="roundNumber">WORD 1 OF 5</span><div class="round-meter"><span id="scoreLabel">0 correct so far</span><div class="meter-track"><span id="meterFill"></span></div></div></div>
+          <div id="activeCard" class="active-card">
+            <div class="bee-bubble" aria-hidden="true">🎙️</div>
+            <h2 id="questionHeading">Your next word is ready!</h2>
+            <p class="subtle" id="questionHint">Listen carefully, ask for clues, then spell your word.</p>
+            <button class="listen-btn" id="hearWord">▶ Hear my word</button>
+            <div class="clue-actions" role="group" aria-label="Ask your spelling bee host"><button data-clue="definition">Definition</button><button data-clue="origin">Origin</button><button data-clue="sentence">Sentence</button><button data-clue="part">Part of speech</button><button data-clue="repeat">Repeat slowly</button></div>
+            <div class="clue-result" id="clueResult" aria-live="polite" hidden></div>
+            <form id="answerForm" autocomplete="off"><label for="answerInput">Spell your word</label><div class="answer-row"><input id="answerInput" type="text" spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off" placeholder="Type the letters here" required><button class="primary-btn" type="submit">Check spelling</button></div></form>
+            <div id="oralButtons" class="hidden oral-buttons"><button id="revealOral" class="primary-btn">Reveal spelling</button><div id="gradeOral" class="hidden oral-grade"><button class="correct-btn" data-grade="correct">✓ I got it!</button><button class="review-btn" data-grade="missed">↻ Practice again</button></div></div>
+            <div id="answerFeedback" class="feedback hidden"></div>
+            <button id="nextWord" class="primary-btn hidden">Next word →</button>
+          </div>
+          <div id="roundSummary" class="round-summary hidden"></div>
+        </div>
+      </section>
+      <section class="tab-panel" id="tab-words" aria-labelledby="words-title">
+        <div class="section-intro"><span class="mini-kicker">THE COMPLETE REFERENCE</span><h1 id="words-title">Your word bank</h1><p>Explore all 1,155 spelling bee words, their definitions, original booklet groups, and dictionary pronunciation links.</p></div>
+        <div class="panel"><div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by group<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label></div>
+        <div class="results-head"><strong id="resultCount">1,155 words</strong><span>Original Study/Challenge categories, not grade levels.</span></div><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button></div>
+      </section>
+      <section class="tab-panel" id="tab-voices" aria-labelledby="voices-title">
+        <div class="section-intro"><span class="mini-kicker">MEET YOUR BEE HOST</span><h1 id="voices-title">Find your favorite voice</h1><p>Natural American English voices, a reliable backup, and an instant device-voice option. No accounts or keys.</p></div>
+        <div class="panel"><div class="section-title"><div><h2>Pick your speaker</h2><p class="smaller">Tap a host, then preview their voice.</p></div><span class="pill">🎙️ 4 voice styles</span></div>
+          <div id="voiceChoices" class="voice-grid"></div>
+          <h3 class="settings-heading">Talking speed</h3><div id="speedChoices" class="segmented" role="group" aria-label="Voice speed"></div>
+          <h3 class="settings-heading">Choose your audio mode</h3><div class="audio-mode"><label><input type="radio" name="engineMode" value="auto" checked> Natural voice with automatic backup <small>Kokoro → Piper → device speech</small></label><label><input type="radio" name="engineMode" value="device"> Device voice only <small>No download, fastest start</small></label></div>
+          <div class="voice-actions"><button id="prepareVoice" class="primary-btn">⬇ Prepare natural voices</button><button id="previewVoice" class="soft-btn">▶ Play voice sample</button><button id="retryVoice" class="text-btn">Retry natural audio</button></div>
+          <div id="voiceStatus" class="status-message" role="status" aria-live="polite">Device voice is ready. Natural voices download only on request.</div>
+          <p class="helper">First download can be large (often 80–150 MB for Kokoro's quantized files). On some iPads, neural audio may be slower or unavailable; the next engine is tried automatically. If Safari blocks playback after the download, tap Play once more.</p>
+        </div>
+      </section>
+      <section class="tab-panel" id="tab-grownups" aria-labelledby="grownups-title">
+        <div class="section-intro"><span class="mini-kicker">TOOLS FOR GROWN-UPS</span><h1 id="grownups-title">Practice that builds confidence</h1><p>Simple, repeatable spelling activities plus your printable word resources.</p></div>
+        <div class="content-grid"><div class="panel"><h2>Try the 10-minute routine</h2><ol class="routine"><li><b>Warm up</b> with a few older words.</li><li><b>Say the new word</b>, explain what it means and use it in a sentence.</li><li><b>Notice the tricky letters</b> before hiding the spelling.</li><li><b>Spell from memory</b>, then check each letter.</li><li><b>Review missed words</b> tomorrow and later in the week.</li></ol><p class="helper">Study tips align with spaced retrieval and explicit letter-sound study.</p></div><div class="panel"><h2>Printable practice pack</h2><div class="downloads"><a href="./assets/Spelling_Bee_Practice_Workbook.pdf" download>📄 Practice workbook <span>PDF ↗</span></a><a href="./assets/Spelling_Bee_Alphabetical_List.pdf" download>📄 Alphabetical checklist <span>PDF ↗</span></a><a href="./assets/Spelling_Bee_Definitions_Reference.pdf" download>📄 Complete definitions <span>PDF ↗</span></a></div><p class="helper">For unusual pronunciations or meanings, consult the linked dictionaries or the competition's pronouncer.</p></div></div>
+        <div class="panel foot-note"><h3>About the clues and audio</h3><p>“Origin” uses the booklet's language group. Some words traveled through multiple languages; the group is not a complete etymology. Definitions are simplified study explanations, not official competition definitions. Spelling bee rules vary by organizer.</p><p>Natural voices run on the device and require a first download of model files. These files are cached by the browser when storage allows. Speech uses no account or API key. For words such as <i>learned</i> and <i>dogged</i>, pronunciation can depend on meaning and should be confirmed with a grown-up.</p><button id="clearHistory" class="text-btn">Clear this device's practice history</button></div>
+      </section>
+    </main>
+    <footer class="footer"><span>🐝 Bee Ready · Every word is a new adventure</span><span>No account required · Made for curious spellers</span></footer>
+  </div>
+  <aside id="voiceDownload" class="voice-download hidden" aria-live="polite" aria-atomic="true"><div class="download-head"><strong id="downloadLabel">Preparing voice…</strong><button id="closeNotice" class="icon-btn" title="Dismiss this notice" aria-label="Dismiss this notice">×</button></div><p id="downloadDetail">Your voice files are loading.</p><div id="downloadTrack" class="progress-track"><div id="downloadFill"></div></div><div class="progress-bottom"><span id="downloadPercent">Working…</span><span id="downloadEngine">Kokoro</span></div><div class="download-buttons"><button id="downloadUseDevice" class="text-btn">Use device voice now</button><button id="downloadRetry" class="text-btn hidden">Try again</button></div></aside>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
