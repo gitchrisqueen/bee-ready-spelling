@@ -8,13 +8,13 @@ Visit the deployed GitHub Pages site, choose a word count and pool, and start pr
 
 ## Speech
 
-The application attempts **Kokoro** neural TTS first, then **Piper**, then built-in **device speech**. Four American English speaker styles are selectable. The natural voices download models on demand; the UI shows file-by-file progress when the download library exposes totals, plus an indeterminate loading indicator otherwise. The user can choose device speech without a model download. The first neural playback can take time, fail on low-memory devices, or require another tap on Safari after a download.
+The application attempts **Kokoro** neural TTS first, then **Piper**, then built-in **device speech**. Four American English speaker styles are selectable in Kokoro; Piper provides two backup speakers, so same-gender styles share a backup voice. The natural voices download models on demand; the UI shows file-by-file progress when the download library exposes totals, plus an indeterminate loading indicator otherwise. The user can choose device speech without a model download. The first neural playback can take time, fail on low-memory devices, or require another tap on Safari after a download.
 
 The app imports pinned browser libraries via third-party CDNs and fetches models from their providers. No API key or TTS subscription is used, but an Internet connection is necessary for first-time neural use. The model providers' availability and offline persistence are outside this repository's control. This is practice audio, **not an official competition pronunciation authority**; use a grown-up and dictionary for ambiguous or unfamiliar pronunciations.
 
 ## Development
 
-Requirements: Node.js 22+ for the optional tests and build, or any static file server for development. No npm dependencies need to be installed.
+Requirements: Node.js 22+ for the optional tests and build, or any static file server for development. No npm dependencies need to be installed. The optional `npm run serve` command requires Python 3.
 
 ```bash
 npm test

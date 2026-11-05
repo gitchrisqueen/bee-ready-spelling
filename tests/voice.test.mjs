@@ -86,3 +86,16 @@ test('Piper second-tap retry reuses audio after autoplay rejection',async()=>{
   assert.equal(predictions,1);
  }finally{globalThis.Audio=OriginalAudio;}
 });
+
+test('cancelled Kokoro inference rejection never starts Piper',async()=>{
+ let rejectGeneration,piperCalls=0;
+ const generated=new Promise((resolve,reject)=>{rejectGeneration=reject;});
+ const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>({KokoroTTS:{from_pretrained:async()=>({generate:()=>generated})}}),loadPiper:async()=>{piperCalls++;throw Error('unexpected');}});
+ await svc.prepare();
+ const speaking=svc.speak('sunshine');
+ await Promise.resolve();
+ svc.select({mode:'device'});
+ rejectGeneration(Error('inference failed'));
+ assert.equal(await speaking,'cancelled');
+ assert.equal(piperCalls,0);
+});

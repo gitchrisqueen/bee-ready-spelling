@@ -212,6 +212,8 @@ export class BeeVoiceService {
         if(token!==this.sequence)return 'cancelled';
         return await this._playBlob(blob,token,'kokoro')==='tap'?'tap':'kokoro';
       }catch(err){
+        if(token!==this.sequence)return 'cancelled';
+        if(this.settings.mode==='device')return this._device(text,token);
         this._status('switching','piper','Kokoro playback failed. Trying Piper…',null,messageOf(err),true);
         this.failedEngines.add('kokoro');this.kokoro=null;
       }
