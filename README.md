@@ -72,9 +72,9 @@ Natural voices download only when you ask for them (**Voices → Prepare natural
 
 **Good to know**
 
-- The first neural download needs an internet connection and is tens of megabytes.
+- The first neural download needs an internet connection and is about 88 MB for the Kokoro model. The model files are served from this site itself (see below), so there is no third-party hop for the big download.
 - The first playback can take a moment. Low-memory devices may fail to load a model, and Safari can ask for a second tap after a download. The app then falls back as described above.
-- No API key or subscription is used. Libraries and models load from third-party CDNs, so their availability is outside this repository's control.
+- No API key or subscription is used. The speech libraries (`kokoro-js`, the ONNX runtime) and the Piper backup load from third-party CDNs, so their availability is outside this repository's control. If the site's own copy of the Kokoro model is missing, the app falls back to Hugging Face automatically.
 - This is practice audio, **not an official competition pronunciation authority**. Check a dictionary for unfamiliar or ambiguous words.
 
 ## For developers
@@ -92,6 +92,8 @@ npm run build     # stages the deployable site into _site/
 npm run serve     # serves the repo at http://localhost:8080/
 ```
 
+To test the self-hosted voice model locally, run `npm run build && npm run fetch-voice-assets` and serve `_site/` (for example `cd _site && python3 -m http.server 8080`). Without that step, local development loads the model from Hugging Face instead.
+
 You can also use any static file server. Open `index.html` through a server, not from `file://`, so the voice modules and `words.json` load.
 
 ### How it fits together
@@ -102,6 +104,7 @@ You can also use any static file server. Open `index.html` through a server, not
 | `voice-service.js` | Speech engine selection, on-demand model download, progress events, cancellation and fallback |
 | `words.json` | The complete word data: word, part of speech, definition, language group, level |
 | `scripts/build.mjs` | Copies an allowlist of files into `_site/` |
+| `scripts/fetch-voice-assets.mjs` | Downloads the pinned Kokoro model files into `_site/voice-assets/` and verifies every file's SHA-256 |
 
 `voice-service.js` exposes a small status object (`phase`, `engine`, `label`, `percent`, `detail`, `fallback`) that the UI subscribes to. That is what drives the download panel and the voice status line.
 
@@ -127,7 +130,9 @@ Each entry in `words.json` looks like this:
 `.github/workflows/pages.yml` runs on every push to `main`:
 
 1. **Test:** `npm test`, then `npm run build`.
-2. **Deploy:** builds `_site/` and publishes it with the official GitHub Pages actions.
+2. **Deploy:** builds `_site/`, adds the self-hosted voice model with `npm run fetch-voice-assets`, and publishes it with the official GitHub Pages actions.
+
+The Kokoro model (Apache-2.0, pinned to one Hugging Face revision) is downloaded during the deploy and is **not committed to git**, which keeps the repository small. A checksum mismatch fails the deploy. Its license notice is published at `voice-assets/NOTICE.txt` on the site.
 
 Pull requests run the tests only. The workflow can also be started by hand from the **Actions** tab. If a test fails, nothing deploys and the last good version stays live.
 
@@ -152,6 +157,7 @@ gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 ├── docs/                                README screenshots
 ├── scripts/
 │   ├── build.mjs                        Stages the site into _site/
+│   ├── fetch-voice-assets.mjs           Adds the verified voice model at deploy time
 │   └── denylist_guard.py                Repository scanning helper
 ├── tests/                               Word-bank and voice tests
 └── .github/workflows/                   pages.yml, denylist-guard.yml

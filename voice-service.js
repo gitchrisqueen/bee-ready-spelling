@@ -23,6 +23,30 @@ const AMBIGUOUS=new Set(['learned','dogged']);
 const PREFERRED_KOKORO_URL='https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
 // Match Piper's WASM assets (1.18.0) instead of resolving the latest runtime.
 const PREFERRED_PIPER_URL='https://esm.sh/@mintplex-labs/piper-tts-web@1.0.5?bundle&deps=onnxruntime-web@1.18.0';
+const HF_MODEL_PREFIX=`https://huggingface.co/${modelId}/resolve/main/`;
+let selfHostPatched=false;
+// The model files are copied into the site at deploy time (scripts/fetch-voice-assets.mjs).
+// kokoro-js hardcodes its Hugging Face URLs, so requests for exactly that model are redirected
+// to this site. A missing or failing local file falls back to Hugging Face for that request.
+async function useSelfHostedModel(){
+  if(typeof location==='undefined'||typeof globalThis.fetch!=='function') return false;
+  const base=new URL(`./voice-assets/models/${modelId}/`,import.meta.url).href;
+  try{if(!(await globalThis.fetch(`${base}config.json`,{method:'HEAD'})).ok) return false;}catch{return false;}
+  if(selfHostPatched) return true;
+  const original=globalThis.fetch.bind(globalThis);
+  globalThis.fetch=async(input,init)=>{
+    const isText=typeof input==='string'||input instanceof URL;
+    const url=isText?String(input):input?.url;
+    if(url&&url.startsWith(HF_MODEL_PREFIX)){
+      try{
+        const res=await original(base+url.slice(HF_MODEL_PREFIX.length).split('?')[0],isText?init:undefined);
+        if(res.ok) return res;
+      }catch{}
+    }
+    return original(input,init);
+  };
+  selfHostPatched=true;return true;
+}
 function validSettings(data){return {
   voiceId: VOICES.some(v=>v.id===data?.voiceId)?data.voiceId:DEFAULT_SETTINGS.voiceId,
   speedId: SPEEDS.some(v=>v.id===data?.speedId)?data.speedId:DEFAULT_SETTINGS.speedId,
@@ -89,6 +113,7 @@ export class BeeVoiceService {
       this._status('preparing','kokoro','Loading the natural voice engine…',null,'The first download may be large.');
       const {KokoroTTS}=await this.importKokoro();
       if(!KokoroTTS?.from_pretrained) throw new Error('The Kokoro library did not load.');
+      await useSelfHostedModel();
       // WASM works on a wider range of iPads than WebGPU. Use quantized weights.
       const tts=await KokoroTTS.from_pretrained(modelId,{dtype:'q8',device:'wasm',progress_callback:p=>this._fileProgress('kokoro',p)});
       this.kokoro=tts;

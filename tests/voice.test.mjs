@@ -99,3 +99,35 @@ test('cancelled Kokoro inference rejection never starts Piper',async()=>{
  assert.equal(await speaking,'cancelled');
  assert.equal(piperCalls,0);
 });
+
+test('model requests go to this site when a self-hosted copy exists, with per-request fallback',async()=>{
+ const urls=[];let localOk=true;
+ globalThis.location={href:'https://example.test/app/'};
+ const realFetch=globalThis.fetch;
+ globalThis.fetch=async(input)=>{const u=String(input);urls.push(u);return {ok:u.includes('/voice-assets/')?localOk:true};};
+ try{
+  const model='https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/';
+  const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>({KokoroTTS:{from_pretrained:async()=>{
+   await globalThis.fetch(`${model}onnx/model_quantized.onnx`);
+   await globalThis.fetch('https://huggingface.co/other/model/resolve/main/x.bin');
+   return {generate:async()=>({toBlob:()=>new Blob(['a'])})};
+  }}})});
+  assert.equal(await svc.prepare(),'kokoro');
+  assert.ok(urls.some(u=>/\/voice-assets\/models\/onnx-community\/Kokoro-82M-v1\.0-ONNX\/onnx\/model_quantized\.onnx$/.test(u)));
+  assert.ok(urls.includes('https://huggingface.co/other/model/resolve/main/x.bin'),'unrelated URLs are untouched');
+  urls.length=0;localOk=false;
+  await globalThis.fetch(`${model}tokenizer.json?download=1`);
+  assert.equal(urls.at(-1),`${model}tokenizer.json?download=1`,'falls back to Hugging Face when the local file fails');
+ }finally{globalThis.fetch=realFetch;delete globalThis.location;}
+});
+
+test('no redirect when no self-hosted copy exists',async()=>{
+ globalThis.location={href:'https://example.test/'};
+ const realFetch=globalThis.fetch;
+ // Module-level patch from the previous test may already be installed; only assert on a fresh HEAD miss.
+ globalThis.fetch=async()=>({ok:false});
+ try{
+  const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>({KokoroTTS:{from_pretrained:async()=>({generate:async()=>({toBlob:()=>new Blob(['a'])})})}})});
+  assert.equal(await svc.prepare(),'kokoro');
+ }finally{globalThis.fetch=realFetch;delete globalThis.location;}
+});

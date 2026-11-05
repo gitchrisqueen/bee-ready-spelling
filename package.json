@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --check app.js && node --check voice-service.js && node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
+    "fetch-voice-assets": "node scripts/fetch-voice-assets.mjs _site",
     "serve": "python3 -m http.server 8080"
   },
   "engines": {

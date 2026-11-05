@@ -49,6 +49,8 @@ jobs:
           node-version: '22'
       - name: Build static site
         run: npm run build
+      - name: Add self-hosted voice model (pinned and checksum-verified)
+        run: npm run fetch-voice-assets
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
