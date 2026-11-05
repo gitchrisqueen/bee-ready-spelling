@@ -1,56 +1,178 @@
-# Bee Ready | Spelling Bee Practice
+<div align="center">
 
-A no-login, mobile-friendly spelling bee practice site for an eight-year-old, containing **1,155 unique words** from the provided spelling-bee study booklet (**911 Study + 244 Challenge**). Includes definitions, the original language-group categories, clue requests, random rounds, oral/typed modes, missed-word review, voice selection, progress indicators, and PDFs for printing.
+# 🐝 Bee Ready
 
-## How to use
+**Spelling bee practice for any speller. Hear a word, ask for clues, and spell it like a champion.**
 
-Visit the deployed GitHub Pages site, choose a word count and pool, and start practicing. All rounds are generated locally; no account is needed. Local practice history and voice settings are stored **per browser and domain**. The original `chatgpt.site` instance has separate local history and is not automatically synced with this GitHub Pages version.
+[**▶ Open the live site**](https://gitchrisqueen.github.io/bee-ready-spelling/)
 
-## Speech
+[![Deploy to GitHub Pages](https://github.com/gitchrisqueen/bee-ready-spelling/actions/workflows/pages.yml/badge.svg)](https://github.com/gitchrisqueen/bee-ready-spelling/actions/workflows/pages.yml)
+![Words](https://img.shields.io/badge/words-1%2C155-f5b700)
+![No login](https://img.shields.io/badge/account-not%20required-6c4fc7)
+![Static site](https://img.shields.io/badge/backend-none-2b2155)
 
-The application attempts **Kokoro** neural TTS first, then **Piper**, then built-in **device speech**. Four American English speaker styles are selectable in Kokoro; Piper provides two backup speakers, so same-gender styles share a backup voice. The natural voices download models on demand; the UI shows file-by-file progress when the download library exposes totals, plus an indeterminate loading indicator otherwise. The user can choose device speech without a model download. The first neural playback can take time, fail on low-memory devices, or require another tap on Safari after a download.
+<img src="docs/screenshot-desktop.png" alt="Bee Ready home page on a desktop browser, showing the practice round builder" width="820">
 
-The app imports pinned browser libraries via third-party CDNs and fetches models from their providers. No API key or TTS subscription is used, but an Internet connection is necessary for first-time neural use. The model providers' availability and offline persistence are outside this repository's control. This is practice audio, **not an official competition pronunciation authority**; use a grown-up and dictionary for ambiguous or unfamiliar pronunciations.
+</div>
 
-## Development
+---
 
-Requirements: Node.js 22+ for the optional tests and build, or any static file server for development. No npm dependencies need to be installed. The optional `npm run serve` command requires Python 3.
+## Contents
 
-```bash
-npm test
-npm run build
-npm run serve
+- [For spellers and grown-ups](#for-spellers-and-grown-ups)
+- [Speech and voices](#speech-and-voices)
+- [For developers](#for-developers)
+- [Deployment](#deployment)
+- [Repository layout](#repository-layout)
+- [Testing and known limits](#testing-and-known-limits)
+- [Content and license](#content-and-license)
+
+## For spellers and grown-ups
+
+Open the site, pick how many words you want, and start. There is nothing to install and no account to create.
+
+| | |
+|---|---|
+| **1,155 words** | 911 Study words and 244 Challenge words, each with a definition and its language group. |
+| **Random rounds** | Choose 5, 10, 15, 20 or your own number. Draw from all words, Study only, Challenge only, or words you missed. |
+| **Two ways to answer** | *Type the letters*, or *say it out loud* with a grown-up who reveals the spelling and marks it. |
+| **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. |
+| **Review missed words** | Words you miss are saved so you can practice them again. |
+| **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. |
+| **Printable PDFs** | A practice workbook, an alphabetical list and a definitions reference. |
+| **Phone and tablet ready** | The layout adapts to phones, iPads and desktops. |
+
+<p align="center">
+  <img src="docs/screenshot-phone.png" alt="Bee Ready on a phone" width="260">
+</p>
+
+### Printables
+
+- [Practice workbook](assets/Spelling_Bee_Practice_Workbook.pdf)
+- [Alphabetical list](assets/Spelling_Bee_Alphabetical_List.pdf)
+- [Definitions reference](assets/Spelling_Bee_Definitions_Reference.pdf)
+
+### Your progress stays on your device
+
+Practice history and voice settings are saved in your browser's local storage. Nothing is sent to a server. History is separate for each browser and each web address, and the **Grown-ups** tab has a button to clear it.
+
+## Speech and voices
+
+Bee Ready tries three speech engines in order and moves to the next automatically if one fails.
+
+```
+Kokoro (neural)  →  Piper (neural backup)  →  Device speech
 ```
 
-Open `http://localhost:8080/` after running `npm run serve`. `npm run build` writes the GitHub Pages deployment content to `_site/`.
+- **Kokoro** gives four American English voices: two female, two male.
+- **Piper** is the backup. It has two speakers, so voices of the same gender share one backup.
+- **Device speech** uses the browser's built-in voice and needs no download. You can choose it directly.
 
-## Automatic deployment
+Natural voices download only when you ask for them (**Voices → Prepare natural voices**). A progress panel shows each model file as it downloads, and falls back to an indeterminate indicator when the library does not report totals. Browsers usually cache the files afterward when storage allows.
 
-`.github/workflows/pages.yml` runs on every push to `main`, on pull requests (tests only), and on manual dispatch. It runs the voice-fallback tests and word-bank checks, builds a minimal `_site/` folder, and deploys it with the official GitHub Pages Actions.
+**Good to know**
 
-**One-time repository setup:** In GitHub repository **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**. For a new repository, you may also create Pages with `gh api -X POST repos/gitchrisqueen/bee-ready-spelling/pages -f build_type=workflow`. The authenticated user must have Pages administration rights. Once configured, new commits to `main` redeploy automatically.
+- The first neural download needs an internet connection and is tens of megabytes.
+- The first playback can take a moment. Low-memory devices may fail to load a model, and Safari can ask for a second tap after a download. The app then falls back as described above.
+- No API key or subscription is used. Libraries and models load from third-party CDNs, so their availability is outside this repository's control.
+- This is practice audio, **not an official competition pronunciation authority**. Check a dictionary for unfamiliar or ambiguous words.
 
-Expected address after successful deployment (not active until verified): `https://gitchrisqueen.github.io/bee-ready-spelling/`
+## For developers
 
-## Operations
+Bee Ready is a dependency-free static site: plain HTML, CSS and JavaScript modules. There is no framework, bundler or backend.
 
-The repository owner maintains this site. Inspect the Actions tab for test and deployment logs. A failed test prevents deployment, leaving the last successful site in place. To roll back a code change, use `git revert <commit>` on `main` and push; the same workflow tests and deploys the reversal. For a failed initial deployment, fix the reported Actions error before retrying. GitHub Pages serves only static files; there is no paid application backend.
+**Requirements:** Node.js 22 or newer for tests and the build. Python 3 only for the optional local server. No `npm install` step is needed.
 
-The included Node tests mock model downloads and speech playback. They verify fallback logic, cancellation, retry caching, and content; they do not prove physical iPad or Safari playback. Natural voices depend on third-party downloads and available device memory.
+```bash
+git clone https://github.com/gitchrisqueen/bee-ready-spelling.git
+cd bee-ready-spelling
+
+npm test          # syntax checks, word-bank checks, mocked voice tests
+npm run build     # stages the deployable site into _site/
+npm run serve     # serves the repo at http://localhost:8080/
+```
+
+You can also use any static file server. Open `index.html` through a server, not from `file://`, so the voice modules and `words.json` load.
+
+### How it fits together
+
+| File | Role |
+|---|---|
+| `index.html`, `styles.css`, `app.js` | Responsive UI, round logic, history and the word bank |
+| `voice-service.js` | Speech engine selection, on-demand model download, progress events, cancellation and fallback |
+| `words.json` | The complete word data: word, part of speech, definition, language group, level |
+| `scripts/build.mjs` | Copies an allowlist of files into `_site/` |
+
+`voice-service.js` exposes a small status object (`phase`, `engine`, `label`, `percent`, `detail`, `fallback`) that the UI subscribes to. That is what drives the download panel and the voice status line.
+
+### Data format
+
+Each entry in `words.json` looks like this:
+
+```json
+{
+  "id": 1,
+  "word": "abdicate",
+  "part": "v",
+  "definition": "To give up a throne or an important responsibility.",
+  "group": "Latin",
+  "level": "Study"
+}
+```
+
+`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology.
+
+## Deployment
+
+`.github/workflows/pages.yml` runs on every push to `main`:
+
+1. **Test:** `npm test`, then `npm run build`.
+2. **Deploy:** builds `_site/` and publishes it with the official GitHub Pages actions.
+
+Pull requests run the tests only. The workflow can also be started by hand from the **Actions** tab. If a test fails, nothing deploys and the last good version stays live.
+
+A second workflow, `denylist-guard`, scans the tree and history on each push and pull request.
+
+**Setup for a fork:** in **Settings → Pages → Build and deployment → Source**, choose **GitHub Actions**. Or run:
+
+```bash
+gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
+```
+
+**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert.
 
 ## Repository layout
 
-- `index.html`, `styles.css`, `app.js`: responsive UI
-- `voice-service.js`: free voice system, fallbacks and download progress
-- `words.json`: the complete 1,155-word reference data
-- `assets/`: three generated printable PDFs
-- `scripts/build.mjs`: prepares the public site from an allowlisted set of files
-- `tests/`: word-bank and mock speech tests
-- `.github/workflows/pages.yml`: GitHub Pages deployment workflow
-- `CODEX_HANDOFF.md`: precise instructions for an authenticated Codex session to publish
+```
+.
+├── index.html · styles.css · app.js     UI and practice logic
+├── voice-service.js                     Kokoro → Piper → device speech
+├── words.json                           1,155-word data set
+├── assets/                              Three printable PDFs
+├── docs/                                README screenshots
+├── scripts/
+│   ├── build.mjs                        Stages the site into _site/
+│   └── denylist_guard.py                Repository scanning helper
+├── tests/                               Word-bank and voice tests
+└── .github/workflows/                   pages.yml, denylist-guard.yml
+```
 
-## Provenance and limitations
+## Testing and known limits
 
-This repository package was reconstructed as a **standalone Bee Ready v2** from the original spelling-bee word material and generated PDF reference. It is **not a checkout of the first ChatGPT Sites project's private production source**. It does not update or redirect that original `chatgpt.site` URL. The written example sentences are mostly generic study examples, not official sentence clues. The language grouping in the booklet should not be mistaken for a complete etymology. Grades are simplified; accents/punctuation are not strictly graded by the typed-answer comparison.
+`npm test` runs 14 automated tests. The voice tests **mock** model downloads and speech playback, so they cover fallback order, cancellation, retry caching and content checks. They do not prove playback on a physical iPhone or iPad or in Safari.
 
-The original scan is not committed. Public repository visibility exposes the reconstructed code, word data, and generated PDFs; it does not grant a license to reuse third-party source material. There is intentionally no open-source license on this project.
+Beyond the automated tests, the deployed site has been exercised in desktop Chromium: a real Kokoro download and playback, Piper taking over when Kokoro was blocked, device speech when both were blocked, and phone and tablet viewport widths with no horizontal overflow. Real-device checks on iOS and iPadOS are still open.
+
+Other limits:
+
+- Example sentences are generic study examples, not official competition clues.
+- Definitions are simplified study explanations, not dictionary entries. Competition rules and word lists vary by organizer.
+- The language group is a label from the booklet. Many words passed through several languages.
+- Typed answers are compared simply; accents and punctuation are not graded strictly.
+- The word *learned* and a few others can be pronounced differently depending on meaning, so confirm with a grown-up.
+
+## Content and license
+
+Bee Ready is a standalone static app built from original spelling-bee study material and generated PDF references. The source scan is not included in this repository.
+
+There is intentionally **no open-source license**. Viewing the code, word data and PDFs does not grant permission to reuse the underlying third-party source material.
