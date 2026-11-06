@@ -131,3 +131,62 @@ test('no redirect when no self-hosted copy exists',async()=>{
   assert.equal(await svc.prepare(),'kokoro');
  }finally{globalThis.fetch=realFetch;delete globalThis.location;}
 });
+
+function withClipFetch(handler,fn){
+ return async()=>{
+  const realFetch=globalThis.fetch;const requested=[];
+  globalThis.location={href:'https://example.test/'};
+  globalThis.fetch=async(url)=>{requested.push(String(url));return handler(String(url));};
+  try{await fn(requested);}finally{globalThis.fetch=realFetch;delete globalThis.location;}
+ };
+}
+const okClip=()=>({ok:true,status:200,blob:async()=>new Blob(['mp3-bytes'])});
+
+test('a recorded clip plays instantly with the right voice and speed, without loading any model',withClipFetch(okClip,async(requested)=>{
+ let loaded=false;const events=[];
+ const svc=new BeeVoiceService({settings:{voiceId:'bella',speedId:'slow',mode:'auto'},onStatus:e=>events.push(e),loadKokoro:async()=>{loaded=true;throw Error('must not load');}});
+ assert.equal(await svc.speak('Zucchini',{kind:'word',instant:true}),'clip');
+ assert.match(requested[0],/\/clips\/af_bella\/zucchini\.mp3$/);
+ assert.equal(svc.player.playbackRate,0.7);
+ assert.equal(loaded,false);
+ assert.ok(events.some(e=>e.engine==='clip'&&e.phase==='speaking'));
+}));
+
+test('a prefetched clip starts with no extra network request',withClipFetch(okClip,async(requested)=>{
+ const svc=new BeeVoiceService({settings:{voiceId:'heart',mode:'auto'}});
+ await svc.prefetch('plaza');
+ assert.equal(requested.length,1);
+ assert.equal(await svc.speak('plaza',{kind:'word',instant:true}),'clip');
+ assert.equal(requested.length,1);
+}));
+
+test('the voice sample uses a recorded clip',withClipFetch(okClip,async(requested)=>{
+ const svc=new BeeVoiceService({settings:{voiceId:'michael',mode:'auto'}});
+ assert.equal(await svc.preview(),'clip');
+ assert.match(requested[0],/\/clips\/am_michael\/_preview\.mp3$/);
+}));
+
+test('a word with no clip speaks with the device voice at once instead of waiting for a model',withClipFetch(()=>({ok:false,status:404}),async()=>{
+ let loaded=false;
+ const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>{loaded=true;throw Error('must not load');}});
+ assert.equal(await svc.speak('brandnewword',{kind:'word',instant:true}),'device');
+ assert.equal(await svc.speak('In the story, the character decided to run.',{kind:'sentence',instant:true}),'device');
+ assert.equal(loaded,false);
+}));
+
+test('a missing clip still uses the live engine when the caller does not ask for instant speech',withClipFetch(()=>({ok:false,status:404}),async()=>{
+ const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>({KokoroTTS:{from_pretrained:async()=>({generate:async()=>({toBlob:()=>new Blob(['a'])})})}})});
+ assert.equal(await svc.speak('plaza',{kind:'word'}),'kokoro');
+}));
+
+test('a network error on the clip never blocks speech',withClipFetch(()=>{throw new TypeError('offline');},async()=>{
+ const svc=new BeeVoiceService({settings:{mode:'auto'}});
+ assert.equal(await svc.speak('plaza',{kind:'word',instant:true}),'device');
+}));
+
+test('clip keys are stable and filename-safe',async()=>{
+ const {clipKey,PREVIEW_TEXT}=await import('../voice-service.js');
+ assert.equal(clipKey('Zucchini'),'zucchini');
+ assert.equal(clipKey(' jalapeño '),'jalape%C3%B1o');
+ assert.equal(clipKey(PREVIEW_TEXT),'_preview');
+});

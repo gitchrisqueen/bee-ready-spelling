@@ -38,7 +38,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 | **Two ways to answer** | *Type the letters*, or *say it out loud* with a grown-up who reveals the spelling and marks it. |
 | **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. |
 | **Review missed words** | Words you miss are saved so you can practice them again. |
-| **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. |
+| **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. Every word plays instantly from a recording. |
 | **Printable PDFs** | A practice workbook, an alphabetical list and a definitions reference. |
 | **Phone and tablet ready** | The layout adapts to phones, iPads and desktops. |
 
@@ -58,23 +58,23 @@ Practice history and voice settings are saved in your browser's local storage. N
 
 ## Speech and voices
 
-Bee Ready tries three speech engines in order and moves to the next automatically if one fails.
+Every word, and the voice sample, is a short **pre-recorded clip** made with the Kokoro neural voice, so it plays the moment you tap it. There is nothing to download first, and it works on any phone or tablet.
 
 ```
-Kokoro (neural)  →  Piper (neural backup)  →  Device speech
+Recorded clip  →  live Kokoro  →  Piper  →  Device speech
+  (instant)        (optional)     (backup)   (always works)
 ```
 
-- **Kokoro** gives four American English voices: two female, two male.
-- **Piper** is the backup. It has two speakers, so voices of the same gender share one backup.
-- **Device speech** uses the browser's built-in voice and needs no download. You can choose it directly.
-
-Natural voices download only when you ask for them (**Voices → Prepare natural voices**). A progress panel shows each model file as it downloads, and falls back to an indeterminate indicator when the library does not report totals. Browsers usually cache the files afterward when storage allows.
+- **Recorded clips** cover all 1,155 words in four American English voices (two female, two male). Slow and Clear speeds change the playback speed of the same clip.
+- **No clip yet?** A word that has no recording (for example one just added), and every sentence clue, speaks right away with the **device voice**. A child never waits for a model.
+- **Live voice (optional).** *Add live voice for sentences* downloads the Kokoro model (about 90 MB, once) so sentences and new words can be spoken in the natural voice. It can be slow on phones. If it fails, Piper and then the device voice take over automatically.
+- **Device voice only** skips everything above and uses the browser's built-in voice.
 
 **Good to know**
 
-- The first neural download needs an internet connection and is about 88 MB for the Kokoro model. The model files are served from this site itself (see below), so there is no third-party hop for the big download.
-- The first playback can take a moment. Low-memory devices may fail to load a model, and Safari can ask for a second tap after a download. The app then falls back as described above.
-- No API key or subscription is used. The speech libraries (`kokoro-js`, the ONNX runtime) and the Piper backup load from third-party CDNs, so their availability is outside this repository's control. If the site's own copy of the Kokoro model is missing, the app falls back to Hugging Face automatically.
+- The Kokoro model files are served from this site itself, with Hugging Face as a per-request fallback. The speech libraries (`kokoro-js`, the ONNX runtime) and the Piper backup load from third-party CDNs.
+- No API key or subscription is used.
+- Safari can ask for a second tap before it plays audio. The app shows a message when that happens.
 - This is practice audio, **not an official competition pronunciation authority**. Check a dictionary for unfamiliar or ambiguous words.
 
 ## For developers
@@ -101,12 +101,32 @@ You can also use any static file server. Open `index.html` through a server, not
 | File | Role |
 |---|---|
 | `index.html`, `styles.css`, `app.js` | Responsive UI, round logic, history and the word bank |
-| `voice-service.js` | Speech engine selection, on-demand model download, progress events, cancellation and fallback |
+| `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
+| `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
+| `clips/` | Pre-recorded word clips, one folder per voice |
 | `words.json` | The complete word data: word, part of speech, definition, language group, level |
 | `scripts/build.mjs` | Copies an allowlist of files into `_site/` |
 | `scripts/fetch-voice-assets.mjs` | Downloads the pinned Kokoro model files into `_site/voice-assets/` and verifies every file's SHA-256 |
 
 `voice-service.js` exposes a small status object (`phase`, `engine`, `label`, `percent`, `detail`, `fallback`) that the UI subscribes to. That is what drives the download panel and the voice status line.
+
+### Adding or changing words
+
+Edit `words.json` and push to `main`. Two things happen automatically:
+
+1. The site deploys right away. New words work immediately, spoken by the device voice.
+2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words in all four voices, commits them under `clips/`, and redeploys. Removed words have their clips pruned.
+
+To generate clips on your own machine instead (needs Node 22 and `ffmpeg`):
+
+```bash
+cd tools/clips && npm ci
+node generate.mjs                 # all voices; only missing or changed clips
+node generate.mjs --voice af_heart --limit 10   # try a few
+node generate.mjs --prune         # also delete clips for removed words
+```
+
+A clip is `clips/<voice>/<word>.mp3` (lowercase, URL-encoded). A `manifest.json` per voice records a fingerprint of the text, voice, model revision and encoder settings, so a change to any of them regenerates that clip. The first full run takes a couple of hours on a laptop. Later runs only do what changed.
 
 ### Data format
 
@@ -136,7 +156,7 @@ The Kokoro model (Apache-2.0, pinned to one Hugging Face revision) is downloaded
 
 Pull requests run the tests only. The workflow can also be started by hand from the **Actions** tab. If a test fails, nothing deploys and the last good version stays live.
 
-A second workflow, `denylist-guard`, scans the tree and history on each push and pull request.
+`generate-clips` keeps the recordings in sync with `words.json`, and `denylist-guard` scans the tree and history on each push and pull request.
 
 **Setup for a fork:** in **Settings → Pages → Build and deployment → Source**, choose **GitHub Actions**. Or run:
 
@@ -151,7 +171,9 @@ gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 ```
 .
 ├── index.html · styles.css · app.js     UI and practice logic
-├── voice-service.js                     Kokoro → Piper → device speech
+├── voice-service.js                     Clips → Kokoro → Piper → device speech
+├── clips/                               Pre-recorded word clips (4 voices)
+├── tools/clips/                         Clip generator and its dependencies
 ├── words.json                           1,155-word data set
 ├── assets/                              Three printable PDFs
 ├── docs/                                README screenshots
@@ -160,7 +182,7 @@ gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 │   ├── fetch-voice-assets.mjs           Adds the verified voice model at deploy time
 │   └── denylist_guard.py                Repository scanning helper
 ├── tests/                               Word-bank and voice tests
-└── .github/workflows/                   pages.yml, denylist-guard.yml
+└── .github/workflows/                   pages.yml, generate-clips.yml, denylist-guard.yml
 ```
 
 ## Testing and known limits

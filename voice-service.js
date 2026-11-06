@@ -8,6 +8,11 @@ export const VOICES = Object.freeze([
   { id:'michael', label:'Miles', subtitle:'Calm and confident', gender:'Male', kokoro:'am_michael', piper:'en_US-ryan-medium' },
   { id:'fenrir', label:'Finn', subtitle:'Friendly and upbeat', gender:'Male', kokoro:'am_fenrir', piper:'en_US-ryan-medium' },
 ]);
+// Pre-recorded clips (see tools/clips) are looked up by this key, shared with the generator.
+export const PREVIEW_TEXT='Welcome to Bee Ready! Your word is sunshine.';
+export function clipKey(text){
+  return text===PREVIEW_TEXT?'_preview':encodeURIComponent(String(text).trim().normalize('NFC').toLowerCase());
+}
 export const SPEEDS = Object.freeze([
   { id:'normal', label:'Normal', value:1 },
   { id:'clear', label:'Clear', value:0.87 },
@@ -47,6 +52,7 @@ async function useSelfHostedModel(){
   };
   selfHostPatched=true;return true;
 }
+function clipsSupported(){return typeof fetch==='function'&&typeof location!=='undefined';}
 function validSettings(data){return {
   voiceId: VOICES.some(v=>v.id===data?.voiceId)?data.voiceId:DEFAULT_SETTINGS.voiceId,
   speedId: SPEEDS.some(v=>v.id===data?.speedId)?data.speedId:DEFAULT_SETTINGS.speedId,
@@ -71,8 +77,8 @@ export class BeeVoiceService {
     this.kokoro=null;this.piper=null;this.loadedPiperVoices=new Set();
     this.primaryPromise=null;this.secondaryPromise=null;
     this.activeEngine='device';this.failedEngines=new Set();
-    this.player=null;this.objectUrl=null;this.cache=new Map();this.sequence=0;
-    this.status={phase:'idle',engine:'device',label:'Ready. Natural voices load only if you choose them.',percent:null,detail:'',fallback:false};
+    this.player=null;this.objectUrl=null;this.cache=new Map();this.clips=new Map();this.sequence=0;
+    this.status={phase:'idle',engine:'clip',label:'Natural recorded voice ready. Every word plays instantly.',percent:null,detail:'',fallback:false};
     this._notify();
   }
   subscribe(fn){this.listeners.add(fn);fn(this.status);return ()=>this.listeners.delete(fn);}
@@ -87,7 +93,7 @@ export class BeeVoiceService {
     if(this.settings.mode==='device') this._status('ready','device','Device voice selected. Tap Hear my word or Preview voice to listen.');
     else if(this.kokoro) this._status('ready','kokoro','Kokoro natural voice is ready.');
     else if(this.piper) this._status('ready','piper','Piper backup voice is ready.');
-    else this._status('idle','device','Natural voices are optional. Choose Prepare voices when ready.');
+    else this._status('idle','clip','Natural recorded voice ready. Every word plays instantly.');
   }
   get voice(){return VOICES.find(v=>v.id===this.settings.voiceId)||VOICES[0];}
   get speed(){return SPEEDS.find(v=>v.id===this.settings.speedId)?.value||1;}
@@ -184,17 +190,17 @@ export class BeeVoiceService {
     if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}
     this.objectUrl=URL.createObjectURL(blob);
     const player=new Audio(this.objectUrl);
-    player.playbackRate=engine==='piper'?this.speed:1;
+    player.playbackRate=engine==='piper'||engine==='clip'?this.speed:1;
     if('preservesPitch' in player)player.preservesPitch=true;
     this.player=player;
-    player.onended=()=>{if(this.player===player){this.player=null;this._status('ready',engine,`${engine==='kokoro'?'Natural':'Backup'} voice ready.`);if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}}};
+    player.onended=()=>{if(this.player===player){this.player=null;this._status('ready',engine,`${engine==='piper'?'Backup':'Natural'} voice ready.`);if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}}};
     try{await player.play();}catch(e){
       if(e?.name==='NotAllowedError'){this._status('tap',engine,'Voice is ready. Tap Play once more to hear it.',null,'Safari may require a second tap after downloading audio.');return 'tap';}
       throw e;
     }
     if(token!==this.sequence){player.pause();return;}
     this.activeEngine=engine;
-    this._status('speaking',engine,`${engine==='kokoro'?'Kokoro':'Piper'} is speaking…`);
+    this._status('speaking',engine,engine==='clip'?'Playing the natural voice…':`${engine==='kokoro'?'Kokoro':'Piper'} is speaking…`);
   }
   _device(text,token){
     this.activeEngine='device';
@@ -214,13 +220,26 @@ export class BeeVoiceService {
     this._status('speaking','device','Using your device voice.',null,'Neural audio is not required.',this.settings.mode!=='device');
     return 'device';
   }
-  async speak(text,{kind='word',allowAmbiguous=false}={}){
+  async speak(text,{kind='word',allowAmbiguous=false,instant=false}={}){
     text=String(text??'').trim();if(!text)return 'empty';
     if(kind==='word'&&!allowAmbiguous&&AMBIGUOUS.has(text.toLowerCase())){
       this._status('adult','device','Ask your grown-up pronouncer for this word.',null,'Its pronunciation depends on meaning. Check the dictionary before practicing.');return 'adult';
     }
     this.stop();const token=this.sequence;
     if(this.settings.mode==='device')return this._device(text,token);
+    // Pre-recorded clips play at once. A cached clip starts without any await, which keeps iOS
+    // Safari's tap-to-play permission intact.
+    if(clipsSupported()&&(kind==='word'||text===PREVIEW_TEXT)){
+      let blob=this.clips.get(this._clipId(text));
+      if(blob===undefined){blob=await this._loadClip(text);if(token!==this.sequence)return 'cancelled';}
+      if(blob){
+        try{if(await this._playBlob(blob,token,'clip')==='tap')return 'tap';return 'clip';}
+        catch(err){console.info('Recorded clip failed, using live voice:',messageOf(err));}
+      }
+    }
+    // No clip (new word, sentence): never make a child wait for a model download or slow
+    // on-device generation. Speak with the device voice now unless a live engine is already loaded.
+    if(instant&&!this.kokoro&&!this.piper)return this._device(text,token);
     const preferred=await this.prepare();
     if(token!==this.sequence)return 'cancelled';
     if(preferred==='device')return this._device(text,token);
@@ -262,5 +281,22 @@ export class BeeVoiceService {
       return this._device(text,token);
     }
   }
-  async preview(){return this.speak('Welcome to Bee Ready! Your word is sunshine.',{kind:'sample'});}
+  _clipId(text){return `${this.voice.kokoro}|${clipKey(text)}`;}
+  async _loadClip(text){
+    const id=this._clipId(text);
+    if(this.clips.has(id))return this.clips.get(id);
+    if(!clipsSupported())return null;
+    let blob=null;
+    try{
+      const res=await fetch(new URL(`./clips/${this.voice.kokoro}/${clipKey(text)}.mp3`,import.meta.url));
+      if(res.ok){const b=await res.blob();if(b.size>0)blob=b;}
+      else if(res.status!==404)return null;
+    }catch{return null;}
+    this.clips.set(id,blob);
+    if(this.clips.size>300)this.clips.delete(this.clips.keys().next().value);
+    return blob;
+  }
+  // Warm a clip so the next Hear button plays with no wait.
+  prefetch(text){if(this.settings.mode==='device')return Promise.resolve();return this._loadClip(String(text).trim()).then(()=>{},()=>{});}
+  async preview(){return this.speak(PREVIEW_TEXT,{kind:'sample'});}
 }

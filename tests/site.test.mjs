@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -51,4 +51,16 @@ test('public source contains no account keys or user-login requirements', () => 
   assert.doesNotMatch(js,/Authorization:\s*Bearer\s+\S+/i);
   assert.match(js,/KokoroTTS/);
   assert.match(js,/SpeechSynthesisUtterance/);
+});
+
+test('every clip listed in a voice manifest exists on disk', () => {
+  const clipsDir = join(root, 'clips');
+  if (!existsSync(clipsDir)) return;
+  for (const voice of readdirSync(clipsDir)) {
+    const manifest = join(clipsDir, voice, 'manifest.json');
+    if (!existsSync(manifest)) continue;
+    for (const key of Object.keys(JSON.parse(readFileSync(manifest, 'utf8')))) {
+      assert.ok(existsSync(join(clipsDir, voice, `${key}.mp3`)), `${voice}/${key}.mp3 is listed but missing`);
+    }
+  }
 });

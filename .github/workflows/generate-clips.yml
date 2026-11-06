@@ -1,0 +1,65 @@
+name: Generate voice clips
+
+# Keeps the pre-recorded word clips in sync with words.json. Only new or changed words are
+# generated (see tools/clips/generate.mjs), so a normal run takes a few minutes. When clips
+# change, they are committed and the site is redeployed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - words.json
+      - voice-service.js
+      - tools/clips/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: generate-clips
+  cancel-in-progress: false
+
+jobs:
+  clips:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/clips/package-lock.json
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Install generator
+        working-directory: tools/clips
+        run: npm ci
+      - name: Cache Kokoro model
+        uses: actions/cache@v4
+        with:
+          path: tools/clips/node_modules/@huggingface/transformers/.cache
+          key: kokoro-model-1939ad2a8e416c0acfeecc08a694d14ef25f2231
+      - name: Generate missing or changed clips
+        working-directory: tools/clips
+        run: node generate.mjs --prune
+      - name: Commit new clips and redeploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$(git status --porcelain clips)" ]; then
+            echo "Clips already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add clips
+          git commit -m "Update pre-recorded voice clips"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          # Pushes made with GITHUB_TOKEN do not start other workflows, so start the deploy directly.
+          gh workflow run pages.yml --ref main

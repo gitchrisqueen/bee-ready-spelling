@@ -1,0 +1,7 @@
+{
+  "name": "bee-ready-clips",
+  "private": true,
+  "type": "module",
+  "description": "Generates the pre-recorded word clips. Not part of the deployed site.",
+  "dependencies": { "kokoro-js": "1.2.1" }
+}

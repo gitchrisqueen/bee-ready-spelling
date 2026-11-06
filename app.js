@@ -130,16 +130,17 @@ function showCurrent(){
   $('revealOral').classList.remove('hidden');$('gradeOral').classList.add('hidden');
   $('hearWord').disabled=false;
   document.querySelectorAll('[data-clue]').forEach(b=>b.disabled=false);
+  voiceService.prefetch(w.word);
 }
 function showClue(type){
   const w=currentWord();if(!w)return;
-  if(type==='repeat') {voiceService.select({speedId:'slow'});syncVoiceButtons();voiceService.speak(w.word,{kind:'word'});return;}
+  if(type==='repeat') {voiceService.select({speedId:'slow'});syncVoiceButtons();voiceService.speak(w.word,{kind:'word',instant:true});return;}
   const clueText = type==='definition'?`<strong>Definition</strong>${escapeHtml(w.definition)}`:
     type==='origin'?`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`:
     type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||'Word')}`:
     `<strong>In a sentence</strong>${escapeHtml(hideWord(sentenceFor(w),w.word))}`;
   $('clueResult').innerHTML=clueText;$('clueResult').hidden=false;
-  if(type==='sentence')voiceService.speak(sentenceFor(w),{kind:'sentence'});
+  if(type==='sentence')voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});
 }
 function markAnswer(correct){
   const w=currentWord();if(!w)return;
@@ -167,7 +168,7 @@ function finishRound(){
   $('practiceMissed').addEventListener('click',()=>{$('pool').value='missed';startRound();});
 }
 function initRound(){
-  $('hearWord').addEventListener('click',()=>{const w=currentWord();if(w)voiceService.speak(w.word,{kind:'word'});});
+  $('hearWord').addEventListener('click',()=>{const w=currentWord();if(w)voiceService.speak(w.word,{kind:'word',instant:true});});
   document.querySelectorAll('[data-clue]').forEach(btn=>btn.addEventListener('click',()=>showClue(btn.dataset.clue)));
   $('answerForm').addEventListener('submit',e=>{e.preventDefault();const w=currentWord();if(w)markAnswer(comparison($('answerInput').value)===comparison(w.word));});
   $('revealOral').addEventListener('click',()=>{
@@ -190,7 +191,7 @@ function renderWordBank(){
   const shown=list.slice(0,displayLimit);
   $('wordGrid').innerHTML=shown.length?shown.map(w=>`<article class="word-card"><div class="word-meta">${escapeHtml(w.group)} · ${w.level} · ${escapeHtml(POS[w.part]||'word')}</div><h3>${escapeHtml(w.word)}</h3><p>${escapeHtml(w.definition)}</p><div class="word-card-actions"><button class="mini-btn" data-say-id="${w.id}" aria-label="Hear ${escapeHtml(w.word)}">🔊 Listen</button><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer">Dictionary ↗</a></div></article>`).join(''):'<p>No words found. Try a different search.</p>';
   $('loadMore').classList.toggle('hidden',list.length<=displayLimit);
-  document.querySelectorAll('[data-say-id]').forEach(button=>button.addEventListener('click',()=>{const w=words.find(w=>w.id===Number(button.dataset.sayId));if(w)voiceService.speak(w.word,{kind:'word'});}));
+  document.querySelectorAll('[data-say-id]').forEach(button=>button.addEventListener('click',()=>{const w=words.find(w=>w.id===Number(button.dataset.sayId));if(w)voiceService.speak(w.word,{kind:'word',instant:true});}));
 }
 function initWordBank(){
   $('searchWord').addEventListener('input',()=>{displayLimit=44;renderWordBank();});
@@ -210,7 +211,7 @@ function initVoiceSettings(){
   $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
   $('speedChoices').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
   syncVoiceButtons();
-  document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();}));
+  document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w)voiceService.prefetch(w.word);}));
   document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({speedId:b.dataset.speed});syncVoiceButtons();}));
   document.querySelectorAll('input[name="engineMode"]').forEach(r=>r.addEventListener('change',()=>{if(r.checked){voiceService.select({mode:r.value});syncVoiceButtons();}}));
   $('prepareVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
@@ -220,10 +221,11 @@ function initVoiceSettings(){
   $('downloadRetry').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
   $('closeNotice').addEventListener('click',()=>{$('voiceDownload').classList.add('hidden');});
 }
+const engineName=e=>({clip:'Recorded',kokoro:'Kokoro',piper:'Piper'})[e]||'Device';
 function updateVoiceStatus(status){
   // Initial notification can happen before DOM creation, when the service is constructed.
   if(!document.getElementById('voiceStatus'))return;
-  $('voiceStatus').textContent=`${status.label}${status.detail?` ${status.detail}`:''} · Engine: ${status.engine==='kokoro'?'Kokoro':status.engine==='piper'?'Piper':'Device'}`;
+  $('voiceStatus').textContent=`${status.label}${status.detail?` ${status.detail}`:''} · Engine: ${engineName(status.engine)}`;
   const visible=['preparing','downloading','generating','switching','error','tap','adult'].includes(status.phase);
   if(visible){clearTimeout(noticeTimer);$('voiceDownload').classList.remove('hidden');}
   else if(['ready','speaking'].includes(status.phase)){
@@ -234,7 +236,7 @@ function updateVoiceStatus(status){
   }
   $('downloadLabel').textContent=status.label;
   $('downloadDetail').textContent=status.detail||'The app will keep working while this voice gets ready.';
-  $('downloadEngine').textContent=`Engine: ${status.engine==='kokoro'?'Kokoro':status.engine==='piper'?'Piper':'Device'}`;
+  $('downloadEngine').textContent=`Engine: ${engineName(status.engine)}`;
   const bar=$('downloadTrack');const fill=$('downloadFill');
   if(status.percent===null){bar.classList.add('indeterminate');bar.setAttribute('role','progressbar');bar.removeAttribute('aria-valuenow');fill.style.width='40%';$('downloadPercent').textContent='Working…';}
   else {bar.classList.remove('indeterminate');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','100');bar.setAttribute('aria-valuenow',String(Math.round(status.percent)));fill.style.width=`${status.percent}%`;$('downloadPercent').textContent=`${Math.round(status.percent)}% of current file`;}
