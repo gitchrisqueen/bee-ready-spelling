@@ -34,10 +34,11 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 | | |
 |---|---|
 | **1,155 words** | 911 Study words and 244 Challenge words, each with a definition and its language group. |
-| **Random rounds** | Choose 5, 10, 15, 20 or your own number. Draw from all words, Study only, Challenge only, or words you missed. |
+| **Random rounds** | Choose 5, 10, 15, 20 or your own number. Draw from all words, Study only, Challenge only, words you missed, or your starred words. |
 | **Two ways to answer** | *Type the letters*, or *say it out loud* with a grown-up who reveals the spelling and marks it. |
 | **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. |
 | **Review missed words** | Words you miss are saved so you can practice them again. |
+| **Star your own words** | Tap the ☆ on any word, in the word bank or during a round, to save it. Study and Challenge are the original booklet's fixed groups; the star is how you keep your own list. Filter the word bank to starred words only, or start a round from **My starred words**. |
 | **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. Every word plays instantly from a recording. |
 | **Printable PDFs** | A practice workbook, an alphabetical list and a definitions reference. |
 | **Phone and tablet ready** | The layout adapts to phones, iPads and desktops. |
@@ -54,7 +55,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 
 ### Your progress stays on your device
 
-Practice history and voice settings are saved in your browser's local storage. Nothing is sent to a server. History is separate for each browser and each web address, and the **Grown-ups** tab has a button to clear it.
+Practice history, starred words and voice settings are saved in your browser's local storage. Nothing is sent to a server. They are separate for each browser and each web address. Starred words are kept apart from practice history, so clearing one does not clear the other. The **Grown-ups** tab has a button to clear each.
 
 ## Speech and voices
 
@@ -87,7 +88,7 @@ Bee Ready is a dependency-free static site: plain HTML, CSS and JavaScript modul
 git clone https://github.com/gitchrisqueen/bee-ready-spelling.git
 cd bee-ready-spelling
 
-npm test          # syntax checks, word-bank checks, mocked voice tests
+npm test          # syntax checks, word-bank checks, starred-word tests, mocked voice tests
 npm run build     # stages the deployable site into _site/
 npm run serve     # serves the repo at http://localhost:8080/
 ```
@@ -101,6 +102,7 @@ You can also use any static file server. Open `index.html` through a server, not
 | File | Role |
 |---|---|
 | `index.html`, `styles.css`, `app.js` | Responsive UI, round logic, history and the word bank |
+| `stars.js` | Starred words: load, save, toggle and clear a set of word ids in `localStorage` (key `bee-ready-starred-v1`). Takes a storage object, so it is tested without a browser |
 | `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
 | `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
 | `clips/` | Pre-recorded word and sentence clips, one folder per voice |
@@ -226,6 +228,7 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 ```
 .
 ├── index.html · styles.css · app.js     UI and practice logic
+├── stars.js                             Starred words (saved only in this browser)
 ├── voice-service.js                     Clips → Kokoro → Piper → device speech
 ├── sentences.js                         Sentence lookup and fallback templates (shared by the app and the clip generator)
 ├── clips/                               Pre-recorded word and sentence clips (4 voices)
@@ -237,13 +240,13 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 │   ├── build.mjs                        Stages the site into _site/
 │   ├── fetch-voice-assets.mjs           Adds the verified voice model at deploy time
 │   └── denylist_guard.py                Repository scanning helper
-├── tests/                               Word-bank and voice tests
+├── tests/                               Word-bank, starred-word and voice tests
 └── .github/workflows/                   pages.yml, generate-clips.yml, denylist-guard.yml
 ```
 
 ## Testing and known limits
 
-`npm test` runs the automated tests in `tests/`. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
+`npm test` runs the automated tests in `tests/`. The starred-word tests check loading, saving, toggling and clearing against a fake storage object, including corrupt data and storage that refuses writes; they do not click through the page. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
 
 Manual checks, not part of CI: on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at 0.7×, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, but a full check of recorded sentences in a real browser is still open until the first full run has finished. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 
