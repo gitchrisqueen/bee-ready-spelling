@@ -236,3 +236,43 @@ test('a prefetched sentence clip needs no extra request when the clue is used',w
  assert.equal(await svc.speak('In our lesson, we learned more about aqueduct.',{kind:'sentence',instant:true}),'clip');
  assert.equal(requested.length,1);
 }));
+
+test('speedId changes the speed for that one clip call only; the saved speed and storage are untouched',withClipFetch(okClip,async()=>{
+ const realSet=globalThis.localStorage.setItem;const writes=[];
+ globalThis.localStorage.setItem=(k,v)=>{writes.push(k);return realSet(k,v);};
+ try{
+  const svc=new BeeVoiceService({settings:{voiceId:'heart',speedId:'normal',mode:'auto'}});
+  assert.equal(await svc.speak('plaza',{kind:'word',instant:true,speedId:'slow'}),'clip');
+  assert.equal(svc.player.playbackRate,0.7);
+  assert.equal(svc.settings.speedId,'normal');assert.equal(svc.speed,1);
+  assert.equal(await svc.speak('plaza',{kind:'word',instant:true}),'clip');
+  assert.equal(svc.player.playbackRate,1,'the next normal call uses the saved speed again');
+  assert.equal(await svc.speak('plaza',{kind:'word',instant:true,speedId:'not-a-speed'}),'clip');
+  assert.equal(svc.player.playbackRate,1,'an unknown speedId is ignored');
+  assert.deepEqual(writes,[],'speak() never writes localStorage');
+ }finally{globalThis.localStorage.setItem=realSet;}
+}));
+
+test('speedId also slows device speech for that call only',async()=>{
+ const rates=[];const realSpeak=globalThis.speechSynthesis.speak;
+ globalThis.speechSynthesis.speak=u=>rates.push(u.rate);
+ try{
+  const svc=new BeeVoiceService({settings:{voiceId:'heart',speedId:'clear',mode:'device'}});
+  await svc.speak('plaza',{kind:'word',speedId:'slow'});
+  await svc.speak('plaza',{kind:'word'});
+  assert.deepEqual(rates,[0.7,0.87]);assert.equal(svc.settings.speedId,'clear');
+ }finally{globalThis.speechSynthesis.speak=realSpeak;}
+});
+
+test('speedId reaches Kokoro and Piper, and the Kokoro cache keeps the speeds apart',async()=>{
+ const speeds=[];
+ const svc=new BeeVoiceService({settings:{voiceId:'heart',speedId:'normal',mode:'auto'},loadKokoro:async()=>({KokoroTTS:{from_pretrained:async()=>({generate:async(t,o)=>{speeds.push(o.speed);return{toBlob:()=>new Blob(['a'])};}})}})});
+ assert.equal(await svc.speak('plaza',{kind:'word'}),'kokoro');
+ assert.equal(await svc.speak('plaza',{kind:'word',speedId:'slow'}),'kokoro');
+ assert.equal(await svc.speak('plaza',{kind:'word'}),'kokoro');
+ assert.deepEqual(speeds,[1,0.7],'normal is cached; slow is generated once, separately');
+ assert.equal(svc.settings.speedId,'normal');
+ const piper=new BeeVoiceService({settings:{voiceId:'heart',speedId:'normal',mode:'auto'},loadKokoro:async()=>{throw Error('no');},loadPiper:async()=>({download:async()=>{},predict:async()=>new Blob(['p'])})});
+ assert.equal(await piper.speak('plaza',{kind:'word',speedId:'slow'}),'piper');
+ assert.equal(piper.player.playbackRate,0.7);assert.equal(piper.speed,1);
+});

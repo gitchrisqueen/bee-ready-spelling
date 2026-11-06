@@ -201,13 +201,13 @@ export class BeeVoiceService {
     if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}
     try{speechSynthesis.cancel();}catch{}
   }
-  async _playBlob(blob,token,engine){
+  async _playBlob(blob,token,engine,speed=this.speed){
     if(token!==this.sequence) return;
     if(this.player){this.player.pause();this.player=null;}
     if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}
     this.objectUrl=URL.createObjectURL(blob);
     const player=new Audio(this.objectUrl);
-    player.playbackRate=engine==='piper'||engine==='clip'?this.speed:1;
+    player.playbackRate=engine==='piper'||engine==='clip'?speed:1;
     if('preservesPitch' in player)player.preservesPitch=true;
     this.player=player;
     player.onended=()=>{if(this.player===player){this.player=null;this._status('ready',engine,`${engine==='piper'?'Backup':'Natural'} voice ready.`);if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}}};
@@ -219,14 +219,14 @@ export class BeeVoiceService {
     this.activeEngine=engine;
     this._status('speaking',engine,engine==='clip'?'Playing the natural voice…':`${engine==='kokoro'?'Kokoro':'Piper'} is speaking…`);
   }
-  _device(text,token){
+  _device(text,token,speed=this.speed){
     this.activeEngine='device';
     if(typeof speechSynthesis==='undefined'||typeof SpeechSynthesisUtterance==='undefined'){
       this._status('error','device','This browser does not support speech playback.',null,'Ask a grown-up to say the word.',true);
       return 'unavailable';
     }
     const utterance=new SpeechSynthesisUtterance(text);
-    utterance.lang='en-US';utterance.rate=this.speed;utterance.pitch=1;
+    utterance.lang='en-US';utterance.rate=speed;utterance.pitch=1;
     const voices=speechSynthesis.getVoices?.()||[];
     const us=voices.filter(v=>/^en[-_]US/i.test(v.lang));
     const other=voices.filter(v=>/^en/i.test(v.lang));
@@ -237,13 +237,15 @@ export class BeeVoiceService {
     this._status('speaking','device','Using your device voice.',null,'Neural audio is not required.',this.settings.mode!=='device');
     return 'device';
   }
-  async speak(text,{kind='word',allowAmbiguous=false,instant=false}={}){
+  // speedId (optional) overrides the saved speed for this call only. It never calls select() or writes storage.
+  async speak(text,{kind='word',allowAmbiguous=false,instant=false,speedId}={}){
     text=String(text??'').trim();if(!text)return 'empty';
+    const speed=SPEEDS.find(v=>v.id===speedId)?.value??this.speed;
     if(kind==='word'&&!allowAmbiguous&&AMBIGUOUS.has(text.toLowerCase())){
       this._status('adult','device','Ask your grown-up pronouncer for this word.',null,'Its pronunciation depends on meaning. Check the dictionary before practicing.');return 'adult';
     }
     this.stop();const token=this.sequence;
-    if(this.settings.mode==='device')return this._device(text,token);
+    if(this.settings.mode==='device')return this._device(text,token,speed);
     // Pre-recorded clips play at once. A cached clip starts without any await, which keeps iOS
     // Safari's tap-to-play permission intact.
     if(clipsSupported()&&(kind==='word'||kind==='sentence'||text===PREVIEW_TEXT)){
@@ -251,31 +253,31 @@ export class BeeVoiceService {
       let blob=this.clips.get(this._clipId(text,clipKind));
       if(blob===undefined){blob=await this._loadClip(text,clipKind);if(token!==this.sequence)return 'cancelled';}
       if(blob){
-        try{if(await this._playBlob(blob,token,'clip')==='tap')return 'tap';return 'clip';}
+        try{if(await this._playBlob(blob,token,'clip',speed)==='tap')return 'tap';return 'clip';}
         catch(err){console.info('Recorded clip failed, using live voice:',messageOf(err));}
       }
     }
     // No clip (new word, sentence): never make a child wait for a model download or slow
     // on-device generation. Speak with the device voice now unless a live engine is already loaded.
-    if(instant&&!this.kokoro&&!this.piper)return this._device(text,token);
+    if(instant&&!this.kokoro&&!this.piper)return this._device(text,token,speed);
     const preferred=await this.prepare();
     if(token!==this.sequence)return 'cancelled';
-    if(preferred==='device')return this._device(text,token);
+    if(preferred==='device')return this._device(text,token,speed);
     if(preferred==='kokoro'){
       try{
-        const cacheKey=`kokoro|${this.voice.kokoro}|${this.speed}|${text}`;
+        const cacheKey=`kokoro|${this.voice.kokoro}|${speed}|${text}`;
         let blob=this.cache.get(cacheKey);
         if(!blob){
           this._status('generating','kokoro','Creating natural speech…',null,'First use can take longer.');
-          const raw=await this.kokoro.generate(text,{voice:this.voice.kokoro,speed:this.speed});
+          const raw=await this.kokoro.generate(text,{voice:this.voice.kokoro,speed});
           blob=raw.toBlob();this.cache.set(cacheKey,blob);
           if(this.cache.size>35)this.cache.delete(this.cache.keys().next().value);
         }
         if(token!==this.sequence)return 'cancelled';
-        return await this._playBlob(blob,token,'kokoro')==='tap'?'tap':'kokoro';
+        return await this._playBlob(blob,token,'kokoro',speed)==='tap'?'tap':'kokoro';
       }catch(err){
         if(token!==this.sequence)return 'cancelled';
-        if(this.settings.mode==='device')return this._device(text,token);
+        if(this.settings.mode==='device')return this._device(text,token,speed);
         this._status('switching','piper','Kokoro playback failed. Trying Piper…',null,messageOf(err),true);
         this.failedEngines.add('kokoro');this.kokoro=null;
       }
@@ -291,12 +293,12 @@ export class BeeVoiceService {
         if(this.cache.size>35)this.cache.delete(this.cache.keys().next().value);
       }
       if(token!==this.sequence)return 'cancelled';
-      return await this._playBlob(blob,token,'piper')==='tap'?'tap':'piper';
+      return await this._playBlob(blob,token,'piper',speed)==='tap'?'tap':'piper';
     }catch(err){
       this.failedEngines.add('piper');
       this._status('switching','device','Switching to device voice…',null,messageOf(err),true);
       if(token!==this.sequence)return 'cancelled';
-      return this._device(text,token);
+      return this._device(text,token,speed);
     }
   }
   _clipId(text,kind){return `${this.voice.kokoro}|${kind==='sentence'?sentenceKey(text):clipKey(text)}`;}

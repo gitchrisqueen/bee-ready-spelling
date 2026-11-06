@@ -1,6 +1,7 @@
 import { BeeVoiceService, VOICES, SPEEDS } from './voice-service.js';
 import { sentenceFor } from './sentences.js';
 import { loadStars, saveStars, toggleStar, clearStars } from './stars.js';
+import { wordCardHtml, toggleText, toggleLabel } from './wordcard.js';
 const $ = id => document.getElementById(id);
 const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeText = value => String(value??'');
@@ -16,7 +17,7 @@ function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{
 function writeHistory(){try{localStorage.setItem(historyKey,JSON.stringify(history));}catch{} updateStats();}
 // Stars live in their own key (see stars.js). Reading `localStorage` can itself throw when storage is blocked, so go through store().
 function store(){try{return localStorage;}catch{return null;}}
-let history=getHistory();let stars=loadStars(store());let words=[];let currentRound=null;let displayLimit=44;let selectedCount=5;
+let history=getHistory();let stars=loadStars(store());let openCards=new Set();let words=[];let currentRound=null;let displayLimit=44;let selectedCount=5;
 let noticeTimer=0;let voiceService=new BeeVoiceService({onStatus:updateVoiceStatus});
 const appState={activeTab:'practice'};
 // Only ids that still exist in the word list count, so an old saved id can never inflate the number.
@@ -177,11 +178,24 @@ function onCardStar(btn){
   const left=document.querySelectorAll('#wordGrid [data-star-id]');
   (left.length?left[Math.min(at,left.length-1)]:$('starFilter')).focus();
 }
+// Open cards are remembered in memory only (not saved), so a re-render from search, filters or "Show more words" keeps them open.
+function toggleDetails(btn){
+  const id=Number(btn.dataset.detailsId),w=words.find(x=>x.id===id),panel=document.getElementById(btn.getAttribute('aria-controls'));if(!w||!panel)return;
+  const open=btn.getAttribute('aria-expanded')!=='true';
+  btn.setAttribute('aria-expanded',String(open));btn.setAttribute('aria-label',toggleLabel(w,open));btn.textContent=toggleText(open);panel.hidden=!open;
+  if(open)openCards.add(id);else openCards.delete(id);
+}
+// "Hear it slowly" passes speedId for this one call only, so the saved speed (Voices tab) is never changed.
+function hearFromCard(btn){
+  const w=words.find(x=>x.id===Number(btn.dataset.hearId));if(!w)return;
+  if(btn.dataset.hear==='sentence')voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});
+  else voiceService.speak(w.word,{kind:'word',instant:true,...(btn.dataset.hear==='slow'?{speedId:'slow'}:{})});
+}
 function renderWordBank(){
   if(!words.length)return;
   const list=wordResults();$('resultCount').textContent=`${list.length.toLocaleString()} words`;
   const shown=list.slice(0,displayLimit);
-  $('wordGrid').innerHTML=shown.length?shown.map(w=>`<article class="word-card"><div class="word-meta">${escapeHtml(w.group)} · ${w.level} · ${escapeHtml(POS[w.part]||'word')}</div><h3>${escapeHtml(w.word)}</h3><p>${escapeHtml(w.definition)}</p><div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${w.id}" aria-label="Hear ${escapeHtml(w.word)}">🔊 Listen</button><button class="star-btn" data-star-id="${w.id}" aria-pressed="${stars.has(w.id)}" aria-label="${escapeHtml(starLabel(w,stars.has(w.id)))}">${stars.has(w.id)?'★':'☆'}</button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer">Dictionary ↗</a></div></article>`).join(''):`<p>${$('starFilter').value==='starred'&&!starredWords().length?'No starred words yet. Tap the ☆ on any word to save it here.':'No words found. Try a different search.'}</p>`;
+  $('wordGrid').innerHTML=shown.length?shown.map(w=>wordCardHtml(w,POS,sentenceFor,{starred:stars.has(w.id),open:openCards.has(w.id),starLabel})).join(''):`<p>${$('starFilter').value==='starred'&&!starredWords().length?'No starred words yet. Tap the ☆ on any word to save it here.':'No words found. Try a different search.'}</p>`;
   $('loadMore').classList.toggle('hidden',list.length<=displayLimit);
   document.querySelectorAll('[data-say-id]').forEach(button=>button.addEventListener('click',()=>{const w=words.find(w=>w.id===Number(button.dataset.sayId));if(w)voiceService.speak(w.word,{kind:'word',instant:true});}));
 }
@@ -191,6 +205,7 @@ function initWordBank(){
   $('levelFilter').addEventListener('change',()=>{displayLimit=44;renderWordBank();});
   $('starFilter').addEventListener('change',()=>{displayLimit=44;renderWordBank();});
   $('wordGrid').addEventListener('click',e=>{const btn=e.target.closest('[data-star-id]');if(btn)onCardStar(btn);});
+  $('wordGrid').addEventListener('click',e=>{const t=e.target.closest('[data-details-id]');if(t)toggleDetails(t);const h=e.target.closest('[data-hear]');if(h)hearFromCard(h);});
   $('loadMore').addEventListener('click',()=>{displayLimit+=44;renderWordBank();});
 }
 function syncVoiceButtons(){

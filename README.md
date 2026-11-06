@@ -39,6 +39,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 | **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. |
 | **Review missed words** | Words you miss are saved so you can practice them again. |
 | **Star your own words** | Tap the ☆ on any word, in the word bank or during a round, to save it. Study and Challenge are the original booklet's fixed groups; the star is how you keep your own list. Filter the word bank to starred words only, or start a round from **My starred words**. |
+| **Word details** | In the word bank, tap **Details** on any card to see its part of speech, language group, booklet list (Study or Challenge) and practice sentence. Buttons there let you hear the word, hear it slowly, or hear the sentence. Hearing it slowly does not change your saved talking speed. Cards start closed, and open cards close again if you reload the page. |
 | **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. Every word plays instantly from a recording. |
 | **Printable PDFs** | A practice workbook, an alphabetical list and a definitions reference. |
 | **Phone and tablet ready** | The layout adapts to phones, iPads and desktops. |
@@ -88,7 +89,7 @@ Bee Ready is a dependency-free static site: plain HTML, CSS and JavaScript modul
 git clone https://github.com/gitchrisqueen/bee-ready-spelling.git
 cd bee-ready-spelling
 
-npm test          # syntax checks, word-bank checks, starred-word tests, mocked voice tests
+npm test          # syntax checks, word-bank checks, starred-word and word-card tests, mocked voice tests
 npm run build     # stages the deployable site into _site/
 npm run serve     # serves the repo at http://localhost:8080/
 ```
@@ -102,6 +103,7 @@ You can also use any static file server. Open `index.html` through a server, not
 | File | Role |
 |---|---|
 | `index.html`, `styles.css`, `app.js` | Responsive UI, round logic, history and the word bank |
+| `wordcard.js` | Builds the HTML for a word-bank card and its Details panel (part of speech, origin, booklet list, sentence, audio buttons). Pure functions with no DOM access, so they are tested without a browser |
 | `stars.js` | Starred words: load, save, toggle and clear a set of word ids in `localStorage` (key `bee-ready-starred-v1`). Takes a storage object, so it is tested without a browser |
 | `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
 | `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
@@ -109,6 +111,8 @@ You can also use any static file server. Open `index.html` through a server, not
 | `words.json` | The complete word data: word, part of speech, definition, language group, level |
 | `scripts/build.mjs` | Copies an allowlist of files into `_site/` |
 | `scripts/fetch-voice-assets.mjs` | Downloads the pinned Kokoro model files into `_site/voice-assets/` and verifies every file's SHA-256 |
+
+`speak()` takes an optional `speedId` (`normal`, `clear` or `slow`) that applies to that one call only. It never calls `select()` or writes `localStorage`, so the saved speed is unchanged; the word card's **Hear it slowly** button uses it.
 
 `voice-service.js` exposes a small status object (`phase`, `engine`, `label`, `percent`, `detail`, `fallback`) that the UI subscribes to. That is what drives the download panel and the voice status line.
 
@@ -229,6 +233,7 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 .
 ├── index.html · styles.css · app.js     UI and practice logic
 ├── stars.js                             Starred words (saved only in this browser)
+├── wordcard.js                          Word-bank card and Details panel markup
 ├── voice-service.js                     Clips → Kokoro → Piper → device speech
 ├── sentences.js                         Sentence lookup and fallback templates (shared by the app and the clip generator)
 ├── clips/                               Pre-recorded word and sentence clips (4 voices)
@@ -240,13 +245,13 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 │   ├── build.mjs                        Stages the site into _site/
 │   ├── fetch-voice-assets.mjs           Adds the verified voice model at deploy time
 │   └── denylist_guard.py                Repository scanning helper
-├── tests/                               Word-bank, starred-word and voice tests
+├── tests/                               Word-bank, starred-word, word-card and voice tests
 └── .github/workflows/                   pages.yml, generate-clips.yml, denylist-guard.yml
 ```
 
 ## Testing and known limits
 
-`npm test` runs the automated tests in `tests/`. The starred-word tests check loading, saving, toggling and clearing against a fake storage object, including corrupt data and storage that refuses writes; they do not click through the page. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
+`npm test` runs the automated tests in `tests/`. The word-card tests check the labels, text escaping, sentence fallback, every part of speech and unique panel ids on generated markup; they do not click through the page. The starred-word tests check loading, saving, toggling and clearing against a fake storage object, including corrupt data and storage that refuses writes; they do not click through the page. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
 
 Manual checks, not part of CI: on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at 0.7×, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, but a full check of recorded sentences in a real browser is still open until the first full run has finished. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 

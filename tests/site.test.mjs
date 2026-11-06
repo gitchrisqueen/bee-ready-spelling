@@ -152,3 +152,13 @@ test('star controls are in the page and wired up', () => {
   assert.match(read('scripts/build.mjs'), /'stars\.js'/);
   assert.match(read('package.json'), /node --check stars\.js/);
 });
+
+test('word details are wired up: module is built and syntax-checked, and app.js uses it', () => {
+  assert.match(read('scripts/build.mjs'), /'wordcard\.js'/);
+  assert.match(read('package.json'), /node --check wordcard\.js/);
+  const app = read('app.js');
+  assert.match(app, /from '\.\/wordcard\.js'/);
+  const hear = app.slice(app.indexOf('function hearFromCard'), app.indexOf('function renderWordBank'));
+  assert.match(hear, /speedId:'slow'/);
+  assert.ok(!hear.includes('select('), 'Hear it slowly must not change the saved speed');
+});

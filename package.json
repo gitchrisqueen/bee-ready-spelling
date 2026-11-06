@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Bee Ready spelling practice static site with Kokoro-Piper-device speech fallback",
   "scripts": {
-    "test": "node --check app.js && node --check voice-service.js && node --check sentences.js && node --check stars.js && node --test tests/*.test.mjs",
+    "test": "node --check app.js && node --check voice-service.js && node --check sentences.js && node --check stars.js && node --check wordcard.js && node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
     "fetch-voice-assets": "node scripts/fetch-voice-assets.mjs _site",
     "serve": "python3 -m http.server 8080"
