@@ -1,5 +1,8 @@
 // Practice sentences for the "In a sentence" clue. Shared by the app and the clip generator (tools/clips),
 // so the recorded audio always matches the text the child sees.
+//
+// The sentence for each word lives in words.json (the `sentence` field). The hand-written list and the
+// templates below are only a fallback for a word that does not have one yet (for example a word just added).
 const curated = {
   'school':'A school of fish swam past the reef.', 'guy':'A strong guy rope kept the tent steady.',
   'mole':'We enjoyed enchiladas covered in mole sauce.', 'calypso':'The rare calypso orchid bloomed in the forest.',
@@ -30,6 +33,7 @@ const curated = {
   'graffiti':'Artists painted colorful graffiti on the approved mural wall.'
 };
 export function sentenceFor(w){
+  if(typeof w.sentence==='string'&&w.sentence.trim())return w.sentence.trim();
   if(curated[w.word.toLowerCase()])return curated[w.word.toLowerCase()];
   const pos=w.part;
   if(pos==='v')return `In the story, the character decided to ${w.word}.`;

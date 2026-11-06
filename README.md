@@ -112,7 +112,7 @@ You can also use any static file server. Open `index.html` through a server, not
 
 ### Adding or changing words
 
-Edit `words.json` (or the practice sentences in `sentences.js`) and push to `main`. Two things happen automatically:
+Edit `words.json` (a word's practice sentence is its `sentence` field there) and push to `main`. Two things happen automatically:
 
 1. The site deploys right away. New words and new sentences work immediately, spoken by the device voice.
 2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words and sentences, one parallel job per voice, commits them under `clips/`, and redeploys. Removed words and replaced sentences have their old clips pruned. It also runs when `sentences.js`, `voice-service.js` or `tools/clips/` changes, and you can start it by hand from the **Actions** tab.
@@ -164,7 +164,7 @@ The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three cl
 |---|---|---|
 | `Model SHA-256 mismatch ... Refusing to generate` | The cached or downloaded model is not the pinned file. | Delete `tools/clips/node_modules/@huggingface/transformers/.cache` and run again. If it persists, the pinned Hugging Face revision may have changed or been removed. |
 | `Bump ENCODER` | You changed a generator setting without changing the `ENCODER` label. | Bump `ENCODER` in `generate.mjs` (see above). |
-| `refusing to prune N of M clips` | `words.json` lost more than 5% of its words, or you reworded many sentences in `sentences.js` (editing one of the fallback templates there replaces hundreds of sentences), or a naming change made old files look stale. The run is red but still records new clips and keeps the old ones. | Check `words.json` and `sentences.js`. If the change is intended, run again with `force_prune`; otherwise stale clips pile up toward the 250 MB cap. |
+| `refusing to prune N of M clips` | `words.json` lost more than 5% of its words, or you reworded many sentences at once, or a naming change made old files look stale. The run is red but still records new clips and keeps the old ones. | Check `words.json`. If the change is intended, run again with `force_prune`; otherwise stale clips pile up toward the 250 MB cap. |
 | Run red with `Stopped at the --max-minutes limit` | A voice used its 280 minutes. Finished clips were saved and committed. | Run **Generate voice clips** again to continue. |
 | Commit job warning `<voice> was not updated` and the run is red | That voice's files failed validation (for example a truncated manifest after a timeout). The other voices were still committed; this voice kept its old clips. | Run again; the voice is re-recorded from main. |
 | `FAILED <voice>/<key>` and `N clip(s) failed` | Individual words failed. The run is red, but every good clip is still committed. | Find the words in the generate step log and run again; only the failed clips are retried. |
@@ -189,11 +189,12 @@ Each entry in `words.json` looks like this:
   "definition": "To give up a throne or an important responsibility.",
   "group": "Latin",
   "level": "Study",
-  "scan_page": 15
+  "scan_page": 15,
+  "sentence": "<the practice sentence for this word>"
 }
 ```
 
-`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology. `scan_page` is the page in the source booklet and is not shown in the app.
+`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology. `scan_page` is the page in the source booklet and is not shown in the app. `sentence` is the practice sentence read aloud by the "In a sentence" clue (with the word blanked on screen). It must contain the word exactly once, as a whole word. A word without a `sentence` gets a generic fallback sentence from `sentences.js`, so add one when you add a word.
 
 ## Deployment
 
@@ -226,7 +227,7 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 .
 ├── index.html · styles.css · app.js     UI and practice logic
 ├── voice-service.js                     Clips → Kokoro → Piper → device speech
-├── sentences.js                         Practice sentences (shared by the app and the clip generator)
+├── sentences.js                         Sentence lookup and fallback templates (shared by the app and the clip generator)
 ├── clips/                               Pre-recorded word and sentence clips (4 voices)
 ├── tools/clips/                         Clip generator and its dependencies
 ├── words.json                           1,155-word data set

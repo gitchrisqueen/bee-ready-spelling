@@ -123,3 +123,19 @@ test('the workflow matrix takes its voices from VOICES, so no list can drift', (
   assert.match(workflow, /fromJSON\(needs\.plan\.outputs\.voices\)/);
   assert.match(workflow, /kokoro:'\(\[a-z_\]\+\)'/);
 });
+
+test('a stored sentence is used, and a word without one still gets a fallback sentence', async () => {
+  const { sentenceFor } = await import('../sentences.js');
+  assert.equal(sentenceFor({ word: 'plaza', part: 'n', sentence: ' We met in the plaza. ' }), 'We met in the plaza.');
+  assert.match(sentenceFor({ word: 'plaza', part: 'n' }), /plaza/);
+});
+
+test('every stored sentence uses its word exactly once, as a whole word', () => {
+  for (const w of words) {
+    if (typeof w.sentence !== 'string') continue;
+    const low = w.sentence.toLowerCase();
+    const word = w.word.toLowerCase();
+    assert.equal(low.split(word).length - 1, 1, `${w.word}: the word must appear once and inside no other word: ${w.sentence}`);
+    assert.match(w.sentence, /[.!?][”"]?$/, `${w.word}: sentence must end with . ! or ?`);
+  }
+});
