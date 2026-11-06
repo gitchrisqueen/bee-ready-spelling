@@ -46,9 +46,11 @@ async function useSelfHostedModel(){
     const isText=typeof input==='string'||input instanceof URL;
     const url=isText?String(input):input?.url;
     const rest=url&&url.startsWith(HF_MODEL_PREFIX)?url.slice(HF_MODEL_PREFIX.length).split('?')[0]:null;
-    if(rest&&!rest.includes('..')){
+    let local=null;
+    if(rest&&!rest.includes('..')){try{const t=new URL(base+rest);if(t.href.startsWith(base))local=t.href;}catch{}}
+    if(local){
       try{
-        const res=await original(base+rest,isText?init:undefined);
+        const res=await original(local,isText?init:undefined);
         if(res.ok) return res;
       }catch{}
     }

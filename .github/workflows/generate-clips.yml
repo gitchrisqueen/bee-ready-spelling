@@ -7,6 +7,12 @@ name: Generate voice clips
 # Two jobs on purpose. `generate` runs npm and third-party code with a READ-ONLY token and no
 # stored credentials. `commit` holds the write token, runs no npm or node code, and only
 # accepts a strictly validated set of files from the artifact.
+#
+# Manual run options (Actions tab > Generate voice clips > Run workflow):
+#   voice        only this Kokoro voice id, e.g. af_heart
+#   limit        stop after this many new clips per voice (splits a big job into pieces)
+#   redo         comma-separated clip keys to record again, e.g. blase,zucchini
+#   force_prune  allow deleting more than 5% of a voice's clips (after removing many words)
 
 on:
   push:
@@ -16,6 +22,24 @@ on:
       - voice-service.js
       - tools/clips/**
   workflow_dispatch:
+    inputs:
+      voice:
+        description: Only this voice id (blank = all voices)
+        required: false
+        default: ''
+      limit:
+        description: Max new clips per voice this run (blank = no limit)
+        required: false
+        default: ''
+      redo:
+        description: Clip keys to record again, comma-separated (blank = none)
+        required: false
+        default: ''
+      force_prune:
+        description: Allow deleting more than 5% of a voice's clips
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -43,8 +67,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: tools/clips/package-lock.json
       - name: Check words.json and the code before recording anything
         run: npm test
       - name: Install ffmpeg
@@ -55,29 +77,52 @@ jobs:
       - name: Generate missing or changed clips
         id: gen
         working-directory: tools/clips
+        # Stop well before the job limit so the steps below can still save finished clips.
+        timeout-minutes: 300
         continue-on-error: true
-        run: node generate.mjs --prune
+        env:
+          IN_VOICE: ${{ inputs.voice }}
+          IN_LIMIT: ${{ inputs.limit }}
+          IN_REDO: ${{ inputs.redo }}
+          IN_FORCE: ${{ inputs.force_prune }}
+        run: |
+          args=(--prune)
+          if [ -n "$IN_VOICE" ]; then
+            [[ "$IN_VOICE" =~ ^[a-z_]+$ ]] || { echo "voice must be a voice id like af_heart"; exit 1; }
+            args+=(--voice "$IN_VOICE")
+          fi
+          if [ -n "$IN_LIMIT" ]; then
+            [[ "$IN_LIMIT" =~ ^[0-9]+$ ]] || { echo "limit must be a whole number"; exit 1; }
+            args+=(--limit "$IN_LIMIT")
+          fi
+          if [ -n "$IN_REDO" ]; then
+            [[ "$IN_REDO" =~ ^[a-z0-9_,-]+$ ]] || { echo "redo must be comma-separated clip keys"; exit 1; }
+            args+=(--redo "$IN_REDO")
+          fi
+          if [ "$IN_FORCE" = "true" ]; then args+=(--force-prune); fi
+          node generate.mjs "${args[@]}"
       - name: Detect changes
         id: diff
+        if: ${{ !cancelled() }}
         run: |
           if [ -n "$(git status --porcelain clips)" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
       - name: Upload clips
-        if: steps.diff.outputs.changed == 'true'
+        if: ${{ !cancelled() && steps.diff.outputs.changed == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: clips
           path: clips
           retention-days: 3
       - name: Fail the run if any clip failed (finished clips are still kept)
-        if: steps.gen.outcome == 'failure'
+        if: ${{ !cancelled() && steps.gen.outcome == 'failure' }}
         run: |
-          echo "generate.mjs reported failures. See the generate step log. Good clips were still uploaded and committed."
+          echo "generate.mjs reported failures or hit the time limit. See the generate step log. Finished clips were still uploaded and committed."
           exit 1
 
   commit:
     needs: generate
-    # Runs even if some clips failed, so finished clips are never thrown away.
-    if: ${{ always() && needs.generate.outputs.changed == 'true' }}
+    # `!cancelled()` so finished clips are kept after a partial failure, but a run you cancel never pushes.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.generate.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -91,39 +136,81 @@ jobs:
         with:
           name: clips
           path: ${{ runner.temp }}/clips-new
+      - name: Stop if clips changed on main while this run was generating
+        run: |
+          git fetch --quiet origin main
+          if [ -n "$(git diff --name-only "$GITHUB_SHA" origin/main -- clips)" ]; then
+            echo "clips/ changed on main after this run started, so this artifact is stale."
+            echo "Nothing was pushed. Run 'Generate voice clips' again from main."
+            exit 1
+          fi
       - name: Validate the files before committing them
         env:
           NEW: ${{ runner.temp }}/clips-new
+          FORCE: ${{ inputs.force_prune }}
         run: |
           python3 - <<'PY'
-          import json, os, re, sys
+          import json, os, re, stat, sys
           new = os.environ["NEW"]
+          force = os.environ.get("FORCE") == "true"
           voices = set(re.findall(r"kokoro:'([a-z_]+)'", open("voice-service.js", encoding="utf8").read()))
           if not voices:
               sys.exit("could not read the voice list from voice-service.js")
           problems = []
+          total_bytes = 0
+
+          def mode(path):
+              return os.lstat(path).st_mode  # lstat: never follow links
+
+          if not stat.S_ISDIR(mode(new)):
+              sys.exit("artifact root is not a directory")
+          # Only plain files and plain folders; no links, devices or hard links anywhere.
+          for dirpath, dirnames, filenames in os.walk(new, followlinks=False):
+              for name in dirnames + filenames:
+                  p = os.path.join(dirpath, name)
+                  st = os.lstat(p)
+                  if stat.S_ISLNK(st.st_mode) or not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode)):
+                      problems.append(f"{os.path.relpath(p, new)} is not a plain file or folder")
+                  elif stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+                      problems.append(f"{os.path.relpath(p, new)} is a hard link")
+          if problems:
+              print("\n".join(problems[:50]))
+              sys.exit(1)
+
           for entry in sorted(os.listdir(new)):
               path = os.path.join(new, entry)
-              if entry == "settings.json":
-                  json.load(open(path))
-              elif os.path.isdir(path) and entry in voices:
+              if entry == "settings.json" and stat.S_ISREG(mode(path)):
+                  data = json.load(open(path))
+                  keys = {"encoder", "digest", "kokoroJs", "modelRevision"}
+                  if os.path.getsize(path) > 2000 or set(data) != keys or not all(isinstance(v, str) for v in data.values()):
+                      problems.append("settings.json is not the expected four string fields")
+              elif stat.S_ISDIR(mode(path)) and entry in voices:
+                  mp3s = 0
                   for name in os.listdir(path):
                       fp = os.path.join(path, name)
+                      size = os.path.getsize(fp)
+                      total_bytes += size
                       if name == "manifest.json":
                           data = json.load(open(fp))
-                          if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
-                              problems.append(f"{entry}/manifest.json is not a flat string map")
+                          if size > 500000 or not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+                              problems.append(f"{entry}/manifest.json is not a flat string map under 500 KB")
                       elif re.fullmatch(r"[a-z0-9_-]+\.mp3", name):
+                          mp3s += 1
                           head = open(fp, "rb").read(3)
-                          size = os.path.getsize(fp)
                           if not (head == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0)):
                               problems.append(f"{entry}/{name} is not an MP3")
                           if not 1200 <= size <= 300000:
                               problems.append(f"{entry}/{name} has an odd size ({size} bytes)")
                       else:
                           problems.append(f"unexpected file {entry}/{name}")
+                  old = os.path.join("clips", entry)
+                  before = len([n for n in os.listdir(old) if n.endswith(".mp3")]) if os.path.isdir(old) else 0
+                  if not force and mp3s < before * 0.95:
+                      problems.append(f"{entry}: {mp3s} clips would replace {before} (more than 5% fewer); re-run with force_prune if this is intended")
               else:
                   problems.append(f"unexpected entry {entry}")
+          if total_bytes > 120 * 1024 * 1024:
+              problems.append("artifact is larger than 120 MB")
           if problems:
               print("\n".join(problems[:50]))
               sys.exit(1)
@@ -134,13 +221,16 @@ jobs:
           NEW: ${{ runner.temp }}/clips-new
         run: |
           rm -rf clips
-          cp -r "$NEW" clips
+          cp -r --no-dereference "$NEW" clips
+          if [ -n "$(find clips ! -type f ! -type d -print -quit)" ]; then echo "non-regular file in clips/"; exit 1; fi
           git add -A clips
           if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Update pre-recorded voice clips"
           git pull --rebase origin main
+          # After the rebase the only thing we add on top of main must be under clips/.
+          if git diff --name-only origin/main..HEAD | grep -qv '^clips/'; then echo "commit touches files outside clips/"; exit 1; fi
           git push origin HEAD:main
       - name: Start the deploy and the repository scan
         env:

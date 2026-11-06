@@ -119,7 +119,7 @@ Edit `words.json` and push to `main`. Two things happen automatically:
 
 The word count and "1,155" appear as static text in `index.html` and this README. Update them by hand when the list changes. The tests check that the list is well-formed (unique words, valid level), not that it has a particular size.
 
-**Safeguards.** The generator downloads the Kokoro model at one pinned revision and checks its SHA-256 before it records anything. One failing word does not stop the run: finished clips are still committed and the run is marked failed. It refuses to delete more than 5% of a voice's clips without `--force-prune`, so an emptied `words.json` cannot wipe the clips. The workflow's `generate` job has a read-only token and runs npm with install scripts off. A separate `commit` job holds the write token, runs no npm code, and accepts only validated `.mp3` and manifest files. A manual run from any branch other than `main` does nothing.
+**Safeguards.** The generator downloads the Kokoro model at one pinned revision and checks the model file's SHA-256 before it records anything. (The deploy step separately verifies every self-hosted voice file.) One failing word does not stop the run: finished clips are still committed and the run is marked failed. It refuses to delete more than 5% of a voice's clips without `--force-prune`, so an emptied `words.json` cannot wipe the clips. The workflow's `generate` job has a read-only token and runs npm with install scripts off. A separate `commit` job holds the write token, runs no npm code, and accepts only validated `.mp3` files, per-voice `manifest.json` files and `settings.json`. A manual run from any branch other than `main` does nothing.
 
 To generate clips on your own machine instead:
 
@@ -133,11 +133,41 @@ node generate.mjs --prune                            # also delete clips for rem
 
 Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and about 30 MB of disk for the clips. Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
 
-Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`, where the key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
+Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`, where the key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed, model revision or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
 
 Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip for one process on a laptop and on two servers, so roughly 30 to 40 minutes per voice. I have not timed GitHub's runners. The job limit is 350 minutes.
 
-**Fixing one bad clip:** delete `clips/<voice id>/<key>.mp3` and run **Generate voice clips**. **Adding a voice:** add it to `VOICES` in `voice-service.js`, add its `voices/<id>.bin` and SHA-256 to `scripts/fetch-voice-assets.mjs`, and expect a full run for that voice. A test fails if a voice is missing from either place, or if `clips/` holds a folder for a voice that no longer exists.
+**Check what a run would do:** `node generate.mjs --dry-run` prints how many clips each voice still needs and exits without loading the model. On an up-to-date tree every voice shows `0`.
+
+**Manual run options.** In **Actions → Generate voice clips → Run workflow** you can set `voice`, `limit` (stop after N new clips per voice, to split a big job), `redo` (clip keys to record again) and `force_prune` (allow deleting more than 5% of a voice's clips). Locally the same options are `--voice`, `--limit`, `--redo` and `--force-prune`.
+
+**Fixing one bad clip.** Run **Generate voice clips** with `redo` set to the clip key (for example `blase`). Locally: `node generate.mjs --redo blase`, then commit the change. Recording again uses the same model, voice and settings, so it normally produces the same audio. If a word is mispronounced, re-recording will not fix it. The remedy would be a spelling override (for example a `say` field in `words.json` used as the speech text), which does not exist yet.
+
+**Adding a voice.**
+1. Add it to `VOICES` in `voice-service.js`, keeping the `kokoro:'id'` form (the workflow reads the list with that pattern; a test checks it). Fill in the `piper` backup voice too, and update the "four voices" wording in this README and the page.
+2. Add its `voices/<id>.bin` to `scripts/fetch-voice-assets.mjs` with the size and SHA-256 from the pinned revision:
+
+   ```bash
+   curl -sSL "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/voices/<id>.bin" -o /tmp/v.bin && stat -f%z /tmp/v.bin && shasum -a 256 /tmp/v.bin
+   ```
+3. Push. Expect a full run for the new voice. A test fails if a voice is missing from either place, or if `clips/` has a folder for a voice that is no longer in `VOICES`.
+
+**Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours, so consider splitting it with the `limit` option. If you edit the constants and forget to bump `ENCODER`, the generator stops with a message asking for it.
+
+### When a run fails
+
+| What you see | What it means | What to do |
+|---|---|---|
+| `Model SHA-256 mismatch ... Refusing to generate` | The cached or downloaded model is not the pinned file. | Delete `tools/clips/node_modules/@huggingface/transformers/.cache` and run again. If it persists, the pinned Hugging Face revision may have changed or been removed. |
+| `Bump ENCODER` | You changed a generator setting without changing the `ENCODER` label. | Bump `ENCODER` in `generate.mjs` (see above). |
+| `refusing to prune N of M clips` | `words.json` lost more than 5% of its words, or a naming change made old files look stale. The run is red but still records new words and keeps the old clips. | Check `words.json`. If the removal is intended, run again with `force_prune`. |
+| `FAILED <voice>/<key>` and `N clip(s) failed` | Individual words failed. The run is red, but every good clip is still committed. | Find the words in the generate step log and run again; only the failed clips are retried. |
+| Generate job red, commit job green | Expected after a partial failure: the finished clips were committed. | Read the failed words in the log as above. |
+| `clips/ changed on main after this run started` | Someone pushed to `clips/` while the run was generating. Nothing was pushed. | Run **Generate voice clips** again from `main`. |
+| Commit job fails on `git pull --rebase` or `git push` | A concurrent push conflicted, or `main` now has branch protection. | Use **Re-run failed jobs** within 3 days (the artifact is kept that long); after that, run again. If you turned on branch protection, allow `github-actions[bot]` to push. |
+| `... would replace N (more than 5% fewer)` | The validator thinks an artifact would delete too many clips. | Run again with `force_prune` only if the removal is intended. |
+
+GitHub emails only the person who triggered a run (for a push, whoever pushed). There is no separate alert channel, so check the **Actions** tab after changing `words.json`. If the pinned model is ever removed from Hugging Face, both clip generation and the deploy stop. The fix is to host the pinned files yourself and update the URLs and hashes.
 
 ### Data format
 
@@ -178,7 +208,7 @@ Branch protection is not enabled on `main`. If you turn it on, allow `github-act
 gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 ```
 
-**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert. Reverting a commit that only touches `clips/` does not start **Generate voice clips**, so start it by hand afterwards if you need clips regenerated.
+**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert. Reverting a commit that only touches `clips/` does not start **Generate voice clips**. If you revert an encoder change, revert the code commit and the clip commit together, or the next run will regenerate everything.
 
 ## Repository layout
 
@@ -201,7 +231,7 @@ gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 
 ## Testing and known limits
 
-`npm test` runs 28 automated tests. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
+`npm test` runs the automated tests in `tests/`. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
 
 Manual checks, not part of CI: I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at 0.7×, a prefetched word started playing in 43 ms, and the sentence clue used the device voice. I confirmed that every word has a clip in every voice, and sampled 120 clips for cut-off starts and ends. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 

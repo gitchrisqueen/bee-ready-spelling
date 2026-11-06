@@ -1,6 +1,10 @@
 // Generates pre-recorded MP3 clips for every word (and the voice sample) with Kokoro.
 //
-//   node generate.mjs [--voice af_heart] [--limit 10] [--prune [--force-prune]]
+//   node generate.mjs [--voice af_heart] [--limit 10] [--redo key1,key2]
+//                     [--prune [--force-prune]] [--dry-run]
+//
+// --redo re-records the named clips (a clip key is the lowercase word, see clipKey).
+// --dry-run prints how many clips each voice still needs, without loading the model.
 //
 // Incremental: a clip is regenerated only when its text, voice, model revision or encoder
 // label changes, so adding words to words.json only generates the new ones.
@@ -54,6 +58,11 @@ for (const text of texts) {
 
 const wanted = option('voice') ? VOICES.filter(v => v.kokoro === option('voice')) : VOICES;
 if (!wanted.length) throw new Error(`Unknown voice: ${option('voice')}`);
+const redo = new Set((option('redo') ?? '').split(',').map(k => k.trim()).filter(Boolean));
+for (const key of redo) {
+  if (!/^[a-z0-9_-]+$/.test(key)) throw new Error(`--redo: "${key}" is not a clip key`);
+  if (!owners.has(key)) console.warn(`--redo: no word or sample has the key "${key}"`);
+}
 let limit = Infinity;
 if (flag('limit')) {
   limit = Number(option('limit'));
@@ -79,6 +88,20 @@ if (existsSync(settingsPath)) {
 
 const fingerprint = (text, voice) =>
   createHash('sha256').update(`${text}|${voice}|${MODEL_REVISION}|${ENCODER}`).digest('hex').slice(0, 16);
+
+if (flag('dry-run')) {
+  for (const { kokoro: voice } of wanted) {
+    const dir = join(root, 'clips', voice);
+    const manifestPath = join(dir, 'manifest.json');
+    const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
+    const todo = texts.filter(text => {
+      const key = clipKey(text);
+      return redo.has(key) || !(manifest[key] === fingerprint(text, voice) && existsSync(join(dir, `${key}.mp3`)));
+    });
+    console.log(`${voice}: ${todo.length} clip(s) to generate`);
+  }
+  process.exit(0);
+}
 
 // kokoro-js asks Hugging Face for "main". Ask for the pinned revision instead.
 const realFetch = globalThis.fetch.bind(globalThis);
@@ -111,6 +134,10 @@ for (const { kokoro: voice } of wanted) {
   const save = () => {
     writeFileSync(manifestPath, JSON.stringify(Object.fromEntries(Object.entries(manifest).sort()), null, 1) + '\n');
   };
+  for (const key of redo) {
+    rmSync(join(dir, `${key}.mp3`), { force: true });
+    delete manifest[key];
+  }
   let made = 0;
   const started = Date.now();
   for (const text of texts) {
@@ -139,22 +166,26 @@ for (const { kokoro: voice } of wanted) {
       console.log(`${voice}: ${made} new clips (${((Date.now() - started) / made / 1000).toFixed(2)} s each)`);
     }
   }
+  save();
   if (flag('prune')) {
     const keep = new Set(texts.map(clipKey));
     const stale = readdirSync(dir).filter(n => n.endsWith('.mp3') && !keep.has(n.slice(0, -4)));
     const total = readdirSync(dir).filter(n => n.endsWith('.mp3')).length;
     if (stale.length > total * MAX_PRUNE_FRACTION && !flag('force-prune')) {
-      throw new Error(
-        `Refusing to prune ${stale.length} of ${total} clips in ${voice} (over ${MAX_PRUNE_FRACTION * 100}%). ` +
-          'Check words.json, or pass --force-prune.',
-      );
-    }
-    for (const name of stale) {
-      rmSync(join(dir, name));
-      delete manifest[name.slice(0, -4)];
+      // Do not stop the other voices or lose this run's work: record it and carry on without pruning.
+      const message =
+        `${voice}: refusing to prune ${stale.length} of ${total} clips (over ${MAX_PRUNE_FRACTION * 100}%). ` +
+        'Check words.json, or re-run with --force-prune.';
+      failures.push(message);
+      console.error(`FAILED ${message}`);
+    } else {
+      for (const name of stale) {
+        rmSync(join(dir, name));
+        delete manifest[name.slice(0, -4)];
+      }
+      save();
     }
   }
-  save();
   const mp3s = readdirSync(dir).filter(n => n.endsWith('.mp3'));
   const bytes = mp3s.reduce((sum, n) => sum + statSync(join(dir, n)).size, 0);
   console.log(`${voice}: generated ${made}, ${mp3s.length} clips, ${(bytes / 1048576).toFixed(1)} MB`);

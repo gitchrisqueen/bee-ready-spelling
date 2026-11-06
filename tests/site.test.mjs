@@ -97,3 +97,9 @@ test('clip folders hold only mp3 files and a manifest', () => {
     }
   }
 });
+
+test('the clip workflow can read the voice list from voice-service.js', async () => {
+  const { VOICES } = await import('../voice-service.js');
+  const found = [...read('voice-service.js').matchAll(/kokoro:'([a-z_]+)'/g)].map(m => m[1]).sort();
+  assert.deepEqual(found, VOICES.map(v => v.kokoro).sort(), 'keep VOICES entries in the form kokoro:\'id\' (the workflow parses them)');
+});
