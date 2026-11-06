@@ -11,8 +11,9 @@ permissions:
   contents: read
 
 concurrency:
+  # PR checks cancel superseded runs; deploys are serialized and never cancelled.
   group: ${{ github.event_name == 'pull_request' && format('github-pages-pr-{0}', github.ref) || 'github-pages' }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -59,6 +60,7 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+          retention-days: 1
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

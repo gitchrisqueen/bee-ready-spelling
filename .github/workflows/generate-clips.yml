@@ -108,6 +108,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          # Read-only job that only runs on main, so the cache is saved from main only.
+          cache: npm
+          cache-dependency-path: tools/clips/package-lock.json
       - name: Check words.json and the code before recording anything
         run: npm test
       - name: Install ffmpeg
@@ -338,7 +341,7 @@ jobs:
           if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update pre-recorded voice clips"
+          git commit -m "Update pre-recorded voice clips [skip ci]"
           git pull --rebase origin main
           # After the rebase the only thing we add on top of main must be under clips/.
           if git diff --name-only origin/main..HEAD | grep -qv '^clips/'; then echo "commit touches files outside clips/"; exit 1; fi
