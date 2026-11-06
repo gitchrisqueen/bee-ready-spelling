@@ -34,4 +34,4 @@ If the live site must come down right now, the repository owner can do it from t
 - **Settings > Pages > Unpublish site**, or
 - **Settings > Environments > github-pages**, then delete the deployment.
 
-Either one takes the published site offline. The source stays in the repository. To bring the site back, run the "Test and deploy Bee Ready to GitHub Pages" workflow from the Actions tab.
+Either one takes the published site offline. The source stays in the repository. To bring the site back, first make sure **Settings > Pages > Build and deployment > Source** is set to **GitHub Actions**, then run the "Test and deploy Bee Ready to GitHub Pages" workflow from the Actions tab.

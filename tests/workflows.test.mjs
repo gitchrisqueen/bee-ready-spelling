@@ -356,6 +356,12 @@ test('every uploaded artifact sets retention-days between 1 and 14', () => {
   }
 });
 
+test('only main shares the deploy concurrency group, so a clip branch check is never cancelled by a deploy', () => {
+  const text = wf('pages.yml').text;
+  assert.match(text, /github\.ref == 'refs\/heads\/main' && 'github-pages'/);
+  assert.match(text, /format\('github-pages-branch-\{0\}', github\.ref\)/);
+});
+
 test('PR checks cancel superseded runs and deploys are never cancelled', () => {
   const cancel = /cancel-in-progress:\s*\$\{\{\s*github\.event_name == 'pull_request'\s*\}\}/;
   assert.match(wf('pages.yml').text, cancel);
@@ -408,8 +414,9 @@ test('pages deploy caches the pinned voice model between the build and the fetch
   const fetchStep = at(/npm run fetch-voice-assets/);
   assert.ok(build >= 0 && cache > build && fetchStep > cache, 'order must be build, cache, fetch');
   assert.match(steps[cache], /^\s+path:\s*_site\/voice-assets\s*$/m);
-  const key = steps[cache].match(/^\s+key:\s*(\S+)\s*$/m)?.[1];
-  assert.equal(key, `voice-assets-${REVISION}`, 'the cache key must be voice-assets-<REVISION from scripts/fetch-voice-assets.mjs>');
+  const key = steps[cache].match(/^\s+key:\s*(.+?)\s*$/m)?.[1];
+  assert.equal(key, `voice-assets-${REVISION}-${'$'}{{ hashFiles('scripts/fetch-voice-assets.mjs') }}`, 'the cache key must be voice-assets-<REVISION>-<hash of the fetch script>');
+  assert.match(steps[cache], new RegExp(`restore-keys: \\|\\s+voice-assets-${REVISION}-\\s*$`, 'm'), 'restore-keys must fall back to the same revision');
   assert.match(wf('pages.yml').raw, /uses:\s*actions\/cache@[0-9a-f]{40} # v4\.\d+\.\d+/);
 });
 

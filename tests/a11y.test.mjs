@@ -90,3 +90,10 @@ test('privacy wording is honest about GitHub hosting and the optional live voice
   for (const host of ['cdn.jsdelivr.net', 'esm.sh', 'huggingface.co']) assert.ok(html.includes(host), `${host} must be named`);
   assert.match(html, /Turning this on loads files from outside services; see Grown-ups\./);
 });
+
+test('dismissing the voice notice moves focus first, and clearing history never renames its button', () => {
+  const dismiss = app.slice(app.indexOf("$('closeNotice').addEventListener"), app.indexOf("$('closeNotice').addEventListener") + 600);
+  assert.ok(dismiss.indexOf('.focus(') > 0 && dismiss.indexOf('.focus(') < dismiss.indexOf("classList.add('hidden')"), 'focus must move before the notice is hidden');
+  assert.doesNotMatch(app, /\$\('clearHistory'\)\.textContent/, 'the Clear history button keeps one fixed name');
+  assert.match(app, /setClearStatus\('Practice history cleared\.'\)/);
+});

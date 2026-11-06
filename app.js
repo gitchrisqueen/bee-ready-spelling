@@ -249,7 +249,12 @@ function initVoiceSettings(){
   $('retryVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
   $('downloadUseDevice').addEventListener('click',()=>{voiceService.stop();voiceService.select({mode:'device'});syncVoiceButtons();clearTimeout(noticeTimer);$('downloadLabel').textContent='Device voice selected';$('downloadDetail').textContent='Tap Hear my word or Preview voice to listen. No download needed.';});
   $('downloadRetry').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
-  $('closeNotice').addEventListener('click',()=>{$('voiceDownload').classList.add('hidden');});
+  $('closeNotice').addEventListener('click',()=>{
+    // Move focus out of the notice first, so keyboard focus never falls to <body>.
+    const target=$('tab-voices')&&$('tab-voices').classList.contains('active')?$('prepareVoice'):document.querySelector('.nav-button.active');
+    if(target)target.focus({preventScroll:true});
+    $('voiceDownload').classList.add('hidden');
+  });
 }
 const engineName=e=>({clip:'Recorded',kokoro:'Kokoro',piper:'Piper'})[e]||'Device';
 function updateVoiceStatus(status){
@@ -277,7 +282,7 @@ function updateVoiceStatus(status){
 function initGrownups(){
   $('clearHistory').addEventListener('click',()=>{
     if(!confirm('Clear practice history on this device? This cannot be undone.'))return;
-    history={attempts:{},missed:{},rounds:0};writeHistory();$('clearHistory').textContent='Practice history cleared ✓';
+    history={attempts:{},missed:{},rounds:0};writeHistory();setClearStatus('Practice history cleared.');
   });
   $('clearStars').addEventListener('click',()=>{
     if(!confirm('Clear starred words on this device? This cannot be undone.'))return;

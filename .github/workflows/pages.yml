@@ -12,7 +12,9 @@ permissions:
 
 concurrency:
   # PR checks cancel superseded runs; deploys are serialized and never cancelled.
-  group: ${{ github.event_name == 'pull_request' && format('github-pages-pr-{0}', github.ref) || 'github-pages' }}
+  # Only runs on main share the deploy group, so a check run started on a clip branch can never be
+  # cancelled by (or queue behind) a deploy.
+  group: ${{ github.event_name == 'pull_request' && format('github-pages-pr-{0}', github.ref) || github.ref == 'refs/heads/main' && 'github-pages' || format('github-pages-branch-{0}', github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -60,12 +62,16 @@ jobs:
       # The cache is saved from main only (this job only runs on main), and the fetch script re-hashes
       # every restored file against its pinned SHA-256, so a poisoned cache fails closed (the file is
       # downloaded again). With a cache hit a Hugging Face outage cannot fail a deploy or a rollback.
-      # Keep the key's revision equal to REVISION in scripts/fetch-voice-assets.mjs (a test checks it).
+      # The key includes a hash of the fetch script, so adding a voice saves a fresh cache; restore-keys
+      # lets the older entry seed it. Keep the key's revision equal to REVISION in
+      # scripts/fetch-voice-assets.mjs (a test checks it).
       - name: Restore the pinned voice model from the cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: _site/voice-assets
-          key: voice-assets-1939ad2a8e416c0acfeecc08a694d14ef25f2231
+          key: voice-assets-1939ad2a8e416c0acfeecc08a694d14ef25f2231-${{ hashFiles('scripts/fetch-voice-assets.mjs') }}
+          restore-keys: |
+            voice-assets-1939ad2a8e416c0acfeecc08a694d14ef25f2231-
       - name: Add self-hosted voice model (pinned and checksum-verified)
         run: npm run fetch-voice-assets
       - name: Configure Pages

@@ -40,7 +40,7 @@ node tools/device-test/device-test.mjs        # iPhone/iPad checks in WebKit (ne
 ## Content rules
 
 - Each word needs a `sentence` that uses the word exactly once, as a whole word (a test checks it). A word without one falls back to a generic sentence, so write one.
-- Do not hand-edit `clips/`. Change `words.json` or `sentences.js` and let the clip workflow record the difference, or run `tools/clips/generate.mjs`. One bad clip is fixed with `--redo` (see README).
+- Do not hand-edit `clips/`, except deleting a removed voice's folder in the commit that removes the voice (README, "Removing a voice"). Change `words.json` or `sentences.js` and let the clip workflow record the difference, or run `tools/clips/generate.mjs`. One bad clip is fixed with `--redo` (see README).
 - The page reads the word count from `words.json`. Do not hard-code 1,155 in code.
 
 ## UI rules (children on phones and tablets)
