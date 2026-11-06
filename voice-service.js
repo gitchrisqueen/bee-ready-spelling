@@ -324,5 +324,6 @@ export class BeeVoiceService {
   }
   // Warm a clip so the next Hear button plays with no wait.
   prefetch(text,kind='word'){if(this.settings.mode==='device')return Promise.resolve();return this._loadClip(String(text).trim(),kind).then(()=>{},()=>{});}
-  async preview(){return this.speak(PREVIEW_TEXT,{kind:'sample'});}
+  // instant:true so a missing sample clip falls back to the device voice, never to a live-voice download the child did not ask for.
+  async preview(){return this.speak(PREVIEW_TEXT,{kind:'sample',instant:true});}
 }

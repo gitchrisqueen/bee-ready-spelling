@@ -276,3 +276,10 @@ test('speedId reaches Kokoro and Piper, and the Kokoro cache keeps the speeds ap
  assert.equal(await piper.speak('plaza',{kind:'word',speedId:'slow'}),'piper');
  assert.equal(piper.player.playbackRate,0.6);assert.equal(piper.speed,1);
 });
+
+test('the voice sample never starts a live-voice download when its clip is missing',withClipFetch(()=>({ok:false,status:404}),async()=>{
+ let loaded=false;
+ const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>{loaded=true;throw Error('must not load');}});
+ assert.equal(await svc.preview(),'device');
+ assert.equal(loaded,false);
+}));

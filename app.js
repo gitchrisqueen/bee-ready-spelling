@@ -10,9 +10,11 @@ const scrollBehavior=()=>window.matchMedia&&window.matchMedia('(prefers-reduced-
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 const historyKey='bee-ready-history-v2';
 const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection'};
+// Returns safe HTML: everything is escaped, and each blank is a span a screen reader announces as "blank".
+const BLANK_HTML='<span class="blank" role="img" aria-label="blank">_______</span>';
 function hideWord(sentence,word){
   const norm=word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return sentence.replace(new RegExp(norm,'gi'),'_______');
+  return String(sentence).split(new RegExp(norm,'gi')).map(escapeHtml).join(BLANK_HTML);
 }
 function comparison(s){return String(s).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US').replace(/[^\p{L}]/gu,'');}
 function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{attempts:{},missed:{},rounds:0};}catch{return {attempts:{},missed:{},rounds:0};}}
@@ -93,14 +95,14 @@ function startRound(){
   else if(type==='starred')pool=starredWords();
   if(!pool.length){
     $('roundArea').classList.remove('hidden');$('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');
-    $('roundSummary').innerHTML=type==='starred'?'<h2 id="emptyPoolHeading" tabindex="-1">You have no starred words yet.</h2><p>Go to the Word bank and press the Star button on a word.</p>':'<h2 id="emptyPoolHeading" tabindex="-1">No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>';
+    $('roundSummary').innerHTML=type==='starred'?'<h2 id="emptyPoolHeading" tabindex="-1">You have no starred words yet.</h2><p>Go to the Word bank and press the Star button on a word.</p>':(history.rounds>0?'<h2 id="emptyPoolHeading" tabindex="-1">You did not miss any words! Great job. 🎉</h2><p>Pick another set of words to keep practicing.</p>':'<h2 id="emptyPoolHeading" tabindex="-1">No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>');
     $('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});$('emptyPoolHeading').focus();return;
   }
   const count=Math.min(pool.length,Math.max(1,Number($('wordCount').value)||5));
   currentRound={items:sampleNoRepeat(pool,count),index:0,correct:0,results:[],mode:$('practiceMode').value,clues:new Set()};
   const fromSummary=$('roundSummary').contains(document.activeElement);
   $('roundArea').classList.remove('hidden');$('roundSummary').classList.add('hidden');$('activeCard').classList.remove('hidden');
-  showCurrent();if(fromSummary)$('questionHeading').focus({preventScroll:true});$('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});
+  showCurrent();$('questionHeading').focus({preventScroll:true});$('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});
 }
 function currentWord(){return currentRound?.items[currentRound?.index]??null;}
 function showCurrent(){
@@ -123,11 +125,12 @@ function showCurrent(){
 }
 function showClue(type){
   const w=currentWord();if(!w)return;
-  if(type==='repeat') {voiceService.select({speedId:'slow'});syncVoiceButtons();voiceService.speak(w.word,{kind:'word',instant:true});return;}
+  // One-off slow playback, like hearFromCard: the saved speed (Voices tab) is never changed.
+  if(type==='repeat'){voiceService.speak(w.word,{kind:'word',instant:true,speedId:'slow'});return;}
   const clueText = type==='definition'?`<strong>Definition</strong>${escapeHtml(w.definition)}`:
     type==='origin'?`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`:
     type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||'Word')}`:
-    `<strong>In a sentence</strong>${escapeHtml(hideWord(sentenceFor(w),w.word))}`;
+    `<strong>In a sentence</strong>${hideWord(sentenceFor(w),w.word)}`;
   $('clueResult').innerHTML=clueText;$('clueResult').hidden=false;
   if(type==='sentence')voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});
 }
@@ -146,6 +149,8 @@ function markAnswer(correct){
   document.querySelectorAll('[data-clue]').forEach(b=>b.disabled=true);
   $('meterFill').style.width=`${100*(currentRound.index+1)/currentRound.items.length}%`;
   $('scoreLabel').textContent=`${currentRound.correct} correct so far`;
+  // The focused control (answer box, grade button) just hid, so move focus to the next control instead of losing it to <body>.
+  $('nextWord').focus({preventScroll:true});
 }
 function finishRound(){
   $('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');
@@ -166,9 +171,10 @@ function initRound(){
     const w=currentWord();if(!w)return;
     $('answerFeedback').className='feedback';$('answerFeedback').innerHTML=`Correct spelling: <span class="correct-word">${escapeHtml(w.word)}</span><p>Did you say each letter correctly?</p>`;
     $('revealOral').classList.add('hidden');$('gradeOral').classList.remove('hidden');
+    $('gradeOral').querySelector('button').focus({preventScroll:true});
   });
   document.querySelectorAll('[data-grade]').forEach(btn=>btn.addEventListener('click',()=>markAnswer(btn.dataset.grade==='correct')));
-  $('nextWord').addEventListener('click',()=>{currentRound.index++;showCurrent();});
+  $('nextWord').addEventListener('click',()=>{currentRound.index++;showCurrent();if(currentWord())$('questionHeading').focus({preventScroll:true});});
 }
 function wordResults(){let arr=words.slice();const query=$('searchWord').value.trim().toLocaleLowerCase();const group=$('groupFilter').value;const level=$('levelFilter').value;
   if(query)arr=arr.filter(w=>w.word.toLocaleLowerCase().includes(query)||w.definition.toLocaleLowerCase().includes(query));
@@ -291,8 +297,9 @@ async function main(){
     [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(g=>{$('groupFilter').add(new Option(g,g));});
     updateStats();renderWordBank();
   }catch(err){
-    $('roundBuilder').insertAdjacentHTML('beforeend',`<p class="toast">The word list could not load. Please refresh the page. (${escapeHtml(err.message)})</p>`);
+    $('roundBuilder').insertAdjacentHTML('beforeend',`<p class="toast" role="alert">The word list could not load. Please refresh the page. (${escapeHtml(err.message)})</p>`);
     $('startRound').disabled=true;
+    $('resultCount').textContent='The word list did not load. Please refresh the page.';
   }
 }
 main();
