@@ -57,7 +57,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 
 ### Your progress stays on your device
 
-Practice history, starred words and voice settings are saved in your browser's local storage. Nothing is sent to a server. They are separate for each browser and each web address. Starred words are kept apart from practice history, so clearing one does not clear the other. The **Grown-ups** tab has buttons to clear practice history and to clear starred words. Voice settings have no clear button; they reset if you clear the site's data in the browser.
+Practice history, starred words and voice settings are saved in your browser's local storage. The site never sends your practice to a server. (GitHub hosts the site and can see a visitor's IP address. If a grown-up turns on the optional live voice, files also load from cdn.jsdelivr.net, esm.sh and huggingface.co, which can see it too.) They are separate for each browser and each web address. Starred words are kept apart from practice history, so clearing one does not clear the other. The **Grown-ups** tab has buttons to clear practice history and to clear starred words. Voice settings have no clear button; they reset if you clear the site's data in the browser.
 
 ## Speech and voices
 
@@ -122,7 +122,7 @@ You can also use any static file server. Open `index.html` through a server, not
 
 ### Adding or changing words
 
-Edit `words.json` (a word's practice sentence is its `sentence` field there) and push to `main`. Two things happen automatically:
+Edit `words.json` (a word's practice sentence is its `sentence` field there) on a branch and open a pull request. When it merges to `main`, two things happen automatically:
 
 1. The site deploys right away. New words and new sentences work immediately, spoken by the device voice.
 2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words and sentences, one parallel job per voice, commits them under `clips/`, and redeploys. Removed words and replaced sentences have their old clips pruned. It also runs when `sentences.js`, `voice-service.js` or `tools/clips/` changes, and you can start it by hand from the **Actions** tab.
@@ -141,7 +141,7 @@ node generate.mjs --voice af_heart --limit 10        # try a few
 node generate.mjs --prune                            # also delete clips for removed words
 ```
 
-Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and about 130 MB of disk for the clips (measured: 9,244 clips, 129.8 MB of audio; word clips average about 4 KB and sentence clips about 24 KB). Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
+Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and about 136 MB of disk for the clips (measured: 9,244 clips, 136 MB or 129.8 MiB of audio; word clips average about 4 KB and sentence clips about 25 KB). Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
 
 Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`. A word's key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. A sentence's key is `sentence_` plus a hash of the exact sentence, so a clip can never play the wrong wording: if a sentence changes, its old clip is simply not found (the device voice speaks it) until the new one is recorded. To get a sentence's key (for `redo`), run `node -e "import('./voice-service.js').then(m=>console.log(m.sentenceKey(process.argv[1])))" "<the exact sentence>"`. Usually the easiest way to fix a bad sentence clip is to reword the sentence. The voice sample is `_preview`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed, model revision or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
 
@@ -162,9 +162,11 @@ Timings, from my own measurements while building this (no logs are kept in the r
    ```
 3. Push. Expect a full run for the new voice. A test fails if a voice is missing from either place, or if `clips/` has a folder for a voice that is no longer in `VOICES`.
 
-**Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours (the four voices run in parallel, so about one voice's time on the wall clock), and each regeneration adds roughly the full size of the clips (about 130 MB, measured) to git history, so consider splitting it with the `limit` option.
+**Removing a voice.** Remove it from `VOICES` in `voice-service.js`, remove its `voices/<id>.bin` row from `scripts/fetch-voice-assets.mjs`, and delete its folder in the same commit (`git rm -r clips/<id>`; this is the one allowed hand change under `clips/`). Without the delete, `npm test` and the commit job's validator both reject the leftover folder and the clip workflow stays red.
 
-The commit job only accepts clips that fit its validator: at most 300,000 bytes per clip, at most 250 MB for the whole clips folder, a valid MP3 header, and nothing but `<key>.mp3`, `manifest.json` and `settings.json`. A much higher bitrate (about 130 MB at 40 kbps would be roughly 620 MB at 192 kbps) can pass the tests and the local trial and then be refused by the commit job after hours of work. Check the expected total first, and raise the limits in the workflow's validator together with the bitrate change.
+**Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours (the four voices run in parallel, so about one voice's time on the wall clock), and each regeneration adds roughly the full size of the clips (about 136 MB, measured) to git history, so consider splitting it with the `limit` option.
+
+The commit job only accepts clips that fit its validator: at most 300,000 bytes per clip, at most 250 MB for the whole clips folder, a valid MP3 header, and nothing but `<key>.mp3`, `manifest.json` and `settings.json`. A much higher bitrate (about 136 MB at 40 kbps would be roughly 650 MB at 192 kbps) can pass the tests and the local trial and then be refused by the commit job after hours of work. Check the expected total first, and raise the limits in the workflow's validator together with the bitrate change.
 
 The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three clips plus that voice's `manifest.json` and `clips/settings.json` into your working tree. Open the three new clips in `clips/af_heart/` to listen, then commit them or run `git checkout clips` to discard. If you edit the constants and forget to bump `ENCODER`, the generator stops with a message asking for it.
 
@@ -183,9 +185,18 @@ The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three cl
 | Commit job says `the clips folder would be larger than 250 MB`, `has an odd size`, `is not an MP3`, `unexpected file` or `unexpected entry` | The validator refused the files. Nothing was pushed. | Lower the bitrate, or raise the limit in the validator in `generate-clips.yml`, then run again. The artifact expires after 3 days. |
 | `clips/ changed on main after this run started` | Someone pushed to `clips/` while the run was generating. Nothing was pushed. | Run **Generate voice clips** again from `main`. |
 | Commit job fails on `git pull --rebase` or `git push` | A concurrent push conflicted, or `main` now has branch protection. | Re-run only the **commit** job (the per-job re-run button) within 3 days, while the artifacts still exist; after that, run the workflow again. Do not use "Re-run failed jobs" on the whole run if the generate jobs already finished, because that records the failed voices again. If you turned on branch protection, allow `github-actions[bot]` to push. |
+| The `start-deploy` job is red with `Could not start pages.yml` or `Could not start denylist-guard.yml` | The clips were pushed, but GitHub refused to start the deploy or the scan. | Do not re-run the commit job: it will stop at the stale check because `clips/` on `main` already changed. Re-run only the `start-deploy` job, or open Actions → **Test and deploy Bee Ready to GitHub Pages** → **Run workflow** on `main`, and do the same for **denylist-guard**. |
+| **Generate voice clips** is green but the site lacks the new clips | The deploy it started failed or never ran. A bot-started run may notify nobody. | Open the latest **Test and deploy** run, read why it failed, and run it again on `main`. To see which commit is live, compare the `github-pages` deployment's commit (repository **Deployments**) with the head of `main`. After every clip run, open the deploy run it started.
 | `... would replace N (more than 5% fewer)` | The validator thinks an artifact would delete too many clips. | Run again with `force_prune` only if the removal is intended. |
 
-GitHub emails only the person who triggered a run (for a push, whoever pushed). There is no separate alert channel, so check the **Actions** tab after changing `words.json`. If the pinned model is ever removed from Hugging Face, both clip generation and the deploy stop. The fix is to host the pinned files yourself and update the URLs and hashes.
+GitHub emails only the person who triggered a run, and a run that a bot starts may notify nobody. Check the **Actions** tab after merging a change to `words.json`, `sentences.js` or the voices. Deploys retry the Hugging Face download and keep a cache of the verified model files (keyed by revision), so a short outage does not block a deploy or a rollback. If the pinned model is ever removed from Hugging Face for good, upload the same files (same names, same bytes, same SHA-256) to a host you control and change the base URL in `scripts/fetch-voice-assets.mjs`, `tools/clips/generate.mjs` and the model rewrite in `voice-service.js`. If the files themselves change, update every pinned hash and bump `ENCODER`.
+
+### Ownership and incidents
+
+- **Owner:** the GitHub account `gitchrisqueen` owns and maintains this site.
+- **Who watches it:** the owner checks the Actions tab after merging changes to words, sentences or voices. There is no separate alert channel.
+- **Report a problem or a leak:** use the repository's Security tab → **Report a vulnerability** (private). The steps are in `.github/SECURITY.md`.
+- **Emergency takedown, with no workflow needed:** Settings → Pages → **Unpublish site**. The repository and its history stay as they are; fix the problem, then publish again by running **Test and deploy Bee Ready to GitHub Pages** on `main`.
 
 ### Data format
 
@@ -227,7 +238,7 @@ Branch protection is not enabled on `main`. If you turn it on, allow `github-act
 gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 ```
 
-**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert. Reverting a commit that only touches `clips/` does not start **Generate voice clips**. If you revert an encoder change: first cancel any running **Generate voice clips** run (Actions → the run → Cancel workflow; a cancelled run never pushes), because the revert's own run queues behind it. Then revert the code commit and every clip commit made since (`git log --oneline -- clips` lists them; use `git revert -n <commit>` for each, then one commit and push). Otherwise the next run regenerates everything.
+**Roll back:** open a revert pull request (`git revert <commit>` on a branch). Once it merges, the same workflow tests and deploys the revert. If a deploy is blocked and the site has to come down at once, unpublish Pages (see Ownership and incidents). Reverting a commit that only touches `clips/` does not start **Generate voice clips**. If you revert an encoder change: first cancel any running **Generate voice clips** run (Actions → the run → Cancel workflow; a cancelled run never pushes), because the revert's own run queues behind it. Then revert the code commit and every clip commit made since (`git log --oneline -- clips` lists them; use `git revert -n <commit>` for each, then one commit and push). Otherwise the next run regenerates everything.
 
 To roll back the sentence clips themselves (revert the code that adds them): the old generator does not know their names and sees about half the clips as stale, so its 5% safety stops it from pruning. After the code revert, run **Generate voice clips** once with `force_prune`, or revert the clip commits.
 
@@ -264,15 +275,15 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 `tools/device-test/` drives real **WebKit** (the engine Safari uses) with iPhone SE, iPhone 13, iPhone 14 Pro Max and iPad presets, in portrait and landscape, using touch taps. Serve the built site and run it:
 
 ```bash
-npm run build && (cd _site && python3 -m http.server 8080 &)
-cd tools/device-test && npm install && npx playwright install webkit
+npm run build && cd _site && python3 -m http.server 8080      # leave this running; use a second terminal below, then stop it with Ctrl-C
+cd tools/device-test && npm ci && npx playwright install webkit
 BASE=http://localhost:8080/ node device-test.mjs      # layout, tap targets, text size, flows; exit code 1 on a problem
 BASE=http://localhost:8080/ node speed-check.mjs      # plays a word at Normal, Clear and Slow and prints the rates
 ```
 
 It checks that the tab bar fits, that form fields are at least 16 px (iOS Safari zooms the page when you tap a smaller field), that tap targets are at least 44 px, that no text is under 12 px, that nothing overflows sideways, that the page makes no third-party requests, and that a practice round, the word-bank details and stars, and the speed buttons work by touch. It is emulation on a desktop machine: it does not use iOS itself, a real speaker, the iOS audio rules, or a screen reader.
 
-Manual checks, not part of CI, with no logs kept (my own observations; the mobile check above is repeatable): on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at its set rate, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, but a full check of recorded sentences in a real browser is still open until the first full run has finished. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
+Manual checks, not part of CI, with no logs kept (my own observations; the mobile check above is repeatable): on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at its set rate, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, and after the first full sentence recording finished (workflow run 42162473625, success) a recorded sentence played in all four voices in iPhone and iPad WebKit presets against the live site. A check of recorded sentences on a real device is still open. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 
 Other limits:
 

@@ -7,7 +7,7 @@ Public repository. A static spelling-bee practice site for children, hosted on G
 - Plain HTML, CSS and JavaScript modules. No framework, bundler or backend. No runtime npm dependencies.
 - `words.json` is the word data: id, word, part, definition, group, level, scan_page, sentence.
 - Speech: recorded clips in `clips/` first, then live Kokoro, then Piper, then the device voice (`voice-service.js`).
-- Everything the child saves (history, stars, voice settings) stays in that browser's local storage. Nothing is sent anywhere.
+- Everything the child saves (history, stars, voice settings) stays in that browser's local storage and is never sent by the site. GitHub hosts the site and sees visitor IP addresses; the optional live voice also loads files from cdn.jsdelivr.net, esm.sh and huggingface.co.
 - Read `README.md` first: it documents features, the clip pipeline, deployment, the failure runbook and testing.
 
 ## Commands
@@ -75,5 +75,5 @@ Every open issue and PR carries exactly one state label:
 ## Do not
 
 - Do not commit generated output (`_site/`, `node_modules/`, device-test screenshots).
-- Do not add runtime dependencies or third-party requests (fonts, scripts, analytics). The page makes none today and a test guards the fonts.
+- Do not add runtime dependencies or third-party requests (fonts, scripts, analytics). The page makes none on load; only the optional live voice loads libraries and model files from the three hosts above. A test guards the fonts.
 - Do not delete branches, repositories or history without the owner's word.
