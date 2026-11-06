@@ -118,3 +118,13 @@ test('switching tabs by click moves focus to the new page heading, and page load
   assert.match(app, /if\(location\.hash\)showTab\(location\.hash\.slice\(1\)\);/);
   assert.match(css, /h1:focus,h2:focus/);
 });
+
+test('the practice screen has a visible speed switch, and Repeat slowly stays a one-time slow play', () => {
+  assert.match(html, /<div id="practiceSpeed" class="segmented" role="group" aria-labelledby="practiceSpeedLabel">/);
+  assert.match(html, /id="practiceSpeedLabel">Voice speed</);
+  assert.match(app, /data-practice-speed="\$\{s\.id\}" aria-pressed="false">\$\{s\.label\}</, 'one button per speed, fixed names, state in aria-pressed');
+  assert.match(app, /voiceService\.select\(\{speedId:b\.dataset\.practiceSpeed\}\)/);
+  assert.match(app, /\[data-speed\],\[data-practice-speed\]/, 'both speed groups stay in sync');
+  assert.match(app, /if\(type==='repeat'\)\{voiceService\.speak\(w\.word,\{kind:'word',instant:true,speedId:'slow'\}\);return;\}/);
+  assert.match(css, /\.practice-speed \.speed-option\{min-height:44px/);
+});
