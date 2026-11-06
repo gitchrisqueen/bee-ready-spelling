@@ -16,6 +16,17 @@ export function clipKey(text){
   if(text===PREVIEW_TEXT)return '_preview';
   return String(text).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9-]/g,'_');
 }
+// Sentence clips are named by a hash of the exact sentence, so a clip can never play audio for
+// different wording: if a sentence changes, its old clip is simply not found until it is recorded again.
+// (cyrb53, a fast non-cryptographic 53-bit hash; the generator uses this same function.)
+export function sentenceKey(text){
+  const s=String(text).trim().normalize('NFC');
+  let h1=0xdeadbeef,h2=0x41c6ce57;
+  for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677);}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return 'sentence_'+(4294967296*(2097151&h2)+(h1>>>0)).toString(36);
+}
 export const SPEEDS = Object.freeze([
   { id:'normal', label:'Normal', value:1 },
   { id:'clear', label:'Clear', value:0.87 },
@@ -235,9 +246,10 @@ export class BeeVoiceService {
     if(this.settings.mode==='device')return this._device(text,token);
     // Pre-recorded clips play at once. A cached clip starts without any await, which keeps iOS
     // Safari's tap-to-play permission intact.
-    if(clipsSupported()&&(kind==='word'||text===PREVIEW_TEXT)){
-      let blob=this.clips.get(this._clipId(text));
-      if(blob===undefined){blob=await this._loadClip(text);if(token!==this.sequence)return 'cancelled';}
+    if(clipsSupported()&&(kind==='word'||kind==='sentence'||text===PREVIEW_TEXT)){
+      const clipKind=kind==='sentence'?'sentence':'word';
+      let blob=this.clips.get(this._clipId(text,clipKind));
+      if(blob===undefined){blob=await this._loadClip(text,clipKind);if(token!==this.sequence)return 'cancelled';}
       if(blob){
         try{if(await this._playBlob(blob,token,'clip')==='tap')return 'tap';return 'clip';}
         catch(err){console.info('Recorded clip failed, using live voice:',messageOf(err));}
@@ -287,14 +299,15 @@ export class BeeVoiceService {
       return this._device(text,token);
     }
   }
-  _clipId(text){return `${this.voice.kokoro}|${clipKey(text)}`;}
-  async _loadClip(text){
-    const id=this._clipId(text);
+  _clipId(text,kind){return `${this.voice.kokoro}|${kind==='sentence'?sentenceKey(text):clipKey(text)}`;}
+  async _loadClip(text,kind='word'){
+    const id=this._clipId(text,kind);
     if(this.clips.has(id))return this.clips.get(id);
     if(!clipsSupported())return null;
     let blob=null;
     try{
-      const res=await fetch(new URL(`./clips/${this.voice.kokoro}/${clipKey(text)}.mp3`,import.meta.url));
+      const key=kind==='sentence'?sentenceKey(text):clipKey(text);
+      const res=await fetch(new URL(`./clips/${this.voice.kokoro}/${key}.mp3`,import.meta.url));
       if(res.ok){const b=await res.blob();if(b.size>0)blob=b;}
       else if(res.status!==404)return null;
     }catch{return null;}
@@ -303,6 +316,6 @@ export class BeeVoiceService {
     return blob;
   }
   // Warm a clip so the next Hear button plays with no wait.
-  prefetch(text){if(this.settings.mode==='device')return Promise.resolve();return this._loadClip(String(text).trim()).then(()=>{},()=>{});}
+  prefetch(text,kind='word'){if(this.settings.mode==='device')return Promise.resolve();return this._loadClip(String(text).trim(),kind).then(()=>{},()=>{});}
   async preview(){return this.speak(PREVIEW_TEXT,{kind:'sample'});}
 }

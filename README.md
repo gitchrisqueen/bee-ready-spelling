@@ -58,7 +58,7 @@ Practice history and voice settings are saved in your browser's local storage. N
 
 ## Speech and voices
 
-Every word, and the voice sample, is a short **pre-recorded clip** made with the Kokoro neural voice, so it plays almost at once. There is nothing to download first, and it works on any phone or tablet.
+Every word, its practice sentence (the "In a sentence" clue), and the voice sample are short **pre-recorded clips** made with the Kokoro neural voice, so it plays almost at once. There is nothing to download first, and it works on any phone or tablet.
 
 ```
 Recorded clip  →  live Kokoro  →  Piper  →  Device speech
@@ -66,8 +66,8 @@ Recorded clip  →  live Kokoro  →  Piper  →  Device speech
 ```
 
 - **Recorded clips** cover every word in four American English voices: Sunny and Bella (female), Miles and Finn (male). Slow and Clear speeds change the playback speed of the same clip.
-- **No clip yet?** A word that has no recording (for example one just added), and every sentence clue, speaks right away with the **device voice**. A child never waits for a model.
-- **Live voice (optional).** *Add live voice for sentences* downloads the Kokoro model (about 90 MB, once) so sentences and new words can be spoken in the natural voice. It can be slow on phones. If it fails, Piper and then the device voice take over automatically.
+- **No clip yet?** A word or sentence that has no recording yet (for example one just added or reworded) speaks right away with the **device voice**. A child never waits for a model.
+- **Live voice (optional).** *Add live voice for new words* downloads the Kokoro model (about 90 MB, once) so sentences and new words can be spoken in the natural voice. It can be slow on phones. If it fails, Piper and then the device voice take over automatically.
 - **Device voice only** skips everything above and uses the browser's built-in voice.
 
 **Good to know**
@@ -112,10 +112,10 @@ You can also use any static file server. Open `index.html` through a server, not
 
 ### Adding or changing words
 
-Edit `words.json` and push to `main`. Two things happen automatically:
+Edit `words.json` (or the practice sentences in `sentences.js`) and push to `main`. Two things happen automatically:
 
-1. The site deploys right away. New words work immediately, spoken by the device voice.
-2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words in all four voices, commits them under `clips/`, and redeploys. Removed words have their clips pruned. It also runs when `voice-service.js` or `tools/clips/` changes, and you can start it by hand from the **Actions** tab.
+1. The site deploys right away. New words and new sentences work immediately, spoken by the device voice.
+2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words and sentences, one parallel job per voice, commits them under `clips/`, and redeploys. Removed words and replaced sentences have their old clips pruned. It also runs when `sentences.js`, `voice-service.js` or `tools/clips/` changes, and you can start it by hand from the **Actions** tab.
 
 The word count and "1,155" appear as static text in `index.html` and this README. Update them by hand when the list changes. The tests check that the list is well-formed (unique words, valid level), not that it has a particular size.
 
@@ -131,11 +131,11 @@ node generate.mjs --voice af_heart --limit 10        # try a few
 node generate.mjs --prune                            # also delete clips for removed words
 ```
 
-Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and about 30 MB of disk for the clips. Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
+Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and about 95 MB of disk for the clips. Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
 
-Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`, where the key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed, model revision or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
+Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`. A word's key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. A sentence's key is `sentence_` plus a hash of the exact sentence, so a clip can never play the wrong wording: if a sentence changes, its old clip is simply not found (the device voice speaks it) until the new one is recorded. The voice sample is `_preview`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed, model revision or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
 
-Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip for one process on a laptop and on two servers, so roughly 30 to 40 minutes per voice. I have not timed GitHub's runners. Generation stops after 300 minutes (the job limit of 350 is headroom for saving and committing).
+Timings I measured: a word clip takes 1.4 to 2.0 seconds for one process on a laptop and on two servers, and a sentence clip about 5 seconds (12 samples on a laptop), so roughly 30 to 40 minutes per voice for words and about 1.5 hours per voice for sentences. I have not timed GitHub's runners. Generation stops after 300 minutes (the job limit of 350 is headroom for saving and committing).
 
 **Check what a run would do:** `node generate.mjs --dry-run` prints how many clips each voice still needs, and how many stale clips a `--prune` run would delete, and exits without loading the model. On an up-to-date tree every voice shows `0` for both.
 
@@ -154,7 +154,7 @@ Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip
 
 **Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours (about 2 to 3 hours of runner time), and each regeneration adds roughly 30 MB of binary history to git, so consider splitting it with the `limit` option.
 
-The commit job only accepts clips that fit its validator: at most 300,000 bytes per clip, at most 120 MB for the whole run, a valid MP3 header, and nothing but `<key>.mp3`, `manifest.json` and `settings.json`. A much higher bitrate (30 MB at 40 kbps would be about 144 MB at 192 kbps) can pass the tests and the local trial and then be refused by the commit job after hours of work. Check the expected total first, and raise the limits in the workflow's validator together with the bitrate change.
+The commit job only accepts clips that fit its validator: at most 300,000 bytes per clip, at most 250 MB for the whole clips folder, a valid MP3 header, and nothing but `<key>.mp3`, `manifest.json` and `settings.json`. A much higher bitrate (about 91 MB at 40 kbps would be roughly 440 MB at 192 kbps) can pass the tests and the local trial and then be refused by the commit job after hours of work. Check the expected total first, and raise the limits in the workflow's validator together with the bitrate change.
 
 The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three clips plus `clips/settings.json` into your working tree. Open the three changed files in `clips/af_heart/` to listen, then commit them or run `git checkout clips` to discard. If you edit the constants and forget to bump `ENCODER`, the generator stops with a message asking for it.
 
@@ -168,7 +168,7 @@ The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three cl
 | `FAILED <voice>/<key>` and `N clip(s) failed` | Individual words failed. The run is red, but every good clip is still committed. | Find the words in the generate step log and run again; only the failed clips are retried. |
 | Generate job red, commit job green | Expected after a partial failure: the finished clips were committed. | Read the failed words in the log as above. |
 | The generate step shows as cancelled or timed out, commit job green | It hit the 300-minute limit. Finished clips were saved and deployed. | Run **Generate voice clips** again to continue: only missing clips are recorded (up to 24 per voice may be redone, because manifests save every 25 clips). Use `limit` to split a big job. |
-| Commit job says `artifact is larger than 120 MB`, `has an odd size`, `is not an MP3`, `unexpected file` or `unexpected entry` | The validator refused the files. Nothing was pushed. | Lower the bitrate, or raise the limit in the validator in `generate-clips.yml`, then run again. The artifact expires after 3 days. |
+| Commit job says `the clips folder would be larger than 250 MB`, `has an odd size`, `is not an MP3`, `unexpected file` or `unexpected entry` | The validator refused the files. Nothing was pushed. | Lower the bitrate, or raise the limit in the validator in `generate-clips.yml`, then run again. The artifact expires after 3 days. |
 | `clips/ changed on main after this run started` | Someone pushed to `clips/` while the run was generating. Nothing was pushed. | Run **Generate voice clips** again from `main`. |
 | Commit job fails on `git pull --rebase` or `git push` | A concurrent push conflicted, or `main` now has branch protection. | Use **Re-run failed jobs** within 3 days (the artifact is kept that long); after that, run again. If you turned on branch protection, allow `github-actions[bot]` to push. |
 | `... would replace N (more than 5% fewer)` | The validator thinks an artifact would delete too many clips. | Run again with `force_prune` only if the removal is intended. |
@@ -222,6 +222,7 @@ gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 .
 ├── index.html · styles.css · app.js     UI and practice logic
 ├── voice-service.js                     Clips → Kokoro → Piper → device speech
+├── sentences.js                         Practice sentences (shared by the app and the clip generator)
 ├── clips/                               Pre-recorded word clips (4 voices)
 ├── tools/clips/                         Clip generator and its dependencies
 ├── words.json                           1,155-word data set

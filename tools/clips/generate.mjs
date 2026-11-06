@@ -3,12 +3,13 @@
 //   node generate.mjs [--voice af_heart] [--limit 10] [--redo key1,key2]
 //                     [--prune [--force-prune]] [--dry-run]
 //
-// --redo re-records the named clips (a clip key is the lowercase word, see clipKey).
+// --redo re-records the named clips (a key is the lowercase word, or `sentence_<hash>`; see clipKey and sentenceKey).
 // --dry-run prints how many clips each voice still needs, without loading the model.
 //
 // Incremental: a clip is regenerated only when its text, voice, model revision or encoder
 // label changes, so adding words to words.json only generates the new ones.
-// Output: <repo>/clips/<kokoro voice>/<clipKey>.mp3 plus clips/<voice>/manifest.json.
+// Output: <repo>/clips/<kokoro voice>/<key>.mp3 plus clips/<voice>/manifest.json.
+// Each word gets a word clip and a sentence clip (the "In a sentence" clue); the voice sample is one more clip.
 // Requires ffmpeg (with libmp3lame) on PATH.
 //
 // Safety: the model is fetched at one pinned Hugging Face revision and its SHA-256 is checked
@@ -22,7 +23,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { KokoroTTS } from 'kokoro-js';
-import { PREVIEW_TEXT, VOICES, clipKey } from '../../voice-service.js';
+import { PREVIEW_TEXT, VOICES, clipKey, sentenceKey } from '../../voice-service.js';
+import { sentenceFor } from '../../sentences.js';
 
 const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const MODEL_REVISION = '1939ad2a8e416c0acfeecc08a694d14ef25f2231';
@@ -44,12 +46,17 @@ const option = name => (flag(name) ? args[args.indexOf(`--${name}`) + 1] : null)
 
 const root = resolve(import.meta.dirname, '..', '..');
 const words = JSON.parse(readFileSync(join(root, 'words.json'), 'utf8'));
-const texts = [...words.map(w => w.word), PREVIEW_TEXT];
+const items = [];
+for (const w of words) {
+  items.push({ text: w.word, key: clipKey(w.word) });
+  const sentence = sentenceFor(w);
+  items.push({ text: sentence, key: sentenceKey(sentence) });
+}
+items.push({ text: PREVIEW_TEXT, key: '_preview' });
 
 // Two different words must never share a file name.
 const owners = new Map();
-for (const text of texts) {
-  const key = clipKey(text);
+for (const { text, key } of items) {
   if (owners.has(key) && owners.get(key) !== text) {
     throw new Error(`Clip name collision: "${owners.get(key)}" and "${text}" both map to "${key}"`);
   }
@@ -94,11 +101,10 @@ if (flag('dry-run')) {
     const dir = join(root, 'clips', voice);
     const manifestPath = join(dir, 'manifest.json');
     const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
-    const todo = texts.filter(text => {
-      const key = clipKey(text);
+    const todo = items.filter(({ text, key }) => {
       return redo.has(key) || !(manifest[key] === fingerprint(text, voice) && existsSync(join(dir, `${key}.mp3`)));
     });
-    const keep = new Set(texts.map(clipKey));
+    const keep = new Set(items.map(item => item.key));
     const stale = existsSync(dir) ? readdirSync(dir).filter(n => n.endsWith('.mp3') && !keep.has(n.slice(0, -4))).length : 0;
     console.log(`${voice}: ${todo.length} clip(s) to generate, ${stale} stale clip(s) a --prune run would delete`);
   }
@@ -138,8 +144,7 @@ for (const { kokoro: voice } of wanted) {
   };
   let made = 0;
   const started = Date.now();
-  for (const text of texts) {
-    const key = clipKey(text);
+  for (const { text, key } of items) {
     const file = join(dir, `${key}.mp3`);
     const print = fingerprint(text, voice);
     if (!redo.has(key) && manifest[key] === print && existsSync(file)) continue;
@@ -168,7 +173,7 @@ for (const { kokoro: voice } of wanted) {
   }
   save();
   if (flag('prune')) {
-    const keep = new Set(texts.map(clipKey));
+    const keep = new Set(items.map(item => item.key));
     const stale = readdirSync(dir).filter(n => n.endsWith('.mp3') && !keep.has(n.slice(0, -4)));
     const total = readdirSync(dir).filter(n => n.endsWith('.mp3')).length;
     if (stale.length > total * MAX_PRUNE_FRACTION && !flag('force-prune')) {

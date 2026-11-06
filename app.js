@@ -1,48 +1,11 @@
 import { BeeVoiceService, VOICES, SPEEDS } from './voice-service.js';
+import { sentenceFor } from './sentences.js';
 const $ = id => document.getElementById(id);
 const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeText = value => String(value??'');
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 const historyKey='bee-ready-history-v2';
 const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection'};
-const curated = {
-  'school':'A school of fish swam past the reef.', 'guy':'A strong guy rope kept the tent steady.',
-  'mole':'We enjoyed enchiladas covered in mole sauce.', 'calypso':'The rare calypso orchid bloomed in the forest.',
-  'kona':'The kona wind brought warm air across the island.',
-  'learned':'The learned scientist studied ancient languages.',
-  'dogged':'Her dogged effort helped her finish the difficult puzzle.',
-  'pizza':'We shared a slice of pizza after the game.',
-  'zucchini':'The gardener picked a fresh zucchini for dinner.',
-  'xylophone':'Maya played a cheerful song on the xylophone.',
-  'democracy':'The class held a vote to understand democracy.',
-  'algorithm':'The robot followed an algorithm to find the maze exit.',
-  'biopsy':'The doctor used a biopsy to examine a small tissue sample.',
-  'amulet':'The traveler carried an amulet in a tiny pouch.',
-  'sushi':'The chef rolled sushi with rice and vegetables.',
-  'noodle':'A long noodle slipped off my fork.',
-  'robot':'The robot carried supplies across the room.',
-  'ballet':'She practiced ballet before the recital.',
-  'tornado':'The tornado moved across the empty field.',
-  'jalapeño':'A jalapeño can make a dish taste spicy.',
-  'mozzarella':'We sprinkled mozzarella over the pizza.',
-  'haiku':'The student wrote a haiku about spring rain.',
-  'origami':'We folded colorful paper into origami cranes.',
-  'karate':'He practiced karate with his instructor.',
-  'bamboo':'The panda ate bamboo in the forest.',
-  'fossil':'The museum displayed a fossil of an ancient sea creature.',
-  'umbrella':'She opened her umbrella when it began to rain.',
-  'zenith':'At noon, the sun was near its zenith.',
-  'graffiti':'Artists painted colorful graffiti on the approved mural wall.'
-};
-function sentenceFor(w){
-  if(curated[w.word.toLowerCase()])return curated[w.word.toLowerCase()];
-  const pos=w.part;
-  if(pos==='v')return `In the story, the character decided to ${w.word}.`;
-  if(pos==='adj')return `The writer described something as ${w.word}.`;
-  if(pos==='adv')return `The musician tried to play ${w.word}.`;
-  if(pos==='interj')return `The traveler said, “${w.word}!”`;
-  return `In our lesson, we learned more about ${w.word}.`;
-}
 function hideWord(sentence,word){
   const norm=word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   return sentence.replace(new RegExp(norm,'gi'),'_______');
@@ -130,7 +93,7 @@ function showCurrent(){
   $('revealOral').classList.remove('hidden');$('gradeOral').classList.add('hidden');
   $('hearWord').disabled=false;
   document.querySelectorAll('[data-clue]').forEach(b=>b.disabled=false);
-  voiceService.prefetch(w.word);
+  voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');
 }
 function showClue(type){
   const w=currentWord();if(!w)return;
@@ -211,7 +174,7 @@ function initVoiceSettings(){
   $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
   $('speedChoices').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
   syncVoiceButtons();
-  document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w)voiceService.prefetch(w.word);}));
+  document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w){voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');}}));
   document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({speedId:b.dataset.speed});syncVoiceButtons();}));
   document.querySelectorAll('input[name="engineMode"]').forEach(r=>r.addEventListener('change',()=>{if(r.checked){voiceService.select({mode:r.value});syncVoiceButtons();}}));
   $('prepareVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});

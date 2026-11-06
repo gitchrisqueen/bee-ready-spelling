@@ -103,3 +103,23 @@ test('the clip workflow can read the voice list from voice-service.js', async ()
   const found = [...read('voice-service.js').matchAll(/kokoro:'([a-z_]+)'/g)].map(m => m[1]).sort();
   assert.deepEqual(found, VOICES.map(v => v.kokoro).sort(), 'keep VOICES entries in the form kokoro:\'id\' (the workflow parses them)');
 });
+
+test('every practice sentence has its own plain-ASCII clip name', async () => {
+  const { sentenceKey } = await import('../voice-service.js');
+  const { sentenceFor } = await import('../sentences.js');
+  const owners = new Map();
+  for (const w of words) {
+    const sentence = sentenceFor(w);
+    assert.ok(typeof sentence === 'string' && sentence.length > 10, `${w.word}: sentence missing`);
+    const key = sentenceKey(sentence);
+    assert.match(key, /^sentence_[a-z0-9]+$/);
+    assert.ok(!owners.has(key) || owners.get(key) === sentence, `sentence key collision for "${sentence}"`);
+    owners.set(key, sentence);
+  }
+});
+
+test('the workflow matrix takes its voices from VOICES, so no list can drift', () => {
+  const workflow = read('.github/workflows/generate-clips.yml');
+  assert.match(workflow, /fromJSON\(needs\.plan\.outputs\.voices\)/);
+  assert.match(workflow, /kokoro:'\(\[a-z_\]\+\)'/);
+});

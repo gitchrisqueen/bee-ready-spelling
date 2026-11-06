@@ -204,3 +204,35 @@ test('model redirect refuses path traversal',withClipFetch(okClip,async(requeste
  assert.ok(requested.includes(`${model}../../secret`),'goes to the original URL, never a local one');
  assert.ok(!requested.some(u=>u.includes('/voice-assets/models/')&&u.includes('..')));
 }));
+
+test('a sentence clue plays its own recorded clip, named by a hash of the sentence',withClipFetch(okClip,async(requested)=>{
+ const {sentenceKey}=await import('../voice-service.js');
+ const sentence='The gardener picked a fresh zucchini for dinner.';
+ const svc=new BeeVoiceService({settings:{voiceId:'michael',mode:'auto'},loadKokoro:async()=>{throw Error('must not load');}});
+ assert.equal(await svc.speak(sentence,{kind:'sentence',instant:true}),'clip');
+ assert.ok(requested[0].endsWith(`/clips/am_michael/${sentenceKey(sentence)}.mp3`));
+ assert.match(sentenceKey(sentence),/^sentence_[a-z0-9]+$/);
+}));
+
+import {sentenceKey as keyOf} from '../voice-service.js';
+const sentenceKeyOld=keyOf('The old sentence.');
+test('a reworded sentence never plays the old recording',withClipFetch(url=>url.includes(sentenceKeyOld)?okClip():({ok:false,status:404}),async()=>{
+ const svc=new BeeVoiceService({settings:{mode:'auto'}});
+ assert.equal(await svc.speak('The old sentence.',{kind:'sentence',instant:true}),'clip');
+ assert.equal(await svc.speak('The new wording of that sentence.',{kind:'sentence',instant:true}),'device');
+}));
+
+test('sentence keys are stable and differ for different sentences',async()=>{
+ const {sentenceKey}=await import('../voice-service.js');
+ assert.equal(sentenceKey('Hello there.'),sentenceKey('  Hello there. '));
+ assert.notEqual(sentenceKey('Hello there.'),sentenceKey('Hello there!'));
+ assert.equal(sentenceKey('Hello there.'),'sentence_'+sentenceKey('Hello there.').slice(9));
+});
+
+test('a prefetched sentence clip needs no extra request when the clue is used',withClipFetch(okClip,async(requested)=>{
+ const svc=new BeeVoiceService({settings:{voiceId:'heart',mode:'auto'}});
+ await svc.prefetch('In our lesson, we learned more about aqueduct.','sentence');
+ assert.equal(requested.length,1);
+ assert.equal(await svc.speak('In our lesson, we learned more about aqueduct.',{kind:'sentence',instant:true}),'clip');
+ assert.equal(requested.length,1);
+}));

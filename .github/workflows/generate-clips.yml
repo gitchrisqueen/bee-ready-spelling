@@ -1,24 +1,26 @@
 name: Generate voice clips
 
-# Keeps the pre-recorded word clips in sync with words.json. Only new or changed words are
-# generated (tools/clips/generate.mjs), so a normal run takes minutes. When clips change they
-# are committed to main and the site is redeployed.
+# Keeps the pre-recorded clips (every word, its practice sentence, and the voice sample) in sync with
+# words.json and sentences.js. Only new or changed clips are generated (tools/clips/generate.mjs), so a
+# normal run takes minutes. Each voice is recorded in its own parallel job. When clips change they are
+# committed to main and the site is redeployed.
 #
-# Two jobs on purpose. `generate` runs npm and third-party code with a READ-ONLY token and no
-# stored credentials. `commit` holds the write token, runs no npm or node code, and only
-# accepts a strictly validated set of files from the artifact.
+# Privilege split on purpose. `generate` legs run npm and third-party code with a READ-ONLY token and no
+# stored credentials. `commit` holds the write token, runs no npm or node code, and only accepts a
+# strictly validated set of files from the artifacts.
 #
 # Manual run options (Actions tab > Generate voice clips > Run workflow):
 #   voice        only this Kokoro voice id, e.g. af_heart
-#   limit        stop after this many new clips per voice (splits a big job into pieces)
-#   redo         comma-separated clip keys to record again, e.g. blase,zucchini
-#   force_prune  allow deleting more than 5% of a voice's clips (after removing many words)
+#   limit        stop after this many new clips per voice (smoke test, or split a big job)
+#   redo         comma-separated clip keys to record again, e.g. blase,sentence_1abc
+#   force_prune  allow deleting more than 5% of a voice's clips
 
 on:
   push:
     branches: [main]
     paths:
       - words.json
+      - sentences.js
       - voice-service.js
       - tools/clips/**
   workflow_dispatch:
@@ -49,15 +51,46 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  generate:
+  plan:
     # A manual run from any other branch must never reach main.
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      voices: ${{ steps.voices.outputs.voices }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: List the voices from voice-service.js
+        id: voices
+        env:
+          IN_VOICE: ${{ inputs.voice }}
+        run: |
+          python3 -I - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, re
+          voices = sorted(set(re.findall(r"kokoro:'([a-z_]+)'", open("voice-service.js", encoding="utf8").read())))
+          only = os.environ.get("IN_VOICE", "")
+          if only:
+              voices = [v for v in voices if v == only]
+          if not voices:
+              raise SystemExit("no matching voice")
+          print("voices=" + json.dumps(voices))
+          PY
+
+  generate:
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 350
     permissions:
       contents: read
-    outputs:
-      changed: ${{ steps.diff.outputs.changed }}
+    strategy:
+      fail-fast: false
+      matrix:
+        voice: ${{ fromJSON(needs.plan.outputs.voices) }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -81,16 +114,13 @@ jobs:
         timeout-minutes: 300
         continue-on-error: true
         env:
-          IN_VOICE: ${{ inputs.voice }}
+          VOICE: ${{ matrix.voice }}
           IN_LIMIT: ${{ inputs.limit }}
           IN_REDO: ${{ inputs.redo }}
           IN_FORCE: ${{ inputs.force_prune }}
         run: |
-          args=(--prune)
-          if [ -n "$IN_VOICE" ]; then
-            [[ "$IN_VOICE" =~ ^[a-z_]+$ ]] || { echo "voice must be a voice id like af_heart"; exit 1; }
-            args+=(--voice "$IN_VOICE")
-          fi
+          [[ "$VOICE" =~ ^[a-z_]+$ ]] || { echo "bad voice id"; exit 1; }
+          args=(--prune --voice "$VOICE")
           if [ -n "$IN_LIMIT" ]; then
             [[ "$IN_LIMIT" =~ ^[0-9]+$ ]] || { echo "limit must be a whole number"; exit 1; }
             args+=(--limit "$IN_LIMIT")
@@ -101,17 +131,14 @@ jobs:
           fi
           if [ "$IN_FORCE" = "true" ]; then args+=(--force-prune); fi
           node generate.mjs "${args[@]}"
-      - name: Detect changes
-        id: diff
+      - name: Upload this voice's clips
         if: ${{ !cancelled() }}
-        run: |
-          if [ -n "$(git status --porcelain clips)" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
-      - name: Upload clips
-        if: ${{ !cancelled() && steps.diff.outputs.changed == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: clips
-          path: clips
+          name: clips-${{ matrix.voice }}
+          path: |
+            clips/${{ matrix.voice }}
+            clips/settings.json
           retention-days: 3
       - name: Fail the run if any clip failed (finished clips are still kept)
         if: ${{ !cancelled() && steps.gen.outcome == 'failure' }}
@@ -120,9 +147,9 @@ jobs:
           exit 1
 
   commit:
-    needs: generate
-    # `!cancelled()` so finished clips are kept after a partial failure, but a run you cancel never pushes.
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.generate.outputs.changed == 'true' }}
+    needs: [plan, generate]
+    # `!cancelled()` so finished voices are kept when another voice failed, but a run you cancel never pushes.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -134,57 +161,74 @@ jobs:
       - name: Download clips
         uses: actions/download-artifact@v4
         with:
-          name: clips
+          pattern: clips-*
+          merge-multiple: true
           path: ${{ runner.temp }}/clips-new
       - name: Stop if clips changed on main while this run was generating
         run: |
           git fetch --quiet origin main
           if [ -n "$(git diff --name-only "$GITHUB_SHA" origin/main -- clips)" ]; then
-            echo "clips/ changed on main after this run started, so this artifact is stale."
+            echo "clips/ changed on main after this run started, so these artifacts are stale."
             echo "Nothing was pushed. Run 'Generate voice clips' again from main."
             exit 1
           fi
-      - name: Validate the files before committing them
+      - name: Build and validate the new clips folder
         env:
           NEW: ${{ runner.temp }}/clips-new
+          STAGING: ${{ runner.temp }}/staging
           FORCE: ${{ inputs.force_prune }}
         run: |
           python3 -I - <<'PY'
-          import json, os, re, stat, sys
-          new = os.environ["NEW"]
+          import json, os, re, shutil, stat, sys
+          new, staging = os.environ["NEW"], os.environ["STAGING"]
           force = os.environ.get("FORCE") == "true"
           voices = set(re.findall(r"kokoro:'([a-z_]+)'", open("voice-service.js", encoding="utf8").read()))
           if not voices:
               sys.exit("could not read the voice list from voice-service.js")
           problems = []
-          total_bytes = 0
 
-          def mode(path):
+          def lmode(path):
               return os.lstat(path).st_mode  # lstat: never follow links
 
-          if not stat.S_ISDIR(mode(new)):
-              sys.exit("artifact root is not a directory")
-          # Only plain files and plain folders; no links, devices or hard links anywhere.
-          for dirpath, dirnames, filenames in os.walk(new, followlinks=False):
-              for name in dirnames + filenames:
-                  p = os.path.join(dirpath, name)
-                  st = os.lstat(p)
-                  if stat.S_ISLNK(st.st_mode) or not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode)):
-                      problems.append(f"{os.path.relpath(p, new)} is not a plain file or folder")
-                  elif stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
-                      problems.append(f"{os.path.relpath(p, new)} is a hard link")
+          # Start from the clips already on main, then replace only the voices that were just recorded.
+          shutil.copytree("clips", staging, symlinks=True)
+          if os.path.isdir(new) and stat.S_ISDIR(lmode(new)):
+              for entry in sorted(os.listdir(new)):
+                  src = os.path.join(new, entry)
+                  dst = os.path.join(staging, entry)
+                  if entry == "settings.json" and stat.S_ISREG(lmode(src)):
+                      shutil.copyfile(src, dst)
+                  elif entry in voices and stat.S_ISDIR(lmode(src)):
+                      shutil.rmtree(dst, ignore_errors=True)
+                      shutil.copytree(src, dst, symlinks=True)
+                  else:
+                      problems.append(f"unexpected entry {entry} in the artifacts")
           if problems:
               print("\n".join(problems[:50]))
               sys.exit(1)
 
-          for entry in sorted(os.listdir(new)):
-              path = os.path.join(new, entry)
-              if entry == "settings.json" and stat.S_ISREG(mode(path)):
+          # Only plain files and plain folders; no links, devices or hard links anywhere.
+          for dirpath, dirnames, filenames in os.walk(staging, followlinks=False):
+              for name in dirnames + filenames:
+                  p = os.path.join(dirpath, name)
+                  st = os.lstat(p)
+                  if stat.S_ISLNK(st.st_mode) or not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode)):
+                      problems.append(f"{os.path.relpath(p, staging)} is not a plain file or folder")
+                  elif stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+                      problems.append(f"{os.path.relpath(p, staging)} is a hard link")
+          if problems:
+              print("\n".join(problems[:50]))
+              sys.exit(1)
+
+          total_bytes = 0
+          for entry in sorted(os.listdir(staging)):
+              path = os.path.join(staging, entry)
+              if entry == "settings.json" and stat.S_ISREG(lmode(path)):
                   data = json.load(open(path))
                   keys = {"encoder", "digest", "kokoroJs", "modelRevision"}
                   if os.path.getsize(path) > 2000 or set(data) != keys or not all(isinstance(v, str) for v in data.values()):
                       problems.append("settings.json is not the expected four string fields")
-              elif stat.S_ISDIR(mode(path)) and entry in voices:
+              elif stat.S_ISDIR(lmode(path)) and entry in voices:
                   mp3s = 0
                   for name in os.listdir(path):
                       fp = os.path.join(path, name)
@@ -192,8 +236,8 @@ jobs:
                       total_bytes += size
                       if name == "manifest.json":
                           data = json.load(open(fp))
-                          if size > 500000 or not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
-                              problems.append(f"{entry}/manifest.json is not a flat string map under 500 KB")
+                          if size > 1000000 or not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+                              problems.append(f"{entry}/manifest.json is not a flat string map under 1 MB")
                       elif re.fullmatch(r"[a-z0-9_-]+\.mp3", name):
                           mp3s += 1
                           head = open(fp, "rb").read(3)
@@ -212,10 +256,10 @@ jobs:
           for voice in sorted(voices):
               old = os.path.join("clips", voice)
               had = len([n for n in os.listdir(old) if n.endswith(".mp3")]) if os.path.isdir(old) else 0
-              if had and not force and not os.path.isdir(os.path.join(new, voice)):
-                  problems.append(f"{voice}: the artifact has no folder for this voice, which would delete its {had} clips")
-          if total_bytes > 120 * 1024 * 1024:
-              problems.append("artifact is larger than 120 MB")
+              if had and not force and not os.path.isdir(os.path.join(staging, voice)):
+                  problems.append(f"{voice}: no folder for this voice, which would delete its {had} clips")
+          if total_bytes > 250 * 1024 * 1024:
+              problems.append("the clips folder would be larger than 250 MB")
           if problems:
               print("\n".join(problems[:50]))
               sys.exit(1)
@@ -223,10 +267,10 @@ jobs:
           PY
       - name: Commit and push to main
         env:
-          NEW: ${{ runner.temp }}/clips-new
+          STAGING: ${{ runner.temp }}/staging
         run: |
           rm -rf clips
-          cp -r --no-dereference "$NEW" clips
+          cp -r --no-dereference "$STAGING" clips
           if [ -n "$(find clips ! -type f ! -type d -print -quit)" ]; then echo "non-regular file in clips/"; exit 1; fi
           git add -A clips
           if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
@@ -237,7 +281,9 @@ jobs:
           # After the rebase the only thing we add on top of main must be under clips/.
           if git diff --name-only origin/main..HEAD | grep -qv '^clips/'; then echo "commit touches files outside clips/"; exit 1; fi
           git push origin HEAD:main
+          echo "pushed=true" >> "$GITHUB_ENV"
       - name: Start the deploy and the repository scan
+        if: ${{ env.pushed == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
