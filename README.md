@@ -40,7 +40,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 | **Review missed words** | Words you miss are saved so you can practice them again. |
 | **Star your own words** | Tap the ☆ on any word, in the word bank or during a round, to save it. Study and Challenge are the original booklet's fixed groups; the star is how you keep your own list. Filter the word bank to starred words only, or start a round from **My starred words**. |
 | **Word details** | In the word bank, tap **Details** on any card to see its part of speech, language group, booklet list (Study or Challenge) and practice sentence. Buttons there let you hear the word, hear it slowly, or hear the sentence. Hearing it slowly does not change your saved talking speed. Cards start closed, and open cards close again if you reload the page. |
-| **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. Every word plays instantly from a recording. |
+| **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. Every word plays instantly from a recording. During practice, the **Voice speed** buttons (Normal, Clear, Slow) change the saved speed at any time, and **Repeat slowly** plays the word slowly once without changing it. |
 | **Printable PDFs** | A practice workbook, an alphabetical list and a definitions reference. |
 | **Phone and tablet ready** | The layout adapts to phones, iPads and desktops. |
 
@@ -282,6 +282,7 @@ npm run build && cd _site && python3 -m http.server 8080      # leave this runni
 cd tools/device-test && npm ci && npx playwright install webkit
 BASE=http://localhost:8080/ node device-test.mjs      # layout, tap targets, text size, flows; exit code 1 on a problem
 BASE=http://localhost:8080/ node speed-check.mjs      # plays a word at Normal, Clear and Slow and prints the rates
+BASE=http://localhost:8080/ node persist-check.mjs    # Repeat slowly, then the speed switch: prints the rate of each play
 ```
 
 It checks that the tab bar fits, that form fields are at least 16 px (iOS Safari zooms the page when you tap a smaller field), that tap targets are at least 44 px, that no text is under 12 px, that nothing overflows sideways, that the page makes no third-party requests, and that a practice round, the word-bank details and stars, and the speed buttons work by touch. It is emulation on a desktop machine: it does not use iOS itself, a real speaker, the iOS audio rules, or a screen reader.

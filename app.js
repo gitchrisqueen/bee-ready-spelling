@@ -237,11 +237,18 @@ function syncVoiceButtons(){
   document.querySelectorAll('[data-voice]').forEach(b=>{
     const selected=b.dataset.voice===settings.voiceId;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));
   });
-  document.querySelectorAll('[data-speed]').forEach(b=>{const selected=b.dataset.speed===settings.speedId;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));});
+  document.querySelectorAll('[data-speed],[data-practice-speed]').forEach(b=>{const selected=(b.dataset.speed||b.dataset.practiceSpeed)===settings.speedId;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));});
   const radio=document.querySelector(`input[name="engineMode"][value="${settings.mode}"]`);if(radio)radio.checked=true;
 }
 function initVoiceSettings(){
   $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar" aria-hidden="true">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
+  // The speed switch on the practice screen: always visible, so a child can go back to Normal at any time.
+  // Unlike "Repeat slowly" (one word, one time), this saves the speed, the same as the Voices tab.
+  $('practiceSpeed').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-practice-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
+  document.querySelectorAll('[data-practice-speed]').forEach(b=>b.addEventListener('click',()=>{
+    voiceService.select({speedId:b.dataset.practiceSpeed});syncVoiceButtons();
+    const w=currentWord();if(w)voiceService.speak(w.word,{kind:'word',instant:true});
+  }));
   $('speedChoices').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
   syncVoiceButtons();
   document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w){voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');}}));
