@@ -29,8 +29,8 @@ export function sentenceKey(text){
 }
 export const SPEEDS = Object.freeze([
   { id:'normal', label:'Normal', value:1 },
-  { id:'clear', label:'Clear', value:0.87 },
-  { id:'slow', label:'Slow', value:0.7 },
+  { id:'clear', label:'Clear', value:0.8 },
+  { id:'slow', label:'Slow', value:0.6 },
 ]);
 
 const VERSION='bee-voice-v2';
@@ -207,8 +207,13 @@ export class BeeVoiceService {
     if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}
     this.objectUrl=URL.createObjectURL(blob);
     const player=new Audio(this.objectUrl);
-    player.playbackRate=engine==='piper'||engine==='clip'?speed:1;
+    const rate=engine==='piper'||engine==='clip'?speed:1;
+    // Set the rate several ways: some Safari versions reset it when the media loads or starts.
+    const applyRate=()=>{try{player.defaultPlaybackRate=rate;player.playbackRate=rate;}catch{}};
+    applyRate();
+    for(const name of ['loadedmetadata','canplay','playing'])player.addEventListener?.(name,applyRate);
     if('preservesPitch' in player)player.preservesPitch=true;
+    if('webkitPreservesPitch' in player)player.webkitPreservesPitch=true;
     this.player=player;
     player.onended=()=>{if(this.player===player){this.player=null;this._status('ready',engine,`${engine==='piper'?'Backup':'Natural'} voice ready.`);if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}}};
     try{await player.play();}catch(e){

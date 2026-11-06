@@ -11,6 +11,7 @@ for (const name of ['index.html', 'styles.css', 'app.js', 'voice-service.js', 's
   copyFileSync(source, join(output, name));
 }
 cpSync(join(root, 'assets'), join(output, 'assets'), { recursive: true });
+cpSync(join(root, 'fonts'), join(output, 'fonts'), { recursive: true });
 // Pre-recorded voice clips (tools/clips). Manifests are build inputs, not site content.
 if (existsSync(join(root, 'clips'))) {
   cpSync(join(root, 'clips'), join(output, 'clips'), { recursive: true, filter: src => !src.endsWith('manifest.json') });

@@ -68,13 +68,14 @@ Recorded clip  →  live Kokoro  →  Piper  →  Device speech
   (instant)        (optional)     (backup)   (always works)
 ```
 
-- **Recorded clips** cover every word in four American English voices: Sunny and Bella (female), Miles and Finn (male). Slow and Clear speeds change the playback speed of the same clip.
+- **Recorded clips** cover every word in four American English voices: Sunny and Bella (female), Miles and Finn (male). Clear plays the same clip at 0.8× and Slow at 0.6× (pitch is kept). Pressing a speed on the Voices tab plays the sample so you can hear the difference.
 - **No clip yet?** A word or sentence that has no recording yet (for example one just added or reworded) speaks right away with the **device voice**. A child never waits for a model.
 - **Live voice (optional).** *Add live voice for new words* downloads the Kokoro model (about 90 MB, once) so new or reworded words and sentences (those without a recording yet) can be spoken in the natural voice. It can be slow on phones. If it fails, Piper and then the device voice take over automatically.
 - **Device voice only** skips everything above and uses the browser's built-in voice.
 
 **Good to know**
 
+- The fonts (DM Sans and Fredoka, under the SIL Open Font License) are hosted in `fonts/`, so the page makes no request to Google or any other font service.
 - The Kokoro model files are served from this site itself, with Hugging Face as a per-request fallback. The speech libraries (`kokoro-js`, the ONNX runtime) and the Piper backup load from third-party CDNs.
 - No API key or subscription is used.
 - Safari can ask for a second tap before it plays audio. The app shows a message when that happens.
@@ -108,6 +109,8 @@ You can also use any static file server. Open `index.html` through a server, not
 | `stars.js` | Starred words: load, save, toggle and clear a set of word ids in `localStorage` (key `bee-ready-starred-v1`). Takes a storage object, so it is tested without a browser |
 | `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
 | `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
+| `tools/device-test/` | Mobile browser checks with real WebKit and iPhone/iPad presets. Not part of the deployed site |
+| `fonts/` | The two web fonts and their license texts |
 | `clips/` | Pre-recorded word and sentence clips, one folder per voice |
 | `words.json` | The complete word data: id, word, part of speech, definition, language group, level, booklet page and practice sentence |
 | `scripts/build.mjs` | Copies an allowlist of files into `_site/` |
@@ -238,7 +241,9 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 ├── voice-service.js                     Clips → Kokoro → Piper → device speech
 ├── sentences.js                         Sentence lookup and fallback templates (shared by the app and the clip generator)
 ├── clips/                               Pre-recorded word and sentence clips (4 voices)
+├── fonts/                               DM Sans and Fredoka (web fonts) and their licenses
 ├── tools/clips/                         Clip generator and its dependencies
+├── tools/device-test/                   Mobile browser checks (WebKit, iPhone and iPad presets)
 ├── words.json                           1,155-word data set
 ├── assets/                              Three printable PDFs
 ├── docs/                                README screenshots
@@ -254,7 +259,20 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 
 `npm test` runs the automated tests in `tests/`. The word-card tests check the labels, text escaping, sentence fallback, every part of speech and unique panel ids on generated markup; they do not click through the page. The starred-word tests check loading, saving, toggling and clearing against a fake storage object, including corrupt data and storage that refuses writes; they do not click through the page. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
 
-Manual checks, not part of CI, with no logs kept (my own observations): on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at 0.7×, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, but a full check of recorded sentences in a real browser is still open until the first full run has finished. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
+### Mobile testing
+
+`tools/device-test/` drives real **WebKit** (the engine Safari uses) with iPhone SE, iPhone 13, iPhone 14 Pro Max and iPad presets, in portrait and landscape, using touch taps. Serve the built site and run it:
+
+```bash
+npm run build && (cd _site && python3 -m http.server 8080 &)
+cd tools/device-test && npm install && npx playwright install webkit
+BASE=http://localhost:8080/ node device-test.mjs      # layout, tap targets, text size, flows; exit code 1 on a problem
+BASE=http://localhost:8080/ node speed-check.mjs      # plays a word at Normal, Clear and Slow and prints the rates
+```
+
+It checks that the tab bar fits, that form fields are at least 16 px (iOS Safari zooms the page when you tap a smaller field), that tap targets are at least 44 px, that no text is under 12 px, that nothing overflows sideways, that the page makes no third-party requests, and that a practice round, the word-bank details and stars, and the speed buttons work by touch. It is emulation on a desktop machine: it does not use iOS itself, a real speaker, the iOS audio rules, or a screen reader.
+
+Manual checks, not part of CI, with no logs kept (my own observations; the mobile check above is repeatable): on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at its set rate, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, but a full check of recorded sentences in a real browser is still open until the first full run has finished. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 
 Other limits:
 

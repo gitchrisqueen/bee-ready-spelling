@@ -7,7 +7,9 @@
   <meta name="description" content="Bee Ready: more than 1,000 spelling bee words, cheerful practice rounds, and free natural speaking voices with clear download progress."/>
   <title>Bee Ready · Spelling Practice</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles.css"/>
+  <link rel="preload" href="./fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin/>
+    <link rel="preload" href="./fonts/fredoka-latin.woff2" as="font" type="font/woff2" crossorigin/>
+    <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
   <div class="site-frame">
@@ -16,7 +18,7 @@
       <nav aria-label="Main navigation" class="nav">
         <button data-tab="practice" class="nav-button active" aria-current="page">Practice</button>
         <button data-tab="words" class="nav-button">Word bank</button>
-        <button data-tab="voices" class="nav-button">🎙️ Voices</button>
+        <button data-tab="voices" class="nav-button"><span class="nav-emoji" aria-hidden="true">🎙️ </span>Voices</button>
         <button data-tab="grownups" class="nav-button">Grown-ups</button>
       </nav>
     </header>
@@ -78,10 +80,10 @@
         <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">Loading words…</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button></div>
       </section>
       <section class="tab-panel" id="tab-voices" aria-labelledby="voices-title">
-        <div class="section-intro"><span class="mini-kicker">MEET YOUR BEE HOST</span><h1 id="voices-title">Find your favorite voice</h1><p>Natural American English voices, a reliable backup, and an instant device-voice option. No accounts or keys.</p></div>
+        <div class="section-intro"><span class="mini-kicker">MEET YOUR BEE HOST</span><h1 id="voices-title">Find your favorite voice</h1><p>Natural American English voices, recorded for every word, plus an instant device-voice option. No accounts or keys.</p></div>
         <div class="panel"><div class="section-title"><div><h2>Pick your speaker</h2><p class="smaller">Tap a host, then preview their voice.</p></div><span class="pill">🎙️ 4 voice styles</span></div>
           <div id="voiceChoices" class="voice-grid"></div>
-          <h3 class="settings-heading">Talking speed</h3><div id="speedChoices" class="segmented" role="group" aria-label="Voice speed"></div>
+          <h3 class="settings-heading">Talking speed</h3><div id="speedChoices" class="segmented" role="group" aria-label="Voice speed"></div><p class="helper">Clear is a little slower than Normal. Slow is much slower. Press a speed to hear it.</p>
           <h3 class="settings-heading">Choose your audio mode</h3><div class="audio-mode"><label><input type="radio" name="engineMode" value="auto" checked> Natural voice with automatic backup <small>Kokoro → Piper → device speech</small></label><label><input type="radio" name="engineMode" value="device"> Device voice only <small>No download, fastest start</small></label></div>
           <div class="voice-actions"><button id="prepareVoice" class="primary-btn">⬇ Add live voice for new words</button><button id="previewVoice" class="soft-btn">▶ Play voice sample</button><button id="retryVoice" class="text-btn">Retry natural audio</button></div>
           <div id="voiceStatus" class="status-message" role="status" aria-live="polite">Natural recorded voice ready. Every word plays instantly.</div>

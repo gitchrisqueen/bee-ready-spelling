@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -183,4 +183,18 @@ test('status regions, focus moves and the clear-stars message are wired up', () 
   assert.doesNotMatch(app, /behavior:'smooth'/);
   assert.match(read('styles.css'), /animation-iteration-count:1!important/);
   assert.match(read('styles.css'), /scroll-padding-bottom:120px/);
+});
+
+test('fonts are hosted in the repo and the page makes no request to a font CDN', () => {
+  const css = read('styles.css');
+  const html = read('index.html');
+  assert.doesNotMatch(css + html + read('app.js'), /fonts\.googleapis\.com|fonts\.gstatic\.com/);
+  for (const file of ['fonts/dm-sans-latin.woff2', 'fonts/fredoka-latin.woff2', 'fonts/OFL-DM-Sans.txt', 'fonts/OFL-Fredoka.txt']) {
+    assert.ok(existsSync(join(root, file)), `${file} is missing`);
+    assert.ok(statSync(join(root, file)).size > 1000, `${file} is empty`);
+  }
+  assert.equal(readFileSync(join(root, 'fonts/dm-sans-latin.woff2')).subarray(0, 4).toString(), 'wOF2');
+  assert.match(css, /@font-face\{font-family:'DM Sans'/);
+  assert.match(css, /@font-face\{font-family:'Fredoka'/);
+  assert.match(read('scripts/build.mjs'), /'fonts'/);
 });

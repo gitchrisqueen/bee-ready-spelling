@@ -6,7 +6,7 @@ globalThis.localStorage={getItem:k=>mem.get(k)??null,setItem:(k,v)=>mem.set(k,v)
 globalThis.speechSynthesis={cancel(){},speak(){},getVoices(){return [{name:'American English',lang:'en-US',localService:true}]}};
 globalThis.SpeechSynthesisUtterance=class {constructor(text){this.text=text;}};
 URL.createObjectURL=()=>`blob:mock-${Math.random()}`;URL.revokeObjectURL=()=>{};
-globalThis.Audio=class {constructor(src){this.src=src;}play(){return Promise.resolve();}pause(){}removeAttribute(){}load(){}};
+globalThis.Audio=class {constructor(src){this.src=src;}play(){return Promise.resolve();}pause(){}removeAttribute(){}load(){}addEventListener(){}};
 
 test('Kokoro downloads with truthful progress, then speaks using configured voice',async()=>{
  const events=[],chosen=[];
@@ -14,7 +14,7 @@ test('Kokoro downloads with truthful progress, then speaks using configured voic
  assert.equal(await svc.prepare(),'kokoro');
  assert.equal(events.find(e=>e.phase==='downloading')?.percent,50);
  assert.equal(await svc.speak('zucchini'), 'kokoro');
- assert.equal(chosen[0].voice,'af_bella');assert.equal(chosen[0].speed,.7);
+ assert.equal(chosen[0].voice,'af_bella');assert.equal(chosen[0].speed,.6);
 });
 
 test('on primary failure switch to Piper and download current gender voice',async()=>{
@@ -147,7 +147,7 @@ test('a recorded clip plays instantly with the right voice and speed, without lo
  const svc=new BeeVoiceService({settings:{voiceId:'bella',speedId:'slow',mode:'auto'},onStatus:e=>events.push(e),loadKokoro:async()=>{loaded=true;throw Error('must not load');}});
  assert.equal(await svc.speak('Zucchini',{kind:'word',instant:true}),'clip');
  assert.match(requested[0],/\/clips\/af_bella\/zucchini\.mp3$/);
- assert.equal(svc.player.playbackRate,0.7);
+ assert.equal(svc.player.playbackRate,0.6);
  assert.equal(loaded,false);
  assert.ok(events.some(e=>e.engine==='clip'&&e.phase==='speaking'));
 }));
@@ -243,7 +243,7 @@ test('speedId changes the speed for that one clip call only; the saved speed and
  try{
   const svc=new BeeVoiceService({settings:{voiceId:'heart',speedId:'normal',mode:'auto'}});
   assert.equal(await svc.speak('plaza',{kind:'word',instant:true,speedId:'slow'}),'clip');
-  assert.equal(svc.player.playbackRate,0.7);
+  assert.equal(svc.player.playbackRate,0.6);
   assert.equal(svc.settings.speedId,'normal');assert.equal(svc.speed,1);
   assert.equal(await svc.speak('plaza',{kind:'word',instant:true}),'clip');
   assert.equal(svc.player.playbackRate,1,'the next normal call uses the saved speed again');
@@ -260,7 +260,7 @@ test('speedId also slows device speech for that call only',async()=>{
   const svc=new BeeVoiceService({settings:{voiceId:'heart',speedId:'clear',mode:'device'}});
   await svc.speak('plaza',{kind:'word',speedId:'slow'});
   await svc.speak('plaza',{kind:'word'});
-  assert.deepEqual(rates,[0.7,0.87]);assert.equal(svc.settings.speedId,'clear');
+  assert.deepEqual(rates,[0.6,0.8]);assert.equal(svc.settings.speedId,'clear');
  }finally{globalThis.speechSynthesis.speak=realSpeak;}
 });
 
@@ -270,9 +270,9 @@ test('speedId reaches Kokoro and Piper, and the Kokoro cache keeps the speeds ap
  assert.equal(await svc.speak('plaza',{kind:'word'}),'kokoro');
  assert.equal(await svc.speak('plaza',{kind:'word',speedId:'slow'}),'kokoro');
  assert.equal(await svc.speak('plaza',{kind:'word'}),'kokoro');
- assert.deepEqual(speeds,[1,0.7],'normal is cached; slow is generated once, separately');
+ assert.deepEqual(speeds,[1,0.6],'normal is cached; slow is generated once, separately');
  assert.equal(svc.settings.speedId,'normal');
  const piper=new BeeVoiceService({settings:{voiceId:'heart',speedId:'normal',mode:'auto'},loadKokoro:async()=>{throw Error('no');},loadPiper:async()=>({download:async()=>{},predict:async()=>new Blob(['p'])})});
  assert.equal(await piper.speak('plaza',{kind:'word',speedId:'slow'}),'piper');
- assert.equal(piper.player.playbackRate,0.7);assert.equal(piper.speed,1);
+ assert.equal(piper.player.playbackRate,0.6);assert.equal(piper.speed,1);
 });

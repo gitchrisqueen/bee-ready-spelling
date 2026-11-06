@@ -236,7 +236,7 @@ function initVoiceSettings(){
   $('speedChoices').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
   syncVoiceButtons();
   document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w){voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');}}));
-  document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({speedId:b.dataset.speed});syncVoiceButtons();}));
+  document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({speedId:b.dataset.speed});syncVoiceButtons();voiceService.preview();}));
   document.querySelectorAll('input[name="engineMode"]').forEach(r=>r.addEventListener('change',()=>{if(r.checked){voiceService.select({mode:r.value});syncVoiceButtons();}}));
   $('prepareVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
   $('previewVoice').addEventListener('click',()=>voiceService.preview());
