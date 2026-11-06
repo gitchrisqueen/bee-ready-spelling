@@ -117,7 +117,7 @@ test('model requests go to this site when a self-hosted copy exists, with per-re
   assert.ok(urls.includes('https://huggingface.co/other/model/resolve/main/x.bin'),'unrelated URLs are untouched');
   urls.length=0;localOk=false;
   await globalThis.fetch(`${model}tokenizer.json?download=1`);
-  assert.equal(urls.at(-1),`${model}tokenizer.json?download=1`,'falls back to Hugging Face when the local file fails');
+  assert.match(urls.at(-1),/^https:\/\/huggingface\.co\/onnx-community\/Kokoro-82M-v1\.0-ONNX\/resolve\/[0-9a-f]{40}\/tokenizer\.json\?download=1$/,'falls back to Hugging Face (pinned revision, see tests/voice-fallback.test.mjs) when the local file fails');
  }finally{globalThis.fetch=realFetch;delete globalThis.location;}
 });
 

@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -35,7 +37,8 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Worst case: three 5-minute attempts at the model file, then the smoke check.
+    timeout-minutes: 30
     permissions:
       contents: read
       pages: write
@@ -46,12 +49,23 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Build static site
         run: npm run build
+      # The cache is saved from main only (this job only runs on main), and the fetch script re-hashes
+      # every restored file against its pinned SHA-256, so a poisoned cache fails closed (the file is
+      # downloaded again). With a cache hit a Hugging Face outage cannot fail a deploy or a rollback.
+      # Keep the key's revision equal to REVISION in scripts/fetch-voice-assets.mjs (a test checks it).
+      - name: Restore the pinned voice model from the cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: _site/voice-assets
+          key: voice-assets-1939ad2a8e416c0acfeecc08a694d14ef25f2231
       - name: Add self-hosted voice model (pinned and checksum-verified)
         run: npm run fetch-voice-assets
       - name: Configure Pages
@@ -64,3 +78,12 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Check that the live site answers
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          base="${PAGE_URL%/}/"
+          for path in "" words.json clips/af_heart/_preview.mp3 voice-assets/models/onnx-community/Kokoro-82M-v1.0-ONNX/config.json; do
+            curl --fail --silent --show-error --retry 5 --retry-delay 10 --retry-all-errors --max-time 60 --output /dev/null "${base}${path}"
+            echo "ok  ${base}${path}"
+          done
