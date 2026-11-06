@@ -1,5 +1,6 @@
 import { BeeVoiceService, VOICES, SPEEDS } from './voice-service.js';
 import { sentenceFor } from './sentences.js';
+import { loadStars, saveStars, toggleStar, clearStars } from './stars.js';
 const $ = id => document.getElementById(id);
 const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeText = value => String(value??'');
@@ -13,14 +14,28 @@ function hideWord(sentence,word){
 function comparison(s){return String(s).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US').replace(/[^\p{L}]/gu,'');}
 function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{attempts:{},missed:{},rounds:0};}catch{return {attempts:{},missed:{},rounds:0};}}
 function writeHistory(){try{localStorage.setItem(historyKey,JSON.stringify(history));}catch{} updateStats();}
-let history=getHistory();let words=[];let currentRound=null;let displayLimit=44;let selectedCount=5;
+// Stars live in their own key (see stars.js). Reading `localStorage` can itself throw when storage is blocked, so go through store().
+function store(){try{return localStorage;}catch{return null;}}
+let history=getHistory();let stars=loadStars(store());let words=[];let currentRound=null;let displayLimit=44;let selectedCount=5;
 let noticeTimer=0;let voiceService=new BeeVoiceService({onStatus:updateVoiceStatus});
 const appState={activeTab:'practice'};
+// Only ids that still exist in the word list count, so an old saved id can never inflate the number.
+const starredWords=()=>words.length?words.filter(w=>stars.has(w.id)):[...stars];
 function updateStats(){
   $('heroBest').textContent=Object.keys(history.attempts||{}).length.toLocaleString();
   $('heroMissed').textContent=Object.keys(history.missed||{}).length.toLocaleString();
+  $('heroStarred').textContent=starredWords().length.toLocaleString();
   $('heroWordCount').textContent=words.length?words.length.toLocaleString():'1,155';
 }
+const starLabel=(w,on)=>`${on?'Remove star':'Star this word'}: ${w.word}`;
+function paintRoundStar(){
+  // The label never includes the word: in typed mode it would give the answer away.
+  const w=currentWord(),btn=$('starWord');if(!btn)return;
+  const on=Boolean(w&&stars.has(w.id));
+  btn.setAttribute('aria-pressed',String(on));btn.setAttribute('aria-label',on?'Remove star from this word':'Star this word');
+  btn.innerHTML=`<span aria-hidden="true">${on?'★':'☆'}</span> Star`;
+}
+function flipStar(id){const on=toggleStar(stars,id);saveStars(store(),stars);updateStats();paintRoundStar();return on;}
 function showTab(tab){
   if(!['practice','words','voices','grownups'].includes(tab))tab='practice';
   appState.activeTab=tab;
@@ -70,7 +85,8 @@ function startRound(){
   if(type==='study')pool=words.filter(w=>w.level==='Study');
   else if(type==='challenge')pool=words.filter(w=>w.level==='Challenge');
   else if(type==='missed')pool=words.filter(w=>Boolean(history.missed[w.id]));
-  if(!pool.length){$('roundArea').classList.remove('hidden');$('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');$('roundSummary').innerHTML='<h2>No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>';return;}
+  else if(type==='starred')pool=starredWords();
+  if(!pool.length){$('roundArea').classList.remove('hidden');$('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');$('roundSummary').innerHTML=type==='starred'?'<h2>No starred words yet.</h2><p>Tap the ☆ on any word to save it here.</p>':'<h2>No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>';return;}
   const count=Math.min(pool.length,Math.max(1,Number($('wordCount').value)||5));
   currentRound={items:sampleNoRepeat(pool,count),index:0,correct:0,results:[],mode:$('practiceMode').value,clues:new Set()};
   $('roundArea').classList.remove('hidden');$('roundSummary').classList.add('hidden');$('activeCard').classList.remove('hidden');
@@ -91,7 +107,7 @@ function showCurrent(){
   $('answerInput').value='';$('answerInput').disabled=false;$('answerForm').classList.toggle('hidden',currentRound.mode==='oral');
   $('oralButtons').classList.toggle('hidden',currentRound.mode!=='oral');
   $('revealOral').classList.remove('hidden');$('gradeOral').classList.add('hidden');
-  $('hearWord').disabled=false;
+  $('hearWord').disabled=false;paintRoundStar();
   document.querySelectorAll('[data-clue]').forEach(b=>b.disabled=false);
   voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');
 }
@@ -132,6 +148,7 @@ function finishRound(){
 }
 function initRound(){
   $('hearWord').addEventListener('click',()=>{const w=currentWord();if(w)voiceService.speak(w.word,{kind:'word',instant:true});});
+  $('starWord').addEventListener('click',()=>{const w=currentWord();if(w)flipStar(w.id);});
   document.querySelectorAll('[data-clue]').forEach(btn=>btn.addEventListener('click',()=>showClue(btn.dataset.clue)));
   $('answerForm').addEventListener('submit',e=>{e.preventDefault();const w=currentWord();if(w)markAnswer(comparison($('answerInput').value)===comparison(w.word));});
   $('revealOral').addEventListener('click',()=>{
@@ -146,13 +163,25 @@ function wordResults(){let arr=words.slice();const query=$('searchWord').value.t
   if(query)arr=arr.filter(w=>w.word.toLocaleLowerCase().includes(query)||w.definition.toLocaleLowerCase().includes(query));
   if(group!=='all')arr=arr.filter(w=>w.group===group);
   if(level!=='all')arr=arr.filter(w=>w.level===level);
+  if($('starFilter').value==='starred')arr=arr.filter(w=>stars.has(w.id));
   return arr;
+}
+function paintCardStar(btn,w){const on=stars.has(w.id);btn.setAttribute('aria-pressed',String(on));btn.setAttribute('aria-label',starLabel(w,on));btn.textContent=on?'★':'☆';}
+function onCardStar(btn){
+  const id=Number(btn.dataset.starId),w=words.find(x=>x.id===id);if(!w)return;
+  flipStar(id);
+  if($('starFilter').value!=='starred'){paintCardStar(btn,w);return;}
+  // In "Starred only" the card leaves the list, so redraw and keep keyboard focus on the nearest card.
+  const at=[...document.querySelectorAll('#wordGrid [data-star-id]')].indexOf(btn);
+  renderWordBank();
+  const left=document.querySelectorAll('#wordGrid [data-star-id]');
+  (left.length?left[Math.min(at,left.length-1)]:$('starFilter')).focus();
 }
 function renderWordBank(){
   if(!words.length)return;
   const list=wordResults();$('resultCount').textContent=`${list.length.toLocaleString()} words`;
   const shown=list.slice(0,displayLimit);
-  $('wordGrid').innerHTML=shown.length?shown.map(w=>`<article class="word-card"><div class="word-meta">${escapeHtml(w.group)} · ${w.level} · ${escapeHtml(POS[w.part]||'word')}</div><h3>${escapeHtml(w.word)}</h3><p>${escapeHtml(w.definition)}</p><div class="word-card-actions"><button class="mini-btn" data-say-id="${w.id}" aria-label="Hear ${escapeHtml(w.word)}">🔊 Listen</button><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer">Dictionary ↗</a></div></article>`).join(''):'<p>No words found. Try a different search.</p>';
+  $('wordGrid').innerHTML=shown.length?shown.map(w=>`<article class="word-card"><div class="word-meta">${escapeHtml(w.group)} · ${w.level} · ${escapeHtml(POS[w.part]||'word')}</div><h3>${escapeHtml(w.word)}</h3><p>${escapeHtml(w.definition)}</p><div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${w.id}" aria-label="Hear ${escapeHtml(w.word)}">🔊 Listen</button><button class="star-btn" data-star-id="${w.id}" aria-pressed="${stars.has(w.id)}" aria-label="${escapeHtml(starLabel(w,stars.has(w.id)))}">${stars.has(w.id)?'★':'☆'}</button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer">Dictionary ↗</a></div></article>`).join(''):`<p>${$('starFilter').value==='starred'&&!starredWords().length?'No starred words yet. Tap the ☆ on any word to save it here.':'No words found. Try a different search.'}</p>`;
   $('loadMore').classList.toggle('hidden',list.length<=displayLimit);
   document.querySelectorAll('[data-say-id]').forEach(button=>button.addEventListener('click',()=>{const w=words.find(w=>w.id===Number(button.dataset.sayId));if(w)voiceService.speak(w.word,{kind:'word',instant:true});}));
 }
@@ -160,6 +189,8 @@ function initWordBank(){
   $('searchWord').addEventListener('input',()=>{displayLimit=44;renderWordBank();});
   $('groupFilter').addEventListener('change',()=>{displayLimit=44;renderWordBank();});
   $('levelFilter').addEventListener('change',()=>{displayLimit=44;renderWordBank();});
+  $('starFilter').addEventListener('change',()=>{displayLimit=44;renderWordBank();});
+  $('wordGrid').addEventListener('click',e=>{const btn=e.target.closest('[data-star-id]');if(btn)onCardStar(btn);});
   $('loadMore').addEventListener('click',()=>{displayLimit+=44;renderWordBank();});
 }
 function syncVoiceButtons(){
@@ -211,6 +242,12 @@ function initGrownups(){
   $('clearHistory').addEventListener('click',()=>{
     if(!confirm('Clear practice history on this device? This cannot be undone.'))return;
     history={attempts:{},missed:{},rounds:0};writeHistory();$('clearHistory').textContent='Practice history cleared ✓';
+  });
+  $('clearStars').addEventListener('click',()=>{
+    if(!confirm('Clear starred words on this device? This cannot be undone.'))return;
+    stars.clear();clearStars(store());updateStats();paintRoundStar();
+    if(appState.activeTab==='words')renderWordBank();
+    $('clearStars').textContent='Starred words cleared ✓';
   });
 }
 async function main(){

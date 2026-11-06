@@ -5,7 +5,7 @@ const root = resolve(import.meta.dirname, '..');
 const output = join(root, '_site');
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
-for (const name of ['index.html', 'styles.css', 'app.js', 'voice-service.js', 'sentences.js', 'words.json', '.nojekyll']) {
+for (const name of ['index.html', 'styles.css', 'app.js', 'voice-service.js', 'sentences.js', 'stars.js', 'words.json', '.nojekyll']) {
   const source = join(root, name);
   if (!existsSync(source)) throw new Error(`Missing public site file: ${name}`);
   copyFileSync(source, join(output, name));

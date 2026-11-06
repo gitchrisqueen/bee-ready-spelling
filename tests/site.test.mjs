@@ -123,3 +123,16 @@ test('the workflow matrix takes its voices from VOICES, so no list can drift', (
   assert.match(workflow, /fromJSON\(needs\.plan\.outputs\.voices\)/);
   assert.match(workflow, /kokoro:'\(\[a-z_\]\+\)'/);
 });
+
+test('star controls are in the page and wired up', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  for (const id of ['heroStarred', 'starFilter', 'starWord', 'clearStars']) assert.ok(html.includes(`id="${id}"`), `Missing UI: ${id}`);
+  assert.match(html, /<option value="starred">My starred words<\/option>/);
+  assert.match(html, /<option value="starred">Starred only<\/option>/);
+  assert.match(html, /id="starWord"[^>]*aria-label="Star this word"/, 'the round star label must not reveal the word');
+  assert.match(app, /from '\.\/stars\.js'/);
+  assert.match(app, /type==='starred'/);
+  assert.match(read('scripts/build.mjs'), /'stars\.js'/);
+  assert.match(read('package.json'), /node --check stars\.js/);
+});
