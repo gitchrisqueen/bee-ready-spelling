@@ -187,9 +187,9 @@ gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 
 ## Testing and known limits
 
-`npm test` runs 14 automated tests. The voice tests **mock** model downloads and speech playback, so they cover fallback order, cancellation, retry caching and content checks. They do not prove playback on a physical iPhone or iPad or in Safari.
+`npm test` runs 24 automated tests. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching and content checks. They do not prove playback on a physical iPhone or iPad or in Safari.
 
-Beyond the automated tests, the deployed site has been exercised in desktop Chromium: a real Kokoro download and playback, Piper taking over when Kokoro was blocked, device speech when both were blocked, and phone and tablet viewport widths with no horizontal overflow. Real-device checks on iOS and iPadOS are still open.
+Beyond the automated tests, the app has been exercised in real desktop Chromium, including a phone-sized viewport: all four voices play recorded clips, Slow speed plays at 0.7×, a word's clip starts in tens of milliseconds once prefetched, and sentence clues fall back to the device voice. The 4,624 clips were checked for full coverage of `words.json` and sampled for cut-off starts and ends. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 
 Other limits:
 
