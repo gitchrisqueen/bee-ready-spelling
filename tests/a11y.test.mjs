@@ -91,9 +91,14 @@ test('privacy wording is honest about GitHub hosting and the optional live voice
   assert.match(html, /Turning this on loads files from outside services; see Grown-ups\./);
 });
 
-test('dismissing the voice notice moves focus first, and clearing history never renames its button', () => {
-  const dismiss = app.slice(app.indexOf("$('closeNotice').addEventListener"), app.indexOf("$('closeNotice').addEventListener") + 600);
-  assert.ok(dismiss.indexOf('.focus(') > 0 && dismiss.indexOf('.focus(') < dismiss.indexOf("classList.add('hidden')"), 'focus must move before the notice is hidden');
+test('focus never falls to <body> when the voice notice or a button in it is hidden', () => {
+  assert.match(app, /function releaseNoticeFocus\(hiding\)\{\s*if\(!\$\('voiceDownload'\)\.contains\(document\.activeElement\)\)return;/);
+  const dismiss = app.slice(app.indexOf("$('closeNotice').addEventListener"), app.indexOf("$('closeNotice').addEventListener") + 200);
+  assert.ok(dismiss.indexOf('releaseNoticeFocus(true)') > 0 && dismiss.indexOf('releaseNoticeFocus(true)') < dismiss.indexOf("classList.add('hidden')"), 'Dismiss: move focus before hiding');
+  assert.match(app, /setTimeout\(\(\)=>\{releaseNoticeFocus\(true\);\$\('voiceDownload'\)\.classList\.add\('hidden'\);\},4500\)/, 'the auto-hide timer moves focus first');
+  const status = app.slice(app.indexOf('function updateVoiceStatus'));
+  const release = status.indexOf('releaseNoticeFocus(false)');
+  assert.ok(release > 0 && release < status.indexOf("$('downloadRetry').classList.toggle('hidden'"), 'Try again / Use device voice: move focus before hiding');
   assert.doesNotMatch(app, /\$\('clearHistory'\)\.textContent/, 'the Clear history button keeps one fixed name');
   assert.match(app, /setClearStatus\('Practice history cleared\.'\)/);
 });

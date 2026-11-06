@@ -157,7 +157,7 @@ function finishRound(){
   history.rounds=(history.rounds||0)+1;writeHistory();
   const total=currentRound.items.length;const correct=currentRound.correct;
   $('roundNumber').textContent='ROUND COMPLETE';$('scoreLabel').textContent=`${correct} / ${total} correct`;
-  $('roundSummary').innerHTML=`<div class="bee-bubble">🏆</div><h2 id="summaryHeading" tabindex="-1">What a brave spelling bee!</h2><div class="summary-score">${correct} / ${total}</div><p>Every attempt counts. Review the missed words, then try again!</p><ul class="round-notes">${currentRound.results.map(r=>`<li>${escapeHtml(r.word)} <span>${r.correct?'✓ Correct':'↻ Review'}</span></li>`).join('')}</ul><div class="summary-actions"><button class="primary-btn" id="anotherRound">New random round</button><button class="soft-btn" id="practiceMissed">Practice missed words</button></div>`;
+  $('roundSummary').innerHTML=`<div class="bee-bubble" aria-hidden="true">🏆</div><h2 id="summaryHeading" tabindex="-1">What a brave spelling bee!</h2><div class="summary-score">${correct} / ${total}</div><p>Every attempt counts. Review the missed words, then try again!</p><ul class="round-notes">${currentRound.results.map(r=>`<li>${escapeHtml(r.word)} <span>${r.correct?'✓ Correct':'↻ Review'}</span></li>`).join('')}</ul><div class="summary-actions"><button class="primary-btn" id="anotherRound">New random round</button><button class="soft-btn" id="practiceMissed">Practice missed words</button></div>`;
   $('summaryHeading').focus({preventScroll:true});
   $('anotherRound').addEventListener('click',startRound);
   $('practiceMissed').addEventListener('click',()=>{$('pool').value='missed';startRound();});
@@ -238,7 +238,7 @@ function syncVoiceButtons(){
   const radio=document.querySelector(`input[name="engineMode"][value="${settings.mode}"]`);if(radio)radio.checked=true;
 }
 function initVoiceSettings(){
-  $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
+  $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar" aria-hidden="true">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
   $('speedChoices').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
   syncVoiceButtons();
   document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w){voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');}}));
@@ -250,11 +250,17 @@ function initVoiceSettings(){
   $('downloadUseDevice').addEventListener('click',()=>{voiceService.stop();voiceService.select({mode:'device'});syncVoiceButtons();clearTimeout(noticeTimer);$('downloadLabel').textContent='Device voice selected';$('downloadDetail').textContent='Tap Hear my word or Preview voice to listen. No download needed.';});
   $('downloadRetry').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
   $('closeNotice').addEventListener('click',()=>{
-    // Move focus out of the notice first, so keyboard focus never falls to <body>.
-    const target=$('tab-voices')&&$('tab-voices').classList.contains('active')?$('prepareVoice'):document.querySelector('.nav-button.active');
-    if(target)target.focus({preventScroll:true});
+    releaseNoticeFocus(true);
     $('voiceDownload').classList.add('hidden');
   });
+}
+// If keyboard focus is inside the voice notice and something in it is about to be hidden, move focus
+// first, so it never falls to <body>. hiding=true: the whole notice goes, so focus leaves it.
+// hiding=false: the notice stays, so focus goes to its Dismiss button.
+function releaseNoticeFocus(hiding){
+  if(!$('voiceDownload').contains(document.activeElement))return;
+  const target=hiding?($('tab-voices').classList.contains('active')?$('prepareVoice'):document.querySelector('.nav-button.active')):$('closeNotice');
+  if(target)target.focus({preventScroll:true});
 }
 const engineName=e=>({clip:'Recorded',kokoro:'Kokoro',piper:'Piper'})[e]||'Device';
 function updateVoiceStatus(status){
@@ -266,7 +272,7 @@ function updateVoiceStatus(status){
   else if(['ready','speaking'].includes(status.phase)){
     // A short explicit ready state gives the child reassurance that the download finished.
     if(!$('voiceDownload').classList.contains('hidden')){
-      clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('voiceDownload').classList.add('hidden'),4500);
+      clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{releaseNoticeFocus(true);$('voiceDownload').classList.add('hidden');},4500);
     }
   }
   $('downloadLabel').textContent=status.label;
@@ -276,8 +282,11 @@ function updateVoiceStatus(status){
   if(status.percent===null){bar.classList.add('indeterminate');bar.setAttribute('role','progressbar');bar.removeAttribute('aria-valuenow');fill.style.width='40%';$('downloadPercent').textContent='Working…';}
   else {bar.classList.remove('indeterminate');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','100');bar.setAttribute('aria-valuenow',String(Math.round(status.percent)));fill.style.width=`${status.percent}%`;$('downloadPercent').textContent=`${Math.round(status.percent)}% of current file`;}
   bar.setAttribute('aria-label',status.label);
-  $('downloadRetry').classList.toggle('hidden',!['error','tap','adult'].includes(status.phase));
-  $('downloadUseDevice').classList.toggle('hidden',!['downloading','preparing','switching','generating','error','tap'].includes(status.phase));
+  const showRetry=['error','tap','adult'].includes(status.phase);
+  const showDevice=['downloading','preparing','switching','generating','error','tap'].includes(status.phase);
+  if((!showRetry&&document.activeElement===$('downloadRetry'))||(!showDevice&&document.activeElement===$('downloadUseDevice')))releaseNoticeFocus(false);
+  $('downloadRetry').classList.toggle('hidden',!showRetry);
+  $('downloadUseDevice').classList.toggle('hidden',!showDevice);
 }
 function initGrownups(){
   $('clearHistory').addEventListener('click',()=>{
