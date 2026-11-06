@@ -11,7 +11,9 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 const historyKey='bee-ready-history-v2';
 const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection'};
 // Returns safe HTML: everything is escaped, and each blank is a span a screen reader announces as "blank".
-const BLANK_HTML='<span class="blank" role="img" aria-label="blank">_______</span>';
+// The blank is one solid line of the same width for every word (drawn with CSS, not with underscore
+// characters), so its length never hints at how many letters the word has.
+const BLANK_HTML='<span class="blank" role="img" aria-label="blank"></span>';
 function hideWord(sentence,word){
   const norm=word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   return String(sentence).split(new RegExp(norm,'gi')).map(escapeHtml).join(BLANK_HTML);
