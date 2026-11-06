@@ -10,8 +10,11 @@ export const VOICES = Object.freeze([
 ]);
 // Pre-recorded clips (see tools/clips) are looked up by this key, shared with the generator.
 export const PREVIEW_TEXT='Welcome to Bee Ready! Your word is sunshine.';
+// ASCII-only on purpose: a plain file name needs no URL escaping, so every static host serves it.
+// Accents are dropped (blasé -> blase); anything else outside a-z, 0-9 and "-" becomes "_".
 export function clipKey(text){
-  return text===PREVIEW_TEXT?'_preview':encodeURIComponent(String(text).trim().normalize('NFC').toLowerCase());
+  if(text===PREVIEW_TEXT)return '_preview';
+  return String(text).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9-]/g,'_');
 }
 export const SPEEDS = Object.freeze([
   { id:'normal', label:'Normal', value:1 },
@@ -42,9 +45,10 @@ async function useSelfHostedModel(){
   globalThis.fetch=async(input,init)=>{
     const isText=typeof input==='string'||input instanceof URL;
     const url=isText?String(input):input?.url;
-    if(url&&url.startsWith(HF_MODEL_PREFIX)){
+    const rest=url&&url.startsWith(HF_MODEL_PREFIX)?url.slice(HF_MODEL_PREFIX.length).split('?')[0]:null;
+    if(rest&&!rest.includes('..')){
       try{
-        const res=await original(base+url.slice(HF_MODEL_PREFIX.length).split('?')[0],isText?init:undefined);
+        const res=await original(base+rest,isText?init:undefined);
         if(res.ok) return res;
       }catch{}
     }

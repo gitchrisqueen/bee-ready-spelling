@@ -58,14 +58,14 @@ Practice history and voice settings are saved in your browser's local storage. N
 
 ## Speech and voices
 
-Every word, and the voice sample, is a short **pre-recorded clip** made with the Kokoro neural voice, so it plays the moment you tap it. There is nothing to download first, and it works on any phone or tablet.
+Every word, and the voice sample, is a short **pre-recorded clip** made with the Kokoro neural voice, so it plays almost at once. There is nothing to download first, and it works on any phone or tablet.
 
 ```
 Recorded clip  →  live Kokoro  →  Piper  →  Device speech
   (instant)        (optional)     (backup)   (always works)
 ```
 
-- **Recorded clips** cover all 1,155 words in four American English voices (two female, two male). Slow and Clear speeds change the playback speed of the same clip.
+- **Recorded clips** cover every word in four American English voices: Sunny and Bella (female), Miles and Finn (male). Slow and Clear speeds change the playback speed of the same clip.
 - **No clip yet?** A word that has no recording (for example one just added), and every sentence clue, speaks right away with the **device voice**. A child never waits for a model.
 - **Live voice (optional).** *Add live voice for sentences* downloads the Kokoro model (about 90 MB, once) so sentences and new words can be spoken in the natural voice. It can be slow on phones. If it fails, Piper and then the device voice take over automatically.
 - **Device voice only** skips everything above and uses the browser's built-in voice.
@@ -115,18 +115,29 @@ You can also use any static file server. Open `index.html` through a server, not
 Edit `words.json` and push to `main`. Two things happen automatically:
 
 1. The site deploys right away. New words work immediately, spoken by the device voice.
-2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words in all four voices, commits them under `clips/`, and redeploys. Removed words have their clips pruned.
+2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words in all four voices, commits them under `clips/`, and redeploys. Removed words have their clips pruned. It also runs when `voice-service.js` or `tools/clips/` changes, and you can start it by hand from the **Actions** tab.
 
-To generate clips on your own machine instead (needs Node 22 and `ffmpeg`):
+The word count and "1,155" appear as static text in `index.html` and this README. Update them by hand when the list changes. The tests check that the list is well-formed (unique words, valid level), not that it has a particular size.
+
+**Safeguards.** The generator downloads the Kokoro model at one pinned revision and checks its SHA-256 before it records anything. One failing word does not stop the run: finished clips are still committed and the run is marked failed. It refuses to delete more than 5% of a voice's clips without `--force-prune`, so an emptied `words.json` cannot wipe the clips. The workflow's `generate` job has a read-only token and runs npm with install scripts off. A separate `commit` job holds the write token, runs no npm code, and accepts only validated `.mp3` and manifest files. A manual run from any branch other than `main` does nothing.
+
+To generate clips on your own machine instead:
 
 ```bash
+ffmpeg -hide_banner -encoders | grep libmp3lame     # ffmpeg must include the MP3 encoder
 cd tools/clips && npm ci
-node generate.mjs                 # all voices; only missing or changed clips
-node generate.mjs --voice af_heart --limit 10   # try a few
-node generate.mjs --prune         # also delete clips for removed words
+node generate.mjs                                    # all voices; only missing or changed clips
+node generate.mjs --voice af_heart --limit 10        # try a few
+node generate.mjs --prune                            # also delete clips for removed words
 ```
 
-A clip is `clips/<voice>/<word>.mp3` (lowercase, URL-encoded). A `manifest.json` per voice records a fingerprint of the text, voice, model revision and encoder settings, so a change to any of them regenerates that clip. The first full run takes a couple of hours on a laptop. Later runs only do what changed.
+Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and about 30 MB of disk for the clips. Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
+
+Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`, where the key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
+
+Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip for one process on a laptop and on two servers, so roughly 30 to 40 minutes per voice. I have not timed GitHub's runners. The job limit is 350 minutes.
+
+**Fixing one bad clip:** delete `clips/<voice id>/<key>.mp3` and run **Generate voice clips**. **Adding a voice:** add it to `VOICES` in `voice-service.js`, add its `voices/<id>.bin` and SHA-256 to `scripts/fetch-voice-assets.mjs`, and expect a full run for that voice. A test fails if a voice is missing from either place, or if `clips/` holds a folder for a voice that no longer exists.
 
 ### Data format
 
@@ -139,11 +150,12 @@ Each entry in `words.json` looks like this:
   "part": "v",
   "definition": "To give up a throne or an important responsibility.",
   "group": "Latin",
-  "level": "Study"
+  "level": "Study",
+  "scan_page": 15
 }
 ```
 
-`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology.
+`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology. `scan_page` is the page in the source booklet and is not shown in the app.
 
 ## Deployment
 
@@ -156,7 +168,9 @@ The Kokoro model (Apache-2.0, pinned to one Hugging Face revision) is downloaded
 
 Pull requests run the tests only. The workflow can also be started by hand from the **Actions** tab. If a test fails, nothing deploys and the last good version stays live.
 
-`generate-clips` keeps the recordings in sync with `words.json`, and `denylist-guard` scans the tree and history on each push and pull request.
+`generate-clips` keeps the recordings in sync with `words.json`. `denylist-guard` scans the tree and history on each push and pull request. Commits made by the clip workflow do not trigger workflows on their own, so that workflow starts the deploy and the scan directly after it pushes.
+
+Branch protection is not enabled on `main`. If you turn it on, allow `github-actions[bot]` to push, or the clip workflow's push will be rejected.
 
 **Setup for a fork:** in **Settings → Pages → Build and deployment → Source**, choose **GitHub Actions**. Or run:
 
@@ -164,7 +178,7 @@ Pull requests run the tests only. The workflow can also be started by hand from 
 gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 ```
 
-**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert.
+**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert. Reverting a commit that only touches `clips/` does not start **Generate voice clips**, so start it by hand afterwards if you need clips regenerated.
 
 ## Repository layout
 
@@ -187,9 +201,9 @@ gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 
 ## Testing and known limits
 
-`npm test` runs 24 automated tests. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching and content checks. They do not prove playback on a physical iPhone or iPad or in Safari.
+`npm test` runs 28 automated tests. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
 
-Beyond the automated tests, the app has been exercised in real desktop Chromium, including a phone-sized viewport: all four voices play recorded clips, Slow speed plays at 0.7×, a word's clip starts in tens of milliseconds once prefetched, and sentence clues fall back to the device voice. The 4,624 clips were checked for full coverage of `words.json` and sampled for cut-off starts and ends. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
+Manual checks, not part of CI: I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at 0.7×, a prefetched word started playing in 43 ms, and the sentence clue used the device voice. I confirmed that every word has a clip in every voice, and sampled 120 clips for cut-off starts and ends. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 
 Other limits:
 

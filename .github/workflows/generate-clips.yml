@@ -1,8 +1,12 @@
 name: Generate voice clips
 
 # Keeps the pre-recorded word clips in sync with words.json. Only new or changed words are
-# generated (see tools/clips/generate.mjs), so a normal run takes a few minutes. When clips
-# change, they are committed and the site is redeployed.
+# generated (tools/clips/generate.mjs), so a normal run takes minutes. When clips change they
+# are committed to main and the site is redeployed.
+#
+# Two jobs on purpose. `generate` runs npm and third-party code with a READ-ONLY token and no
+# stored credentials. `commit` holds the write token, runs no npm or node code, and only
+# accepts a strictly validated set of files from the artifact.
 
 on:
   push:
@@ -14,52 +18,140 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 concurrency:
   group: generate-clips
   cancel-in-progress: false
 
 jobs:
-  clips:
+  generate:
+    # A manual run from any other branch must never reach main.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: tools/clips/package-lock.json
+      - name: Check words.json and the code before recording anything
+        run: npm test
       - name: Install ffmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-      - name: Install generator
+      - name: Install generator (no install scripts)
         working-directory: tools/clips
-        run: npm ci
-      - name: Cache Kokoro model
-        uses: actions/cache@v4
-        with:
-          path: tools/clips/node_modules/@huggingface/transformers/.cache
-          key: kokoro-model-1939ad2a8e416c0acfeecc08a694d14ef25f2231
+        run: npm ci --ignore-scripts
       - name: Generate missing or changed clips
+        id: gen
         working-directory: tools/clips
+        continue-on-error: true
         run: node generate.mjs --prune
-      - name: Commit new clips and redeploy
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Detect changes
+        id: diff
         run: |
-          if [ -z "$(git status --porcelain clips)" ]; then
-            echo "Clips already up to date."
-            exit 0
-          fi
+          if [ -n "$(git status --porcelain clips)" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Upload clips
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clips
+          path: clips
+          retention-days: 3
+      - name: Fail the run if any clip failed (finished clips are still kept)
+        if: steps.gen.outcome == 'failure'
+        run: |
+          echo "generate.mjs reported failures. See the generate step log. Good clips were still uploaded and committed."
+          exit 1
+
+  commit:
+    needs: generate
+    # Runs even if some clips failed, so finished clips are never thrown away.
+    if: ${{ always() && needs.generate.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+      - name: Download clips
+        uses: actions/download-artifact@v4
+        with:
+          name: clips
+          path: ${{ runner.temp }}/clips-new
+      - name: Validate the files before committing them
+        env:
+          NEW: ${{ runner.temp }}/clips-new
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          new = os.environ["NEW"]
+          voices = set(re.findall(r"kokoro:'([a-z_]+)'", open("voice-service.js", encoding="utf8").read()))
+          if not voices:
+              sys.exit("could not read the voice list from voice-service.js")
+          problems = []
+          for entry in sorted(os.listdir(new)):
+              path = os.path.join(new, entry)
+              if entry == "settings.json":
+                  json.load(open(path))
+              elif os.path.isdir(path) and entry in voices:
+                  for name in os.listdir(path):
+                      fp = os.path.join(path, name)
+                      if name == "manifest.json":
+                          data = json.load(open(fp))
+                          if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+                              problems.append(f"{entry}/manifest.json is not a flat string map")
+                      elif re.fullmatch(r"[a-z0-9_-]+\.mp3", name):
+                          head = open(fp, "rb").read(3)
+                          size = os.path.getsize(fp)
+                          if not (head == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0)):
+                              problems.append(f"{entry}/{name} is not an MP3")
+                          if not 1200 <= size <= 300000:
+                              problems.append(f"{entry}/{name} has an odd size ({size} bytes)")
+                      else:
+                          problems.append(f"unexpected file {entry}/{name}")
+              else:
+                  problems.append(f"unexpected entry {entry}")
+          if problems:
+              print("\n".join(problems[:50]))
+              sys.exit(1)
+          print("clips validated")
+          PY
+      - name: Commit and push to main
+        env:
+          NEW: ${{ runner.temp }}/clips-new
+        run: |
+          rm -rf clips
+          cp -r "$NEW" clips
+          git add -A clips
+          if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add clips
           git commit -m "Update pre-recorded voice clips"
           git pull --rebase origin main
           git push origin HEAD:main
-          # Pushes made with GITHUB_TOKEN do not start other workflows, so start the deploy directly.
-          gh workflow run pages.yml --ref main
+      - name: Start the deploy and the repository scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Pushes made with GITHUB_TOKEN do not start other workflows, so start them directly.
+          for wf in pages.yml denylist-guard.yml; do
+            ok=0
+            for attempt in 1 2 3; do
+              if gh workflow run "$wf" --ref main; then ok=1; break; fi
+              sleep 15
+            done
+            if [ "$ok" -ne 1 ]; then echo "Could not start $wf"; exit 1; fi
+          done

@@ -7,16 +7,26 @@ const root = resolve(import.meta.dirname, '..');
 const read = name => readFileSync(join(root, name), 'utf8');
 const words = JSON.parse(read('words.json'));
 
-test('word inventory has all 1,155 original unique entries', () => {
-  assert.equal(words.length, 1155);
-  assert.equal(new Set(words.map(w => w.word.toLowerCase())).size, 1155);
-  assert.equal(words.filter(w => w.level === 'Study').length, 911);
-  assert.equal(words.filter(w => w.level === 'Challenge').length, 244);
+test('word inventory is well-formed (adding or removing words must not break the build)', () => {
+  assert.ok(words.length > 0);
+  assert.equal(new Set(words.map(w => w.word.toLowerCase())).size, words.length, 'words must be unique');
   for (const w of words) {
     assert.ok(Number.isInteger(w.id));
     assert.ok(typeof w.word === 'string' && w.word.length);
     assert.ok(typeof w.definition === 'string' && w.definition.length);
     assert.ok(typeof w.group === 'string' && w.group.length);
+    assert.ok(['Study', 'Challenge'].includes(w.level), `${w.word}: level must be Study or Challenge`);
+  }
+});
+
+test('no two words share a clip file name', async () => {
+  const { clipKey } = await import('../voice-service.js');
+  const seen = new Map();
+  for (const w of words) {
+    const key = clipKey(w.word);
+    assert.ok(!seen.has(key) || seen.get(key) === w.word, `"${seen.get(key)}" and "${w.word}" both map to ${key}`);
+    seen.set(key, w.word);
+    assert.match(key, /^[a-z0-9_-]+$/, `${w.word}: clip name must be plain ASCII`);
   }
 });
 
@@ -61,6 +71,29 @@ test('every clip listed in a voice manifest exists on disk', () => {
     if (!existsSync(manifest)) continue;
     for (const key of Object.keys(JSON.parse(readFileSync(manifest, 'utf8')))) {
       assert.ok(existsSync(join(clipsDir, voice, `${key}.mp3`)), `${voice}/${key}.mp3 is listed but missing`);
+    }
+  }
+});
+
+test('clip folders, voices and the self-hosted voice files agree', async () => {
+  const { VOICES } = await import('../voice-service.js');
+  const ids = VOICES.map(v => v.kokoro);
+  const fetchScript = read('scripts/fetch-voice-assets.mjs');
+  for (const id of ids) assert.ok(fetchScript.includes(`'voices/${id}.bin'`), `${id}: add its voice file to fetch-voice-assets.mjs`);
+  const clipsDir = join(root, 'clips');
+  if (existsSync(clipsDir)) {
+    for (const entry of readdirSync(clipsDir, { withFileTypes: true })) {
+      if (entry.isDirectory()) assert.ok(ids.includes(entry.name), `clips/${entry.name} is not a voice in VOICES`);
+    }
+  }
+});
+
+test('clip folders hold only mp3 files and a manifest', () => {
+  const clipsDir = join(root, 'clips');
+  if (!existsSync(clipsDir)) return;
+  for (const voice of readdirSync(clipsDir, { withFileTypes: true }).filter(e => e.isDirectory())) {
+    for (const name of readdirSync(join(clipsDir, voice.name))) {
+      assert.match(name, /^([a-z0-9_-]+\.mp3|manifest\.json)$/, `unexpected file clips/${voice.name}/${name}`);
     }
   }
 });

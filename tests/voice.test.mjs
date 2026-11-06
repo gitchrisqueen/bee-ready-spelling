@@ -184,9 +184,23 @@ test('a network error on the clip never blocks speech',withClipFetch(()=>{throw 
  assert.equal(await svc.speak('plaza',{kind:'word',instant:true}),'device');
 }));
 
-test('clip keys are stable and filename-safe',async()=>{
+test('clip keys are stable, ASCII and filename-safe',async()=>{
  const {clipKey,PREVIEW_TEXT}=await import('../voice-service.js');
  assert.equal(clipKey('Zucchini'),'zucchini');
- assert.equal(clipKey(' jalapeño '),'jalape%C3%B1o');
+ assert.equal(clipKey(' jalapeño '),'jalapeno');
+ assert.equal(clipKey('blasé'),'blase');
+ assert.equal(clipKey('rough-hewn'),'rough-hewn');
+ assert.equal(clipKey("don't ../x"),'don_t____x');
  assert.equal(clipKey(PREVIEW_TEXT),'_preview');
 });
+
+test('model redirect refuses path traversal',withClipFetch(okClip,async(requested)=>{
+ const model='https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/';
+ const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>({KokoroTTS:{from_pretrained:async()=>{
+  await globalThis.fetch(`${model}../../secret`);
+  return {generate:async()=>({toBlob:()=>new Blob(['a'])})};
+ }}})});
+ await svc.prepare();
+ assert.ok(requested.includes(`${model}../../secret`),'goes to the original URL, never a local one');
+ assert.ok(!requested.some(u=>u.includes('/voice-assets/models/')&&u.includes('..')));
+}));

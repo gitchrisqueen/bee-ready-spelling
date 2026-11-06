@@ -1,0 +1,6 @@
+{
+ "encoder": "mp3-mono-40k-trim-v2",
+ "digest": "4cba24598fb63af0108d4b8b821e5159bbed40d74da6da0fe476fbe5b4e7288f",
+ "kokoroJs": "1.2.1",
+ "modelRevision": "1939ad2a8e416c0acfeecc08a694d14ef25f2231"
+}

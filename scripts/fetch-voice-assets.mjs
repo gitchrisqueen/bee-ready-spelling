@@ -2,7 +2,9 @@
 // serve them from its own origin. Run after `npm run build` (which recreates _site/).
 // Every file is checked against a pinned size and SHA-256; any mismatch fails the run.
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, statSync, writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -41,6 +43,7 @@ for (const [name, size, expected] of FILES) {
   if (!response.ok || !response.body) throw new Error(`Download failed (${response.status}): ${url}`);
   const partial = `${target}.part`;
   await pipeline(Readable.fromWeb(response.body), createWriteStream(partial));
+  if (statSync(partial).size !== size) throw new Error(`Size mismatch for ${name}: expected ${size}, got ${statSync(partial).size}`);
   const actual = await sha256(partial);
   if (actual !== expected) throw new Error(`SHA-256 mismatch for ${name}: expected ${expected}, got ${actual}`);
   renameSync(partial, target);
