@@ -5,17 +5,22 @@ name: denylist-guard
 # denylist.sha256. The log shows a per-hash zero/non-zero table and never the
 # matched text, so this run's output is safe to cite publicly.
 #
-# Install: copy the guard to scripts/denylist_guard.py, this file to
-# .github/workflows/denylist-guard.yml, and commit denylist.sha256 at the repo
-# root (generated on the maintainer machine, never in CI).
+# Denylist guard, vendored from the maintainer's templates. The guard lives in
+# scripts/denylist_guard.py and the hash list in denylist.sha256 at the repo
+# root. The hash list is generated outside CI and only ever holds digests.
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   guard:

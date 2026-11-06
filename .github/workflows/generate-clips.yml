@@ -2,12 +2,20 @@ name: Generate voice clips
 
 # Keeps the pre-recorded clips (every word, its practice sentence, and the voice sample) in sync with
 # words.json and sentences.js. Only new or changed clips are generated (tools/clips/generate.mjs), so a
-# normal run takes minutes. Each voice is recorded in its own parallel job. When clips change they are
-# committed to main and the site is redeployed.
+# normal run takes minutes. Each voice is recorded in its own parallel job. When clips change they go
+# to main through a bot pull request that merges itself once the required checks pass, and then the
+# site is redeployed.
 #
 # Privilege split on purpose. `generate` legs run npm and third-party code with a READ-ONLY token and no
-# stored credentials. `commit` holds the write token, runs no npm or node code, and only accepts a
-# strictly validated set of files from the artifacts.
+# stored credentials. `commit` holds contents-write and pull-requests-write, runs no npm or node code,
+# only accepts a strictly validated set of files from the artifacts, and opens the pull request.
+# `start-deploy` is a separate small job with no checkout and no npm or node code: it starts the
+# required checks (events caused by the workflow token do not start workflows), turns on auto-merge,
+# waits for the merge, then starts the deploy and the scan on main. A failed step there can be re-run
+# on its own ("Re-run failed jobs") without redoing the commit.
+#
+# main is protected by a ruleset (a pull request, and the `test` and `guard` checks, are required). The
+# github-actions app cannot bypass it, which is why this workflow opens a pull request instead of pushing.
 #
 # Manual run options (Actions tab > Generate voice clips > Run workflow):
 #   voice        only this Kokoro voice id, e.g. af_heart
@@ -108,6 +116,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          # Read-only job that only runs on main, so the cache is saved from main only.
+          cache: npm
+          cache-dependency-path: tools/clips/package-lock.json
       - name: Check words.json and the code before recording anything
         run: npm test
       - name: Install ffmpeg
@@ -157,13 +168,16 @@ jobs:
 
   commit:
     needs: [plan, generate]
-    # `!cancelled()` so finished voices are kept when another voice failed, but a run you cancel never pushes.
+    # `!cancelled()` so finished voices are kept when another voice failed, but a run you cancel never opens a pull request.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
-      actions: write
+      pull-requests: write
+    outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+      branch: ${{ steps.pr.outputs.branch }}
     steps:
       - name: Check out the pinned commit
         uses: actions/checkout@v4
@@ -220,11 +234,16 @@ jobs:
                   total += 1
                   size = st.st_size
                   if name == "manifest.json":
-                      if size > 1000000:
-                          problems.append(f"{voice}/manifest.json is larger than 1 MB")
+                      # Check the size first, then parse exactly the bytes that were read.
+                      if os.path.getsize(fp) >= 1000000:
+                          problems.append(f"{voice}/manifest.json is 1 MB or larger")
                           continue
                       try:
-                          data = json.load(open(fp))
+                          with open(fp, "rb") as fh:
+                              raw_manifest = fh.read(1000001)
+                          if len(raw_manifest) >= 1000000:
+                              raise ValueError("too large")
+                          data = json.loads(raw_manifest)
                       except Exception as err:
                           problems.append(f"{voice}/manifest.json is not valid JSON ({err.__class__.__name__})")
                           continue
@@ -280,11 +299,16 @@ jobs:
               sys.exit(1)
 
           # settings.json: take a changed one from a voice that passed; it must be exactly four short strings.
+          # Validate and copy the same bytes: read at most 5000, reject over 4000, parse those bytes, write those bytes.
           main_settings = open(os.path.join("clips", "settings.json"), "rb").read() if os.path.exists(os.path.join("clips", "settings.json")) else b""
           for voice, src in settings_candidates:
               if voice not in ok_voices:
                   continue
-              raw = open(src, "rb").read(4000)
+              with open(src, "rb") as fh:
+                  raw = fh.read(5000)
+              if len(raw) > 4000:
+                  skipped.setdefault("settings.json", []).append("settings.json is larger than 4000 bytes")
+                  continue
               if raw == main_settings:
                   continue
               try:
@@ -298,7 +322,8 @@ jobs:
               dst = os.path.join(staging, "settings.json")
               if os.path.lexists(dst):
                   os.unlink(dst)
-              shutil.copyfile(src, dst)
+              with open(dst, "wb") as fh:
+                  fh.write(raw)
 
           # Final safety pass over everything that will be committed.
           problems = []
@@ -327,40 +352,126 @@ jobs:
               print(f"::warning::{voice} was not updated: {issues[0]}")
           print(f"clips validated; updated voices: {sorted(ok_voices) or 'none'}; skipped: {sorted(skipped) or 'none'}")
           PY
-      - name: Commit and push to main
+      - name: Open a pull request with the new clips
+        id: pr
         env:
           STAGING: ${{ runner.temp }}/staging
+          BRANCH: clips/update-${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          git fetch --quiet origin main
+          git switch -c "$BRANCH" origin/main
           rm -rf clips
           cp -r --no-dereference "$STAGING" clips
           if [ -n "$(find clips ! -type f ! -type d -print -quit)" ]; then echo "non-regular file in clips/"; exit 1; fi
           git add -A clips
-          if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+            echo "pr=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --cached --name-only -- clips | awk -F/ '{print $2}' | sort -u | paste -sd, - | sed 's/,/, /g')
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update pre-recorded voice clips"
-          git pull --rebase origin main
-          # After the rebase the only thing we add on top of main must be under clips/.
+          git commit -m "Update pre-recorded voice clips [skip ci]"
+          # The only thing on top of main must be under clips/.
           if git diff --name-only origin/main..HEAD | grep -qv '^clips/'; then echo "commit touches files outside clips/"; exit 1; fi
-          git push origin HEAD:main
-          echo "pushed=true" >> "$GITHUB_ENV"
-      - name: Start the deploy and the repository scan
-        if: ${{ env.pushed == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Pushes made with GITHUB_TOKEN do not start other workflows, so start them directly.
-          for wf in pages.yml denylist-guard.yml; do
-            ok=0
-            for attempt in 1 2 3; do
-              if gh workflow run "$wf" --ref main; then ok=1; break; fi
-              sleep 15
-            done
-            if [ "$ok" -ne 1 ]; then echo "Could not start $wf"; exit 1; fi
-          done
+          git push --force origin "$BRANCH"
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            body=$(printf 'New or changed recordings under clips/: %s.\n\nEvery file passed the clip validator (file types, MP3 headers, sizes and per-voice limits).\n\nWorkflow run: %s' "$changed" "$RUN_URL")
+            url=$(gh pr create --base main --head "$BRANCH" --title "Update pre-recorded voice clips [skip ci]" --body "$body")
+            number="${url##*/}"
+          fi
+          [[ "$number" =~ ^[0-9]+$ ]] || { echo "Could not read the pull request number"; exit 1; }
+          echo "Pull request #$number is open for branch $BRANCH"
+          echo "pr=$number" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
       - name: Fail the run if a voice was rejected (the other voices were still committed)
         if: ${{ always() }}
         env:
           SKIPPED: ${{ runner.temp }}/skipped.txt
         run: |
           if [ -s "$SKIPPED" ]; then cat "$SKIPPED"; exit 1; fi
+
+  # Events caused by the workflow token do not start other workflows, so this job starts the required
+  # checks on the pull request branch itself, turns on auto-merge, waits for the merge, and then starts the
+  # deploy and the repository scan on main. It has no checkout and runs no npm or node code. It is safe to
+  # re-run on its own: it reads the pull request first and skips whatever is already done. Re-running
+  # `commit` instead would stop at its stale check once the clips are on main.
+  start-deploy:
+    needs: commit
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.commit.outputs.pr != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check the pull request, merge it, then start the deploy and the scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ needs.commit.outputs.pr }}
+          BRANCH: ${{ needs.commit.outputs.branch }}
+        run: |
+          set -uo pipefail
+          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "Bad pull request number"; exit 1; }
+          [[ "$BRANCH" =~ ^clips/update-[0-9]+$ ]] || { echo "Bad branch name"; exit 1; }
+
+          start() {
+            for attempt in 1 2 3; do
+              if gh workflow run "$1" --ref "$2"; then echo "Started $1 on $2"; return 0; fi
+              echo "Attempt $attempt to start $1 failed"; sleep 15
+            done
+            echo "Could not start $1"; return 1
+          }
+          state() { gh pr view "$PR" --json state --jq .state; }
+
+          url=""
+          if [ "$(state)" = "MERGED" ]; then
+            echo "Pull request #$PR is already merged."
+          else
+            echo "Step 1: start the required checks on $BRANCH"
+            for wf in pages.yml denylist-guard.yml; do start "$wf" "$BRANCH" || exit 1; done
+
+            echo "Step 2: enable auto-merge"
+            if [ "$(gh pr view "$PR" --json autoMergeRequest --jq '.autoMergeRequest != null')" = "true" ]; then
+              echo "Auto-merge is already enabled."
+            else
+              ok=0
+              for attempt in 1 2 3; do
+                if gh pr merge "$PR" --auto --squash --delete-branch; then ok=1; break; fi
+                [ "$(state)" = "MERGED" ] && { ok=1; break; }
+                sleep 15
+              done
+              [ "$ok" -eq 1 ] || { echo "Could not enable auto-merge"; exit 1; }
+            fi
+
+            echo "Step 3: wait for the merge (up to 40 minutes)"
+            merged=0
+            for i in $(seq 1 80); do
+              if info=$(gh pr view "$PR" --json state,mergedAt,statusCheckRollup,url); then
+                url=$(jq -r .url <<<"$info")
+                echo "[$i/80] $(jq -r '.state + " | " + ([.statusCheckRollup[]? | select((.name // .context) == "test" or (.name // .context) == "guard") | (.name // .context) + "=" + (if (.conclusion // "") != "" then .conclusion else (.status // .state // "?") end)] | join(" "))' <<<"$info")"
+                case "$(jq -r .state <<<"$info")" in
+                  MERGED) merged=1; break ;;
+                  CLOSED) echo "The clip pull request was closed without merging: $url"; exit 1 ;;
+                esac
+                bad=$(jq -r '[.statusCheckRollup[]? | select((.name // .context) == "test" or (.name // .context) == "guard") | select((.conclusion // .state) as $c | ["FAILURE","TIMED_OUT","CANCELLED","ACTION_REQUIRED","STARTUP_FAILURE","ERROR"] | index($c))] | length' <<<"$info")
+                if [ "$bad" != "0" ]; then echo "A required check failed on the clip pull request: $url"; exit 1; fi
+              else
+                echo "[$i/80] could not read the pull request, will retry"
+              fi
+              sleep 30
+            done
+            [ "$merged" -eq 1 ] || { echo "The clip pull request did not merge in time: $url"; exit 1; }
+            echo "Pull request #$PR is merged."
+            gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1 || echo "Branch $BRANCH was already gone or could not be deleted; that is harmless."
+          fi
+
+          echo "Step 4: start the deploy and the scan on main"
+          for wf in pages.yml denylist-guard.yml; do start "$wf" main || exit 1; done

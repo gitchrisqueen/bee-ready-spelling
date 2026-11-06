@@ -117,7 +117,7 @@ test('model requests go to this site when a self-hosted copy exists, with per-re
   assert.ok(urls.includes('https://huggingface.co/other/model/resolve/main/x.bin'),'unrelated URLs are untouched');
   urls.length=0;localOk=false;
   await globalThis.fetch(`${model}tokenizer.json?download=1`);
-  assert.equal(urls.at(-1),`${model}tokenizer.json?download=1`,'falls back to Hugging Face when the local file fails');
+  assert.match(urls.at(-1),/^https:\/\/huggingface\.co\/onnx-community\/Kokoro-82M-v1\.0-ONNX\/resolve\/[0-9a-f]{40}\/tokenizer\.json\?download=1$/,'falls back to Hugging Face (pinned revision, see tests/voice-fallback.test.mjs) when the local file fails');
  }finally{globalThis.fetch=realFetch;delete globalThis.location;}
 });
 
@@ -276,3 +276,10 @@ test('speedId reaches Kokoro and Piper, and the Kokoro cache keeps the speeds ap
  assert.equal(await piper.speak('plaza',{kind:'word',speedId:'slow'}),'piper');
  assert.equal(piper.player.playbackRate,0.6);assert.equal(piper.speed,1);
 });
+
+test('the voice sample never starts a live-voice download when its clip is missing',withClipFetch(()=>({ok:false,status:404}),async()=>{
+ let loaded=false;
+ const svc=new BeeVoiceService({settings:{mode:'auto'},loadKokoro:async()=>{loaded=true;throw Error('must not load');}});
+ assert.equal(await svc.preview(),'device');
+ assert.equal(loaded,false);
+}));

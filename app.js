@@ -10,9 +10,11 @@ const scrollBehavior=()=>window.matchMedia&&window.matchMedia('(prefers-reduced-
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 const historyKey='bee-ready-history-v2';
 const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection'};
+// Returns safe HTML: everything is escaped, and each blank is a span a screen reader announces as "blank".
+const BLANK_HTML='<span class="blank" role="img" aria-label="blank">_______</span>';
 function hideWord(sentence,word){
   const norm=word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return sentence.replace(new RegExp(norm,'gi'),'_______');
+  return String(sentence).split(new RegExp(norm,'gi')).map(escapeHtml).join(BLANK_HTML);
 }
 function comparison(s){return String(s).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US').replace(/[^\p{L}]/gu,'');}
 function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{attempts:{},missed:{},rounds:0};}catch{return {attempts:{},missed:{},rounds:0};}}
@@ -41,7 +43,7 @@ function paintRoundStar(){
 let clearStatusTimer=0;
 function setClearStatus(text){clearTimeout(clearStatusTimer);$('clearStarsStatus').textContent=text;if(text)clearStatusTimer=setTimeout(()=>{$('clearStarsStatus').textContent='';},5000);}
 function flipStar(id){const on=toggleStar(stars,id);saveStars(store(),stars);updateStats();paintRoundStar();if(on)setClearStatus('');return on;}
-function showTab(tab){
+function showTab(tab,{focus=false}={}){
   if(!['practice','words','voices','grownups'].includes(tab))tab='practice';
   appState.activeTab=tab;
   document.querySelectorAll('[data-tab]').forEach(button=>{
@@ -53,10 +55,13 @@ function showTab(tab){
   location.hash=tab;
   if(tab==='words')renderWordBank();
   window.scrollTo({top:0,behavior:'instant'});
+  // After a click, move focus to the new page's heading so keyboard and screen-reader users land on it
+  // (the button that was pressed may have just been hidden). Not on page load or a hash change.
+  if(focus){const h=$(`${tab}-title`);if(h)h.focus({preventScroll:true});}
 }
 function initNavigation(){
-  document.querySelectorAll('[data-tab]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.tab)));
-  document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.go)));
+  document.querySelectorAll('[data-tab]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.tab,{focus:true})));
+  document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.go,{focus:true})));
   window.addEventListener('hashchange',()=>{
     const tab=location.hash.slice(1);
     if(tab && tab!==appState.activeTab)showTab(tab);
@@ -93,14 +98,14 @@ function startRound(){
   else if(type==='starred')pool=starredWords();
   if(!pool.length){
     $('roundArea').classList.remove('hidden');$('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');
-    $('roundSummary').innerHTML=type==='starred'?'<h2 id="emptyPoolHeading" tabindex="-1">You have no starred words yet.</h2><p>Go to the Word bank and press the Star button on a word.</p>':'<h2 id="emptyPoolHeading" tabindex="-1">No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>';
+    $('roundSummary').innerHTML=type==='starred'?'<h2 id="emptyPoolHeading" tabindex="-1">You have no starred words yet.</h2><p>Go to the Word bank and press the Star button on a word.</p>':(history.rounds>0?'<h2 id="emptyPoolHeading" tabindex="-1">You did not miss any words! Great job. 🎉</h2><p>Pick another set of words to keep practicing.</p>':'<h2 id="emptyPoolHeading" tabindex="-1">No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>');
     $('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});$('emptyPoolHeading').focus();return;
   }
   const count=Math.min(pool.length,Math.max(1,Number($('wordCount').value)||5));
   currentRound={items:sampleNoRepeat(pool,count),index:0,correct:0,results:[],mode:$('practiceMode').value,clues:new Set()};
   const fromSummary=$('roundSummary').contains(document.activeElement);
   $('roundArea').classList.remove('hidden');$('roundSummary').classList.add('hidden');$('activeCard').classList.remove('hidden');
-  showCurrent();if(fromSummary)$('questionHeading').focus({preventScroll:true});$('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});
+  showCurrent();$('questionHeading').focus({preventScroll:true});$('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});
 }
 function currentWord(){return currentRound?.items[currentRound?.index]??null;}
 function showCurrent(){
@@ -123,11 +128,12 @@ function showCurrent(){
 }
 function showClue(type){
   const w=currentWord();if(!w)return;
-  if(type==='repeat') {voiceService.select({speedId:'slow'});syncVoiceButtons();voiceService.speak(w.word,{kind:'word',instant:true});return;}
+  // One-off slow playback, like hearFromCard: the saved speed (Voices tab) is never changed.
+  if(type==='repeat'){voiceService.speak(w.word,{kind:'word',instant:true,speedId:'slow'});return;}
   const clueText = type==='definition'?`<strong>Definition</strong>${escapeHtml(w.definition)}`:
     type==='origin'?`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`:
     type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||'Word')}`:
-    `<strong>In a sentence</strong>${escapeHtml(hideWord(sentenceFor(w),w.word))}`;
+    `<strong>In a sentence</strong>${hideWord(sentenceFor(w),w.word)}`;
   $('clueResult').innerHTML=clueText;$('clueResult').hidden=false;
   if(type==='sentence')voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});
 }
@@ -146,13 +152,15 @@ function markAnswer(correct){
   document.querySelectorAll('[data-clue]').forEach(b=>b.disabled=true);
   $('meterFill').style.width=`${100*(currentRound.index+1)/currentRound.items.length}%`;
   $('scoreLabel').textContent=`${currentRound.correct} correct so far`;
+  // The focused control (answer box, grade button) just hid, so move focus to the next control instead of losing it to <body>.
+  $('nextWord').focus({preventScroll:true});
 }
 function finishRound(){
   $('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');
   history.rounds=(history.rounds||0)+1;writeHistory();
   const total=currentRound.items.length;const correct=currentRound.correct;
   $('roundNumber').textContent='ROUND COMPLETE';$('scoreLabel').textContent=`${correct} / ${total} correct`;
-  $('roundSummary').innerHTML=`<div class="bee-bubble">🏆</div><h2 id="summaryHeading" tabindex="-1">What a brave spelling bee!</h2><div class="summary-score">${correct} / ${total}</div><p>Every attempt counts. Review the missed words, then try again!</p><ul class="round-notes">${currentRound.results.map(r=>`<li>${escapeHtml(r.word)} <span>${r.correct?'✓ Correct':'↻ Review'}</span></li>`).join('')}</ul><div class="summary-actions"><button class="primary-btn" id="anotherRound">New random round</button><button class="soft-btn" id="practiceMissed">Practice missed words</button></div>`;
+  $('roundSummary').innerHTML=`<div class="bee-bubble" aria-hidden="true">🏆</div><h2 id="summaryHeading" tabindex="-1">What a brave spelling bee!</h2><div class="summary-score">${correct} / ${total}</div><p>Every attempt counts. Review the missed words, then try again!</p><ul class="round-notes">${currentRound.results.map(r=>`<li>${escapeHtml(r.word)} <span>${r.correct?'✓ Correct':'↻ Review'}</span></li>`).join('')}</ul><div class="summary-actions"><button class="primary-btn" id="anotherRound">New random round</button><button class="soft-btn" id="practiceMissed">Practice missed words</button></div>`;
   $('summaryHeading').focus({preventScroll:true});
   $('anotherRound').addEventListener('click',startRound);
   $('practiceMissed').addEventListener('click',()=>{$('pool').value='missed';startRound();});
@@ -166,9 +174,10 @@ function initRound(){
     const w=currentWord();if(!w)return;
     $('answerFeedback').className='feedback';$('answerFeedback').innerHTML=`Correct spelling: <span class="correct-word">${escapeHtml(w.word)}</span><p>Did you say each letter correctly?</p>`;
     $('revealOral').classList.add('hidden');$('gradeOral').classList.remove('hidden');
+    $('gradeOral').querySelector('button').focus({preventScroll:true});
   });
   document.querySelectorAll('[data-grade]').forEach(btn=>btn.addEventListener('click',()=>markAnswer(btn.dataset.grade==='correct')));
-  $('nextWord').addEventListener('click',()=>{currentRound.index++;showCurrent();});
+  $('nextWord').addEventListener('click',()=>{currentRound.index++;showCurrent();if(currentWord())$('questionHeading').focus({preventScroll:true});});
 }
 function wordResults(){let arr=words.slice();const query=$('searchWord').value.trim().toLocaleLowerCase();const group=$('groupFilter').value;const level=$('levelFilter').value;
   if(query)arr=arr.filter(w=>w.word.toLocaleLowerCase().includes(query)||w.definition.toLocaleLowerCase().includes(query));
@@ -232,7 +241,7 @@ function syncVoiceButtons(){
   const radio=document.querySelector(`input[name="engineMode"][value="${settings.mode}"]`);if(radio)radio.checked=true;
 }
 function initVoiceSettings(){
-  $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
+  $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar" aria-hidden="true">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
   $('speedChoices').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
   syncVoiceButtons();
   document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w){voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');}}));
@@ -241,9 +250,20 @@ function initVoiceSettings(){
   $('prepareVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
   $('previewVoice').addEventListener('click',()=>voiceService.preview());
   $('retryVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
-  $('downloadUseDevice').addEventListener('click',()=>{voiceService.stop();voiceService.select({mode:'device'});syncVoiceButtons();clearTimeout(noticeTimer);$('downloadLabel').textContent='Device voice selected';$('downloadDetail').textContent='Tap Hear my word or Preview voice to listen. No download needed.';});
+  $('downloadUseDevice').addEventListener('click',()=>{voiceService.stop();voiceService.select({mode:'device'});syncVoiceButtons();clearTimeout(noticeTimer);$('downloadLabel').textContent='Device voice selected';$('downloadDetail').textContent='Tap Hear my word or Play voice sample to listen. No download needed.';});
   $('downloadRetry').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
-  $('closeNotice').addEventListener('click',()=>{$('voiceDownload').classList.add('hidden');});
+  $('closeNotice').addEventListener('click',()=>{
+    releaseNoticeFocus(true);
+    $('voiceDownload').classList.add('hidden');
+  });
+}
+// If keyboard focus is inside the voice notice and something in it is about to be hidden, move focus
+// first, so it never falls to <body>. hiding=true: the whole notice goes, so focus leaves it.
+// hiding=false: the notice stays, so focus goes to its Dismiss button.
+function releaseNoticeFocus(hiding){
+  if(!$('voiceDownload').contains(document.activeElement))return;
+  const target=hiding?($('tab-voices').classList.contains('active')?$('prepareVoice'):document.querySelector('.nav-button.active')):$('closeNotice');
+  if(target)target.focus({preventScroll:true});
 }
 const engineName=e=>({clip:'Recorded',kokoro:'Kokoro',piper:'Piper'})[e]||'Device';
 function updateVoiceStatus(status){
@@ -255,7 +275,7 @@ function updateVoiceStatus(status){
   else if(['ready','speaking'].includes(status.phase)){
     // A short explicit ready state gives the child reassurance that the download finished.
     if(!$('voiceDownload').classList.contains('hidden')){
-      clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('voiceDownload').classList.add('hidden'),4500);
+      clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{releaseNoticeFocus(true);$('voiceDownload').classList.add('hidden');},4500);
     }
   }
   $('downloadLabel').textContent=status.label;
@@ -265,13 +285,16 @@ function updateVoiceStatus(status){
   if(status.percent===null){bar.classList.add('indeterminate');bar.setAttribute('role','progressbar');bar.removeAttribute('aria-valuenow');fill.style.width='40%';$('downloadPercent').textContent='Working…';}
   else {bar.classList.remove('indeterminate');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','100');bar.setAttribute('aria-valuenow',String(Math.round(status.percent)));fill.style.width=`${status.percent}%`;$('downloadPercent').textContent=`${Math.round(status.percent)}% of current file`;}
   bar.setAttribute('aria-label',status.label);
-  $('downloadRetry').classList.toggle('hidden',!['error','tap','adult'].includes(status.phase));
-  $('downloadUseDevice').classList.toggle('hidden',!['downloading','preparing','switching','generating','error','tap'].includes(status.phase));
+  const showRetry=['error','tap','adult'].includes(status.phase);
+  const showDevice=['downloading','preparing','switching','generating','error','tap'].includes(status.phase);
+  if((!showRetry&&document.activeElement===$('downloadRetry'))||(!showDevice&&document.activeElement===$('downloadUseDevice')))releaseNoticeFocus(false);
+  $('downloadRetry').classList.toggle('hidden',!showRetry);
+  $('downloadUseDevice').classList.toggle('hidden',!showDevice);
 }
 function initGrownups(){
   $('clearHistory').addEventListener('click',()=>{
     if(!confirm('Clear practice history on this device? This cannot be undone.'))return;
-    history={attempts:{},missed:{},rounds:0};writeHistory();$('clearHistory').textContent='Practice history cleared ✓';
+    history={attempts:{},missed:{},rounds:0};writeHistory();setClearStatus('Practice history cleared.');
   });
   $('clearStars').addEventListener('click',()=>{
     if(!confirm('Clear starred words on this device? This cannot be undone.'))return;
@@ -291,8 +314,9 @@ async function main(){
     [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(g=>{$('groupFilter').add(new Option(g,g));});
     updateStats();renderWordBank();
   }catch(err){
-    $('roundBuilder').insertAdjacentHTML('beforeend',`<p class="toast">The word list could not load. Please refresh the page. (${escapeHtml(err.message)})</p>`);
+    $('roundBuilder').insertAdjacentHTML('beforeend',`<p class="toast" role="alert">The word list could not load. Please refresh the page. (${escapeHtml(err.message)})</p>`);
     $('startRound').disabled=true;
+    $('resultCount').textContent='The word list did not load. Please refresh the page.';
   }
 }
 main();

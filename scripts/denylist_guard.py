@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Ported from gitchrisqueen/litellm-complexity-router scripts/denylist_guard.py.
+# Denylist guard, vendored from the maintainer's templates.
 # Detection semantics are unchanged. Differences from the source, all about
 # location and the bootstrap case, none about matching:
 #   * --root defaults to the current directory, and --denylist defaults to the
@@ -7,8 +7,7 @@
 #     denylist.sha256 next to this file.
 #   * A denylist with zero hashes is valid: it reports "entries=0" and exits 0,
 #     so a repo can vendor the guard before its maintainer generates hashes.
-# Vendor into a target repo as scripts/denylist_guard.py (see the kit's
-# plugins/cqc-kit/templates/denylist-guard.yml).
+# Vendor into a target repo as scripts/denylist_guard.py.
 """Denylist guard: fail if any hashed term appears in the tree or the history.
 
 The denylist (``denylist.sha256``) holds SHA-256 digests of lowercased

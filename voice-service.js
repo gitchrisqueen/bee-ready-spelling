@@ -43,10 +43,15 @@ const PREFERRED_KOKORO_URL='https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/ko
 // Match Piper's WASM assets (1.18.0) instead of resolving the latest runtime.
 const PREFERRED_PIPER_URL='https://esm.sh/@mintplex-labs/piper-tts-web@1.0.5?bundle&deps=onnxruntime-web@1.18.0';
 const HF_MODEL_PREFIX=`https://huggingface.co/${modelId}/resolve/main/`;
+// Same revision as scripts/fetch-voice-assets.mjs (a test keeps them equal). The fallback to Hugging Face
+// asks for exactly these bytes, never for whatever `main` points at today.
+const MODEL_REVISION='1939ad2a8e416c0acfeecc08a694d14ef25f2231';
+const HF_PINNED_PREFIX=`https://huggingface.co/${modelId}/resolve/${MODEL_REVISION}/`;
 let selfHostPatched=false;
 // The model files are copied into the site at deploy time (scripts/fetch-voice-assets.mjs).
 // kokoro-js hardcodes its Hugging Face URLs, so requests for exactly that model are redirected
-// to this site. A missing or failing local file falls back to Hugging Face for that request.
+// to this site. A missing or failing local file falls back to Hugging Face for that request, using the
+// pinned revision instead of `main`.
 async function useSelfHostedModel(){
   if(typeof location==='undefined'||typeof globalThis.fetch!=='function') return false;
   const base=new URL(`./voice-assets/models/${modelId}/`,import.meta.url).href;
@@ -56,16 +61,21 @@ async function useSelfHostedModel(){
   globalThis.fetch=async(input,init)=>{
     const isText=typeof input==='string'||input instanceof URL;
     const url=isText?String(input):input?.url;
-    const rest=url&&url.startsWith(HF_MODEL_PREFIX)?url.slice(HF_MODEL_PREFIX.length).split('?')[0]:null;
-    let local=null;
-    if(rest&&!rest.includes('..')){try{const t=new URL(base+rest);if(t.href.startsWith(base))local=t.href;}catch{}}
+    if(!url||!url.startsWith(HF_MODEL_PREFIX)) return original(input,init);
+    const tail=url.slice(HF_MODEL_PREFIX.length);
+    const rest=tail.split('?')[0];
+    if(!rest||rest.includes('..')) throw new TypeError('Refusing an unexpected model path.');
+    let local=null,pinned=null;
+    try{const t=new URL(base+rest);if(t.href.startsWith(base))local=t.href;}catch{}
+    try{const p=new URL(HF_PINNED_PREFIX+tail);if(p.href.startsWith(HF_PINNED_PREFIX))pinned=p.href;}catch{}
+    if(!pinned) throw new TypeError('Refusing an unexpected model path.');
     if(local){
       try{
         const res=await original(local,isText?init:undefined);
         if(res.ok) return res;
       }catch{}
     }
-    return original(input,init);
+    return original(isText?pinned:new Request(pinned,input),isText?init:undefined);
   };
   selfHostPatched=true;return true;
 }
@@ -107,7 +117,7 @@ export class BeeVoiceService {
     if(mode && mode!==this.settings.mode) this.stop();
     this.settings=validSettings({...this.settings,voiceId:voiceId??this.settings.voiceId,speedId:speedId??this.settings.speedId,mode:mode??this.settings.mode});
     try{localStorage.setItem(KEY,JSON.stringify(this.settings));}catch{}
-    if(this.settings.mode==='device') this._status('ready','device','Device voice selected. Tap Hear my word or Preview voice to listen.');
+    if(this.settings.mode==='device') this._status('ready','device','Device voice selected. Tap Hear my word or Play voice sample to listen.');
     else if(this.kokoro) this._status('ready','kokoro','Kokoro natural voice is ready.');
     else if(this.piper) this._status('ready','piper','Piper backup voice is ready.');
     else this._status('idle','clip','Natural recorded voice ready. Every word plays instantly.');
@@ -140,7 +150,7 @@ export class BeeVoiceService {
       // WASM works on a wider range of iPads than WebGPU. Use quantized weights.
       const tts=await KokoroTTS.from_pretrained(modelId,{dtype:'q8',device:'wasm',progress_callback:p=>this._fileProgress('kokoro',p)});
       this.kokoro=tts;
-      if(this.settings.mode!=='device'){this.activeEngine='kokoro';this._status('ready','kokoro','Natural voice ready! Tap Play or Start practice.');}
+      if(this.settings.mode!=='device'){this.activeEngine='kokoro';this._status('ready','kokoro','Natural voice ready! Tap Hear my word or Play voice sample.');}
       return tts;
     })().catch(err=>{
       this.failedEngines.add('kokoro');
@@ -192,7 +202,7 @@ export class BeeVoiceService {
     if(!this.failedEngines.has('piper')){
       try{await this._preparePiper();return this.settings.mode==='device'?'device':'piper';}catch(e){console.info('Piper failed, using device:',messageOf(e));}
     }
-    this.activeEngine='device';this._status('ready','device','Device voice is available. Neural voices could not load.',null,'Select Try again to retry natural voices.',true);
+    this.activeEngine='device';this._status('ready','device','Device voice is available. Neural voices could not load.',null,'Go to Voices and tap Retry natural audio to try again.',true);
     return 'device';
   }
   stop(){
@@ -217,7 +227,7 @@ export class BeeVoiceService {
     this.player=player;
     player.onended=()=>{if(this.player===player){this.player=null;this._status('ready',engine,`${engine==='piper'?'Backup':'Natural'} voice ready.`);if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}}};
     try{await player.play();}catch(e){
-      if(e?.name==='NotAllowedError'){this._status('tap',engine,'Voice is ready. Tap Play once more to hear it.',null,'Safari may require a second tap after downloading audio.');return 'tap';}
+      if(e?.name==='NotAllowedError'){this._status('tap',engine,'Voice is ready. Tap Hear my word once more to hear it.',null,'Safari may require a second tap after downloading audio.');return 'tap';}
       throw e;
     }
     if(token!==this.sequence){player.pause();return;}
@@ -324,5 +334,6 @@ export class BeeVoiceService {
   }
   // Warm a clip so the next Hear button plays with no wait.
   prefetch(text,kind='word'){if(this.settings.mode==='device')return Promise.resolve();return this._loadClip(String(text).trim(),kind).then(()=>{},()=>{});}
-  async preview(){return this.speak(PREVIEW_TEXT,{kind:'sample'});}
+  // instant:true so a missing sample clip falls back to the device voice, never to a live-voice download the child did not ask for.
+  async preview(){return this.speak(PREVIEW_TEXT,{kind:'sample',instant:true});}
 }
