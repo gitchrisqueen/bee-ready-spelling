@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wordCardHtml, detailsData, detailsPanelId, toggleText, toggleLabel, ORIGIN_NOTE, BOOKLET_NOTE } from '../wordcard.js';
+import { readFileSync } from 'node:fs';
+import { wordCardHtml, detailsData, detailsPanelId, wordTitleId, toggleLabel, starLabelDefault, ORIGIN_NOTE, BOOKLET_NOTE } from '../wordcard.js';
 import { sentenceFor } from '../sentences.js';
 
 const POS = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', interj: 'interjection' };
@@ -15,30 +16,69 @@ test('the card shows every label, the three audio buttons and the old buttons', 
   assert.ok(html.includes('<dd>verb</dd>'));
   assert.ok(html.includes(`<dd>Latin<small class="details-note">${esc(ORIGIN_NOTE)}</small></dd>`));
   assert.ok(html.includes(`<dd>Study<small class="details-note">${esc(BOOKLET_NOTE)}</small></dd>`));
-  assert.match(ORIGIN_NOTE, /study clue, not the full history/);
+  assert.equal(ORIGIN_NOTE, 'This group is only a hint. It is not the whole story of where the word came from.');
   assert.match(BOOKLET_NOTE, /fixed groups/);
-  assert.match(BOOKLET_NOTE, /star/);
+  assert.match(BOOKLET_NOTE, /Star button/);
   assert.ok(html.includes('<dd>The king chose to abdicate.</dd>'), 'the full sentence shows, with the word visible');
-  assert.match(html, /data-say-id="7"[^>]*>🔊 Listen<\/button>/);
-  assert.match(html, /data-star-id="7" aria-pressed="false" aria-label="Star this word: abdicate">☆/);
+  assert.match(html, /data-say-id="7"[^>]*><span aria-hidden="true">🔊<\/span> Listen<\/button>/);
+  assert.match(html, /data-star-id="7" aria-pressed="false" aria-label="Star: abdicate"><span class="star-glyph" aria-hidden="true">☆<\/span><\/button>/);
   assert.match(html, /href="https:\/\/www\.merriam-webster\.com\/dictionary\/abdicate"/);
 });
 
 test('the toggle is a real button: closed by default, aria-expanded, aria-controls, visible text', () => {
   const html = card();
-  const m = html.match(/<button type="button" class="details-btn"[^>]*>([^<]*)<\/button>/);
+  const m = html.match(/<button type="button" class="details-btn"[^>]*>Details <span class="chev" aria-hidden="true">▸<\/span><\/button>/);
   assert.ok(m);
-  assert.equal(m[1], 'Details');
   assert.match(m[0], /aria-expanded="false"/);
   const controls = m[0].match(/aria-controls="([^"]+)"/)[1];
   assert.equal(controls, detailsPanelId(7));
   assert.ok(html.includes(`<div class="word-details" id="${controls}" hidden>`));
   const open = card({}, { open: true });
-  assert.match(open, /aria-expanded="true"[^>]*>Hide details<\/button>/);
+  assert.match(open, /aria-expanded="true"[^>]*>Details <span/);
   assert.ok(open.includes(`<div class="word-details" id="${controls}">`));
-  assert.equal(toggleText(false), 'Details');
-  assert.equal(toggleText(true), 'Hide details');
-  assert.equal(toggleLabel(base, true), 'Hide details for abdicate');
+});
+
+test('accessible names are fixed: the open/pressed state lives in aria-expanded and aria-pressed only', () => {
+  assert.equal(toggleLabel(base), 'Details for abdicate');
+  assert.equal(starLabelDefault(base), 'Star: abdicate');
+  for (const o of [{}, { open: true, starred: true }]) {
+    const html = card({}, o);
+    assert.ok(html.includes('aria-label="Details for abdicate"'));
+    assert.ok(html.includes('aria-label="Star: abdicate"'));
+    for (const [, name] of html.matchAll(/<button[^>]*aria-label="([^"]*)"/g)) assert.ok(!/^(Remove star|Hide details)/.test(name), name);
+  }
+  const names = o => [...card({}, o).matchAll(/aria-label="([^"]*)"/g)].map(m => m[1]);
+  assert.deepEqual(names({ open: true, starred: true }), names({}), 'every accessible name is identical in both states');
+});
+
+test('visible text is part of the accessible name (WCAG 2.5.3)', () => {
+  const html = card();
+  const listen = html.match(/<button[^>]*data-say-id="7"[^>]*aria-label="([^"]*)"/);
+  assert.equal(listen[1], 'Listen to abdicate');
+  let checked = 0;
+  for (const [, name, inner] of html.matchAll(/<button[^>]*aria-label="([^"]*)"[^>]*>(.*?)<\/button>/g)) {
+    const visible = inner.replace(/<span[^>]*aria-hidden="true"[^>]*>[^<]*<\/span>/g, '').trim();
+    if (!visible) continue;
+    checked++;
+    assert.ok(name.toLowerCase().startsWith(visible.toLowerCase()), `"${name}" must start with its visible text "${visible}"`);
+  }
+  assert.ok(checked >= 5, 'Listen, Details and the three audio buttons are checked');
+  const link = html.match(/<a [^>]*aria-label="([^"]*)"[^>]*>(.*?)<\/a>/);
+  assert.equal(link[1], 'Dictionary entry for abdicate (opens in a new tab)');
+  assert.ok(link[2].startsWith('Dictionary'));
+});
+
+test('each card is labelled by its own heading, with a unique id', () => {
+  const html = card();
+  assert.ok(html.includes(`<article class="word-card" aria-labelledby="${wordTitleId(7)}">`));
+  assert.ok(html.includes(`<h3 id="${wordTitleId(7)}">abdicate</h3>`));
+  assert.notEqual(wordTitleId(7), wordTitleId(8));
+});
+
+test('the page has a hidden h2 before the word grid, and the hidden-text class exists', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<h2 class="sr-only">Words<\/h2><div id="wordGrid"/);
+  assert.match(readFileSync(new URL('../styles.css', import.meta.url), 'utf8'), /\.sr-only\{position:absolute/);
 });
 
 test('audio buttons are real buttons with a clear aria-label that names the word', () => {
@@ -103,8 +143,8 @@ test('panel ids are unique per word, and aria-controls always matches a panel id
 });
 
 test('the star state and label come from the caller', () => {
-  const html = card({}, { starred: true, starLabel: (w, on) => `${on ? 'On' : 'Off'} ${w.word}` });
-  assert.match(html, /aria-pressed="true" aria-label="On abdicate">★/);
+  const html = card({}, { starred: true, starLabel: w => `Mine ${w.word}` });
+  assert.match(html, /aria-pressed="true" aria-label="Mine abdicate"><span class="star-glyph" aria-hidden="true">★/);
 });
 
 test('importing the module needs no DOM', () => {

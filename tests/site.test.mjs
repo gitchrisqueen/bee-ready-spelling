@@ -145,7 +145,9 @@ test('star controls are in the page and wired up', () => {
   const app = read('app.js');
   for (const id of ['heroStarred', 'starFilter', 'starWord', 'clearStars']) assert.ok(html.includes(`id="${id}"`), `Missing UI: ${id}`);
   assert.match(html, /<option value="starred">My starred words<\/option>/);
-  assert.match(html, /<option value="starred">Starred only<\/option>/);
+  assert.match(html, /<label class="field">Show<select id="starFilter"><option value="all">All words<\/option><option value="starred">My starred words only<\/option>/);
+  assert.doesNotMatch(html + app, /Remove star|Hide details/, 'state lives in aria-pressed / aria-expanded, never in a flipping name');
+  assert.doesNotMatch(html + app, /[Tt]ap the ☆/, 'say "press the Star button (☆)", not the glyph alone');
   assert.match(html, /id="starWord"[^>]*aria-label="Star this word"/, 'the round star label must not reveal the word');
   assert.match(app, /from '\.\/stars\.js'/);
   assert.match(app, /type==='starred'/);
@@ -161,4 +163,22 @@ test('word details are wired up: module is built and syntax-checked, and app.js 
   const hear = app.slice(app.indexOf('function hearFromCard'), app.indexOf('function renderWordBank'));
   assert.match(hear, /speedId:'slow'/);
   assert.ok(!hear.includes('select('), 'Hear it slowly must not change the saved speed');
+});
+
+test('status regions, focus moves and the clear-stars message are wired up', () => {
+  const html = read('index.html'), app = read('app.js');
+  assert.match(html, /id="resultCount" role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(html, /id="clearStarsStatus"[^>]*role="status"/);
+  assert.match(html, /<button id="clearStars" class="text-btn">Clear this device's starred words<\/button>/);
+  assert.doesNotMatch(app, /Starred words cleared ✓/, 'the button text must never change');
+  assert.match(app, /setClearStatus\('Starred words cleared\.'\)/);
+  assert.doesNotMatch(html, /id="roundArea"[^>]*aria-live/, 'the star button must stay out of a live region');
+  assert.match(app, /You have no starred words yet\.<\/h2><p>Go to the Word bank and press the Star button on a word\./);
+  assert.match(app, /id="emptyPoolHeading" tabindex="-1"/);
+  assert.match(app, /removed from your starred words\. /);
+  assert.match(app, /n===1\?'1 word'/);
+  assert.match(app, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(app, /behavior:'smooth'/);
+  assert.match(read('styles.css'), /animation-iteration-count:1!important/);
+  assert.match(read('styles.css'), /scroll-padding-bottom:120px/);
 });

@@ -1,15 +1,16 @@
 // Word-bank card markup. Pure functions: no DOM access, so they run in tests with no browser.
 // The caller passes the word object, the part-of-speech map and the sentence lookup. All text is escaped here.
 export const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const ORIGIN_NOTE = "The booklet's category is a study clue, not the full history of the word.";
-export const BOOKLET_NOTE = "These are the original booklet's fixed groups. To save your own words, tap the star.";
+export const ORIGIN_NOTE = "This group is only a hint. It is not the whole story of where the word came from.";
+export const BOOKLET_NOTE = "These are the original booklet's fixed groups. To save your own words, press the Star button (☆) on a word.";
 const idKey = id => String(id).replace(/[^A-Za-z0-9_-]/g,'_');
 // Unique per word, so aria-controls always points at exactly one panel on the page.
 export const detailsPanelId = id => `word-details-${idKey(id)}`;
-export const starLabelDefault = (w,on) => `${on?'Remove star':'Star this word'}: ${w.word}`;
-// Visible text and accessible name of the Details toggle. The name keeps the visible words and adds the word.
-export const toggleText = open => open?'Hide details':'Details';
-export const toggleLabel = (w,open) => `${open?'Hide details':'Details'} for ${w.word}`;
+export const wordTitleId = id => `word-title-${idKey(id)}`;
+// One fixed accessible name per button. aria-pressed / aria-expanded carry the state, so a name never flips.
+export const starLabelDefault = w => `Star: ${w.word}`;
+// The visible text is "Details" and the name starts with it (WCAG 2.5.3). The chevron is decorative and rotates in CSS.
+export const toggleLabel = w => `Details for ${w.word}`;
 // Plain values (not yet escaped) for the four labelled facts. An unknown part never reads a map's inherited keys.
 export function detailsData(w,POS,sentenceFor){
   const part = POS && Object.hasOwn(POS,w.part) ? POS[w.part] : '';
@@ -23,17 +24,17 @@ export function detailsData(w,POS,sentenceFor){
   };
 }
 export function wordCardHtml(w,POS,sentenceFor,{starred=false,open=false,starLabel=starLabelDefault}={}){
-  const d = detailsData(w,POS,sentenceFor), id = escapeHtml(w.id), panel = detailsPanelId(w.id), word = escapeHtml(w.word);
+  const d = detailsData(w,POS,sentenceFor), id = escapeHtml(w.id), panel = detailsPanelId(w.id), title = wordTitleId(w.id), word = escapeHtml(w.word);
   const metaPart = POS && Object.hasOwn(POS,w.part) ? POS[w.part] : 'word';
   const row = (label,value,note='') => `<div class="details-row"><dt>${label}</dt><dd>${escapeHtml(value)}${note?`<small class="details-note">${escapeHtml(note)}</small>`:''}</dd></div>`;
-  return `<article class="word-card"><div class="word-meta">${escapeHtml(w.group)} · ${escapeHtml(w.level)} · ${escapeHtml(metaPart)}</div><h3>${word}</h3><p>${escapeHtml(w.definition)}</p>`
-    + `<div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${id}" aria-label="Hear ${word}">🔊 Listen</button><button class="star-btn" data-star-id="${id}" aria-pressed="${starred}" aria-label="${escapeHtml(starLabel(w,starred))}">${starred?'★':'☆'}</button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer">Dictionary ↗</a></div>`
-    + `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w,open))}">${toggleText(open)}</button>`
+  return `<article class="word-card" aria-labelledby="${title}"><div class="word-meta">${escapeHtml(w.group)} · ${escapeHtml(w.level)} · ${escapeHtml(metaPart)}</div><h3 id="${title}">${word}</h3><p>${escapeHtml(w.definition)}</p>`
+    + `<div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${id}" aria-label="Listen to ${word}"><span aria-hidden="true">🔊</span> Listen</button><button class="star-btn" data-star-id="${id}" aria-pressed="${starred}" aria-label="${escapeHtml(starLabel(w,starred))}"><span class="star-glyph" aria-hidden="true">${starred?'★':'☆'}</span></button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer" aria-label="Dictionary entry for ${word} (opens in a new tab)">Dictionary <span aria-hidden="true">↗</span></a></div>`
+    + `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w))}">Details <span class="chev" aria-hidden="true">▸</span></button>`
     + `<div class="word-details" id="${panel}"${open?'':' hidden'}><dl class="details-list">`
     + row('Part of speech',d.part) + row('Origin',d.origin,ORIGIN_NOTE) + row('Booklet list',d.booklet,BOOKLET_NOTE) + row('In a sentence',d.sentence)
     + `</dl><div class="details-audio" role="group" aria-label="Listen to ${word}">`
-    + `<button type="button" class="mini-btn" data-hear="word" data-hear-id="${id}" aria-label="Hear the word: ${word}">🔊 Hear the word</button>`
-    + `<button type="button" class="mini-btn" data-hear="slow" data-hear-id="${id}" aria-label="Hear it slowly: ${word}">🐢 Hear it slowly</button>`
-    + `<button type="button" class="mini-btn" data-hear="sentence" data-hear-id="${id}" aria-label="Hear the sentence for ${word}">💬 Hear the sentence</button>`
+    + `<button type="button" class="mini-btn" data-hear="word" data-hear-id="${id}" aria-label="Hear the word: ${word}"><span aria-hidden="true">🔊</span> Hear the word</button>`
+    + `<button type="button" class="mini-btn" data-hear="slow" data-hear-id="${id}" aria-label="Hear it slowly: ${word}"><span aria-hidden="true">🐢</span> Hear it slowly</button>`
+    + `<button type="button" class="mini-btn" data-hear="sentence" data-hear-id="${id}" aria-label="Hear the sentence for ${word}"><span aria-hidden="true">💬</span> Hear the sentence</button>`
     + `</div></div></article>`;
 }
