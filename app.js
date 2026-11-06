@@ -1,10 +1,12 @@
 import { BeeVoiceService, VOICES, SPEEDS } from './voice-service.js';
 import { sentenceFor } from './sentences.js';
 import { loadStars, saveStars, toggleStar, clearStars } from './stars.js';
-import { wordCardHtml, toggleText, toggleLabel } from './wordcard.js';
+import { wordCardHtml } from './wordcard.js';
 const $ = id => document.getElementById(id);
 const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeText = value => String(value??'');
+// Smooth scrolling only when the visitor has not asked for reduced motion.
+const scrollBehavior=()=>window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 const historyKey='bee-ready-history-v2';
 const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection'};
@@ -25,18 +27,20 @@ const starredWords=()=>words.length?words.filter(w=>stars.has(w.id)):[...stars];
 function updateStats(){
   $('heroBest').textContent=Object.keys(history.attempts||{}).length.toLocaleString();
   $('heroMissed').textContent=Object.keys(history.missed||{}).length.toLocaleString();
-  $('heroStarred').textContent=starredWords().length.toLocaleString();
+  const n=starredWords().length;$('heroStarred').textContent=n.toLocaleString();
+  const opt=$('pool').querySelector('option[value="starred"]');if(opt)opt.textContent=`My starred words (${n.toLocaleString()})`;
   $('heroWordCount').textContent=words.length?words.length.toLocaleString():'1,155';
 }
-const starLabel=(w,on)=>`${on?'Remove star':'Star this word'}: ${w.word}`;
+// Star buttons keep one fixed accessible name (set in the markup); aria-pressed carries the state and only the decorative glyph changes.
+// The round button's name never includes the word: in typed mode it would give the answer away.
+function setStarGlyph(btn,on){btn.setAttribute('aria-pressed',String(on));const g=btn.querySelector('.star-glyph');if(g)g.textContent=on?'★':'☆';}
 function paintRoundStar(){
-  // The label never includes the word: in typed mode it would give the answer away.
   const w=currentWord(),btn=$('starWord');if(!btn)return;
-  const on=Boolean(w&&stars.has(w.id));
-  btn.setAttribute('aria-pressed',String(on));btn.setAttribute('aria-label',on?'Remove star from this word':'Star this word');
-  btn.innerHTML=`<span aria-hidden="true">${on?'★':'☆'}</span> Star`;
+  setStarGlyph(btn,Boolean(w&&stars.has(w.id)));
 }
-function flipStar(id){const on=toggleStar(stars,id);saveStars(store(),stars);updateStats();paintRoundStar();return on;}
+let clearStatusTimer=0;
+function setClearStatus(text){clearTimeout(clearStatusTimer);$('clearStarsStatus').textContent=text;if(text)clearStatusTimer=setTimeout(()=>{$('clearStarsStatus').textContent='';},5000);}
+function flipStar(id){const on=toggleStar(stars,id);saveStars(store(),stars);updateStats();paintRoundStar();if(on)setClearStatus('');return on;}
 function showTab(tab){
   if(!['practice','words','voices','grownups'].includes(tab))tab='practice';
   appState.activeTab=tab;
@@ -87,11 +91,16 @@ function startRound(){
   else if(type==='challenge')pool=words.filter(w=>w.level==='Challenge');
   else if(type==='missed')pool=words.filter(w=>Boolean(history.missed[w.id]));
   else if(type==='starred')pool=starredWords();
-  if(!pool.length){$('roundArea').classList.remove('hidden');$('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');$('roundSummary').innerHTML=type==='starred'?'<h2>No starred words yet.</h2><p>Tap the ☆ on any word to save it here.</p>':'<h2>No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>';return;}
+  if(!pool.length){
+    $('roundArea').classList.remove('hidden');$('activeCard').classList.add('hidden');$('roundSummary').classList.remove('hidden');
+    $('roundSummary').innerHTML=type==='starred'?'<h2 id="emptyPoolHeading" tabindex="-1">You have no starred words yet.</h2><p>Go to the Word bank and press the Star button on a word.</p>':'<h2 id="emptyPoolHeading" tabindex="-1">No review words yet! 🎉</h2><p>Finish a practice round first, then your missed words will appear here.</p>';
+    $('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});$('emptyPoolHeading').focus();return;
+  }
   const count=Math.min(pool.length,Math.max(1,Number($('wordCount').value)||5));
   currentRound={items:sampleNoRepeat(pool,count),index:0,correct:0,results:[],mode:$('practiceMode').value,clues:new Set()};
+  const fromSummary=$('roundSummary').contains(document.activeElement);
   $('roundArea').classList.remove('hidden');$('roundSummary').classList.add('hidden');$('activeCard').classList.remove('hidden');
-  showCurrent();$('roundArea').scrollIntoView({behavior:'smooth',block:'start'});
+  showCurrent();if(fromSummary)$('questionHeading').focus({preventScroll:true});$('roundArea').scrollIntoView({behavior:scrollBehavior(),block:'start'});
 }
 function currentWord(){return currentRound?.items[currentRound?.index]??null;}
 function showCurrent(){
@@ -143,7 +152,8 @@ function finishRound(){
   history.rounds=(history.rounds||0)+1;writeHistory();
   const total=currentRound.items.length;const correct=currentRound.correct;
   $('roundNumber').textContent='ROUND COMPLETE';$('scoreLabel').textContent=`${correct} / ${total} correct`;
-  $('roundSummary').innerHTML=`<div class="bee-bubble">🏆</div><h2>What a brave spelling bee!</h2><div class="summary-score">${correct} / ${total}</div><p>Every attempt counts. Review the missed words, then try again!</p><ul class="round-notes">${currentRound.results.map(r=>`<li>${escapeHtml(r.word)} <span>${r.correct?'✓ Correct':'↻ Review'}</span></li>`).join('')}</ul><div class="summary-actions"><button class="primary-btn" id="anotherRound">New random round</button><button class="soft-btn" id="practiceMissed">Practice missed words</button></div>`;
+  $('roundSummary').innerHTML=`<div class="bee-bubble">🏆</div><h2 id="summaryHeading" tabindex="-1">What a brave spelling bee!</h2><div class="summary-score">${correct} / ${total}</div><p>Every attempt counts. Review the missed words, then try again!</p><ul class="round-notes">${currentRound.results.map(r=>`<li>${escapeHtml(r.word)} <span>${r.correct?'✓ Correct':'↻ Review'}</span></li>`).join('')}</ul><div class="summary-actions"><button class="primary-btn" id="anotherRound">New random round</button><button class="soft-btn" id="practiceMissed">Practice missed words</button></div>`;
+  $('summaryHeading').focus({preventScroll:true});
   $('anotherRound').addEventListener('click',startRound);
   $('practiceMissed').addEventListener('click',()=>{$('pool').value='missed';startRound();});
 }
@@ -167,14 +177,14 @@ function wordResults(){let arr=words.slice();const query=$('searchWord').value.t
   if($('starFilter').value==='starred')arr=arr.filter(w=>stars.has(w.id));
   return arr;
 }
-function paintCardStar(btn,w){const on=stars.has(w.id);btn.setAttribute('aria-pressed',String(on));btn.setAttribute('aria-label',starLabel(w,on));btn.textContent=on?'★':'☆';}
+function paintCardStar(btn,w){setStarGlyph(btn,stars.has(w.id));}
 function onCardStar(btn){
   const id=Number(btn.dataset.starId),w=words.find(x=>x.id===id);if(!w)return;
   flipStar(id);
   if($('starFilter').value!=='starred'){paintCardStar(btn,w);return;}
-  // In "Starred only" the card leaves the list, so redraw and keep keyboard focus on the nearest card.
+  // In "My starred words only" the card leaves the list, so redraw, announce it in the count status, and keep keyboard focus on the nearest card.
   const at=[...document.querySelectorAll('#wordGrid [data-star-id]')].indexOf(btn);
-  renderWordBank();
+  renderWordBank({removed:w.word});
   const left=document.querySelectorAll('#wordGrid [data-star-id]');
   (left.length?left[Math.min(at,left.length-1)]:$('starFilter')).focus();
 }
@@ -182,7 +192,7 @@ function onCardStar(btn){
 function toggleDetails(btn){
   const id=Number(btn.dataset.detailsId),w=words.find(x=>x.id===id),panel=document.getElementById(btn.getAttribute('aria-controls'));if(!w||!panel)return;
   const open=btn.getAttribute('aria-expanded')!=='true';
-  btn.setAttribute('aria-expanded',String(open));btn.setAttribute('aria-label',toggleLabel(w,open));btn.textContent=toggleText(open);panel.hidden=!open;
+  btn.setAttribute('aria-expanded',String(open));panel.hidden=!open;
   if(open)openCards.add(id);else openCards.delete(id);
 }
 // "Hear it slowly" passes speedId for this one call only, so the saved speed (Voices tab) is never changed.
@@ -191,11 +201,15 @@ function hearFromCard(btn){
   if(btn.dataset.hear==='sentence')voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});
   else voiceService.speak(w.word,{kind:'word',instant:true,...(btn.dataset.hear==='slow'?{speedId:'slow'}:{})});
 }
-function renderWordBank(){
+// The count is a polite status: it also carries the empty message, and (with `removed`) says which word left the starred list.
+function renderWordBank({removed=''}={}){
   if(!words.length)return;
-  const list=wordResults();$('resultCount').textContent=`${list.length.toLocaleString()} words`;
+  const list=wordResults(),n=list.length,count=n===1?'1 word':`${n.toLocaleString()} words`;
   const shown=list.slice(0,displayLimit);
-  $('wordGrid').innerHTML=shown.length?shown.map(w=>wordCardHtml(w,POS,sentenceFor,{starred:stars.has(w.id),open:openCards.has(w.id),starLabel})).join(''):`<p>${$('starFilter').value==='starred'&&!starredWords().length?'No starred words yet. Tap the ☆ on any word to save it here.':'No words found. Try a different search.'}</p>`;
+  const empty=$('starFilter').value==='starred'&&!starredWords().length?'You have no starred words yet. Press the Star button (☆) on any word to save it here.':'No words found. Try a different search.';
+  const gone=removed?`${removed} removed from your starred words. ${n.toLocaleString()} left.`:'';
+  $('resultCount').innerHTML=gone?`<span aria-hidden="true">${count}</span><span class="sr-only">${escapeHtml(gone)}${n?'':` ${empty}`}</span>`:`${count}${n?'':`<span class="sr-only">. ${empty}</span>`}`;
+  $('wordGrid').innerHTML=shown.length?shown.map(w=>wordCardHtml(w,POS,sentenceFor,{starred:stars.has(w.id),open:openCards.has(w.id)})).join(''):`<p>${empty}</p>`;
   $('loadMore').classList.toggle('hidden',list.length<=displayLimit);
   document.querySelectorAll('[data-say-id]').forEach(button=>button.addEventListener('click',()=>{const w=words.find(w=>w.id===Number(button.dataset.sayId));if(w)voiceService.speak(w.word,{kind:'word',instant:true});}));
 }
@@ -206,7 +220,8 @@ function initWordBank(){
   $('starFilter').addEventListener('change',()=>{displayLimit=44;renderWordBank();});
   $('wordGrid').addEventListener('click',e=>{const btn=e.target.closest('[data-star-id]');if(btn)onCardStar(btn);});
   $('wordGrid').addEventListener('click',e=>{const t=e.target.closest('[data-details-id]');if(t)toggleDetails(t);const h=e.target.closest('[data-hear]');if(h)hearFromCard(h);});
-  $('loadMore').addEventListener('click',()=>{displayLimit+=44;renderWordBank();});
+  // The button hides when the list is fully shown, so focus moves to the first new card's Details button instead of being lost.
+  $('loadMore').addEventListener('click',()=>{const first=displayLimit;displayLimit+=44;renderWordBank();const card=$('wordGrid').children[first];(card?.querySelector('.details-btn')||$('searchWord')).focus();});
 }
 function syncVoiceButtons(){
   const settings=voiceService.settings;
@@ -262,7 +277,7 @@ function initGrownups(){
     if(!confirm('Clear starred words on this device? This cannot be undone.'))return;
     stars.clear();clearStars(store());updateStats();paintRoundStar();
     if(appState.activeTab==='words')renderWordBank();
-    $('clearStars').textContent='Starred words cleared ✓';
+    setClearStatus('Starred words cleared.');
   });
 }
 async function main(){
