@@ -17,7 +17,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync,
+  copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -98,7 +98,9 @@ if (flag('dry-run')) {
       const key = clipKey(text);
       return redo.has(key) || !(manifest[key] === fingerprint(text, voice) && existsSync(join(dir, `${key}.mp3`)));
     });
-    console.log(`${voice}: ${todo.length} clip(s) to generate`);
+    const keep = new Set(texts.map(clipKey));
+    const stale = existsSync(dir) ? readdirSync(dir).filter(n => n.endsWith('.mp3') && !keep.has(n.slice(0, -4))).length : 0;
+    console.log(`${voice}: ${todo.length} clip(s) to generate, ${stale} stale clip(s) a --prune run would delete`);
   }
   process.exit(0);
 }
@@ -134,27 +136,25 @@ for (const { kokoro: voice } of wanted) {
   const save = () => {
     writeFileSync(manifestPath, JSON.stringify(Object.fromEntries(Object.entries(manifest).sort()), null, 1) + '\n');
   };
-  for (const key of redo) {
-    rmSync(join(dir, `${key}.mp3`), { force: true });
-    delete manifest[key];
-  }
   let made = 0;
   const started = Date.now();
   for (const text of texts) {
     const key = clipKey(text);
     const file = join(dir, `${key}.mp3`);
     const print = fingerprint(text, voice);
-    if (manifest[key] === print && existsSync(file)) continue;
+    if (!redo.has(key) && manifest[key] === print && existsSync(file)) continue;
     if (made >= limit) break;
     try {
       const wav = join(work, `${voice}.wav`);
       const audio = await tts.generate(text, { voice, speed: SPEED });
       await audio.save(wav);
-      execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', wav, '-af', FILTER, ...FFMPEG_ARGS, file]);
-      if (!existsSync(file) || statSync(file).size < MIN_CLIP_BYTES) {
-        rmSync(file, { force: true });
-        throw new Error('clip is empty or too small');
-      }
+      // Encode outside clips/ and copy in only after the clip is checked, so an interrupted run
+      // can never leave a truncated file behind or overwrite a good clip with a bad one.
+      const encoded = join(work, `${voice}.mp3`);
+      rmSync(encoded, { force: true });
+      execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', wav, '-af', FILTER, ...FFMPEG_ARGS, encoded]);
+      if (!existsSync(encoded) || statSync(encoded).size < MIN_CLIP_BYTES) throw new Error('clip is empty or too small');
+      copyFileSync(encoded, file);
       manifest[key] = print;
       made++;
     } catch (err) {

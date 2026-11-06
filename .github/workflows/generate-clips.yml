@@ -96,7 +96,7 @@ jobs:
             args+=(--limit "$IN_LIMIT")
           fi
           if [ -n "$IN_REDO" ]; then
-            [[ "$IN_REDO" =~ ^[a-z0-9_,-]+$ ]] || { echo "redo must be comma-separated clip keys"; exit 1; }
+            [[ "$IN_REDO" =~ ^[a-z0-9][a-z0-9_-]*(,[a-z0-9][a-z0-9_-]*)*$ ]] || { echo "redo must be comma-separated clip keys"; exit 1; }
             args+=(--redo "$IN_REDO")
           fi
           if [ "$IN_FORCE" = "true" ]; then args+=(--force-prune); fi
@@ -149,7 +149,7 @@ jobs:
           NEW: ${{ runner.temp }}/clips-new
           FORCE: ${{ inputs.force_prune }}
         run: |
-          python3 - <<'PY'
+          python3 -I - <<'PY'
           import json, os, re, stat, sys
           new = os.environ["NEW"]
           force = os.environ.get("FORCE") == "true"
@@ -209,6 +209,11 @@ jobs:
                       problems.append(f"{entry}: {mp3s} clips would replace {before} (more than 5% fewer); re-run with force_prune if this is intended")
               else:
                   problems.append(f"unexpected entry {entry}")
+          for voice in sorted(voices):
+              old = os.path.join("clips", voice)
+              had = len([n for n in os.listdir(old) if n.endswith(".mp3")]) if os.path.isdir(old) else 0
+              if had and not force and not os.path.isdir(os.path.join(new, voice)):
+                  problems.append(f"{voice}: the artifact has no folder for this voice, which would delete its {had} clips")
           if total_bytes > 120 * 1024 * 1024:
               problems.append("artifact is larger than 120 MB")
           if problems:

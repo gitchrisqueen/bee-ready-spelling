@@ -135,9 +135,9 @@ Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cache
 
 Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`, where the key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed, model revision or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
 
-Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip for one process on a laptop and on two servers, so roughly 30 to 40 minutes per voice. I have not timed GitHub's runners. The job limit is 350 minutes.
+Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip for one process on a laptop and on two servers, so roughly 30 to 40 minutes per voice. I have not timed GitHub's runners. Generation stops after 300 minutes (the job limit of 350 is headroom for saving and committing).
 
-**Check what a run would do:** `node generate.mjs --dry-run` prints how many clips each voice still needs and exits without loading the model. On an up-to-date tree every voice shows `0`.
+**Check what a run would do:** `node generate.mjs --dry-run` prints how many clips each voice still needs, and how many stale clips a `--prune` run would delete, and exits without loading the model. On an up-to-date tree every voice shows `0` for both.
 
 **Manual run options.** In **Actions → Generate voice clips → Run workflow** you can set `voice`, `limit` (stop after N new clips per voice, to split a big job), `redo` (clip keys to record again) and `force_prune` (allow deleting more than 5% of a voice's clips). Locally the same options are `--voice`, `--limit`, `--redo` and `--force-prune`.
 
@@ -148,11 +148,15 @@ Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip
 2. Add its `voices/<id>.bin` to `scripts/fetch-voice-assets.mjs` with the size and SHA-256 from the pinned revision:
 
    ```bash
-   curl -sSL "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/voices/<id>.bin" -o /tmp/v.bin && stat -f%z /tmp/v.bin && shasum -a 256 /tmp/v.bin
+   f=$(mktemp) && curl -sSL "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/voices/<id>.bin" -o "$f" && wc -c < "$f" && shasum -a 256 "$f"
    ```
 3. Push. Expect a full run for the new voice. A test fails if a voice is missing from either place, or if `clips/` has a folder for a voice that is no longer in `VOICES`.
 
-**Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours, so consider splitting it with the `limit` option. If you edit the constants and forget to bump `ENCODER`, the generator stops with a message asking for it.
+**Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours (about 2 to 3 hours of runner time), and each regeneration adds roughly 30 MB of binary history to git, so consider splitting it with the `limit` option.
+
+The commit job only accepts clips that fit its validator: at most 300,000 bytes per clip, at most 120 MB for the whole run, a valid MP3 header, and nothing but `<key>.mp3`, `manifest.json` and `settings.json`. A much higher bitrate (30 MB at 40 kbps would be about 144 MB at 192 kbps) can pass the tests and the local trial and then be refused by the commit job after hours of work. Check the expected total first, and raise the limits in the workflow's validator together with the bitrate change.
+
+The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three clips plus `clips/settings.json` into your working tree. Open the three changed files in `clips/af_heart/` to listen, then commit them or run `git checkout clips` to discard. If you edit the constants and forget to bump `ENCODER`, the generator stops with a message asking for it.
 
 ### When a run fails
 
@@ -163,6 +167,8 @@ Timings I measured while generating the current set: 1.4 to 2.0 seconds per clip
 | `refusing to prune N of M clips` | `words.json` lost more than 5% of its words, or a naming change made old files look stale. The run is red but still records new words and keeps the old clips. | Check `words.json`. If the removal is intended, run again with `force_prune`. |
 | `FAILED <voice>/<key>` and `N clip(s) failed` | Individual words failed. The run is red, but every good clip is still committed. | Find the words in the generate step log and run again; only the failed clips are retried. |
 | Generate job red, commit job green | Expected after a partial failure: the finished clips were committed. | Read the failed words in the log as above. |
+| The generate step shows as cancelled or timed out, commit job green | It hit the 300-minute limit. Finished clips were saved and deployed. | Run **Generate voice clips** again to continue: only missing clips are recorded (up to 24 per voice may be redone, because manifests save every 25 clips). Use `limit` to split a big job. |
+| Commit job says `artifact is larger than 120 MB`, `has an odd size`, `is not an MP3`, `unexpected file` or `unexpected entry` | The validator refused the files. Nothing was pushed. | Lower the bitrate, or raise the limit in the validator in `generate-clips.yml`, then run again. The artifact expires after 3 days. |
 | `clips/ changed on main after this run started` | Someone pushed to `clips/` while the run was generating. Nothing was pushed. | Run **Generate voice clips** again from `main`. |
 | Commit job fails on `git pull --rebase` or `git push` | A concurrent push conflicted, or `main` now has branch protection. | Use **Re-run failed jobs** within 3 days (the artifact is kept that long); after that, run again. If you turned on branch protection, allow `github-actions[bot]` to push. |
 | `... would replace N (more than 5% fewer)` | The validator thinks an artifact would delete too many clips. | Run again with `force_prune` only if the removal is intended. |
@@ -208,7 +214,7 @@ Branch protection is not enabled on `main`. If you turn it on, allow `github-act
 gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
 ```
 
-**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert. Reverting a commit that only touches `clips/` does not start **Generate voice clips**. If you revert an encoder change, revert the code commit and the clip commit together, or the next run will regenerate everything.
+**Roll back:** `git revert <commit>` on `main` and push. The same workflow tests and deploys the revert. Reverting a commit that only touches `clips/` does not start **Generate voice clips**. If you revert an encoder change: first cancel any running **Generate voice clips** run (Actions → the run → Cancel workflow; a cancelled run never pushes), because the revert's own run queues behind it. Then revert the code commit and every clip commit made since (`git log --oneline -- clips` lists them; use `git revert -n <commit>` for each, then one commit and push). Otherwise the next run regenerates everything.
 
 ## Repository layout
 

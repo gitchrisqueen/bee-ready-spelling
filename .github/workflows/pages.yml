@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: github-pages
+  group: ${{ github.event_name == 'pull_request' && format('github-pages-pr-{0}', github.ref) || 'github-pages' }}
   cancel-in-progress: false
 
 jobs:
