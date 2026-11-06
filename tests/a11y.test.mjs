@@ -103,8 +103,18 @@ test('focus never falls to <body> when the voice notice or a button in it is hid
   assert.match(app, /setClearStatus\('Practice history cleared\.'\)/);
 });
 
-test('voice status messages only name buttons that exist', () => {
-  const text = app + read('voice-service.js');
-  for (const stale of ['Preview voice', 'Start practice', 'Tap Play']) assert.ok(!text.includes(stale), `"${stale}" is not a button name`);
-  for (const name of ['Hear my word', 'Play voice sample']) assert.ok(html.includes(name), `${name} must be a real button name`);
+test('copy only names buttons that exist and are visible', () => {
+  const text = html + app + read('voice-service.js');
+  for (const stale of ['Preview voice', 'Start practice', 'Tap Play', 'tap Play once', 'Select Try again', 'preview their voice']) assert.ok(!text.includes(stale), `"${stale}" is not a button name`);
+  for (const name of ['Hear my word', 'Play voice sample', 'Retry natural audio']) assert.ok(html.includes(name), `${name} must be a real button name`);
+});
+
+test('switching tabs by click moves focus to the new page heading, and page load does not', () => {
+  for (const id of ['practice', 'words', 'voices', 'grownups']) assert.match(html, new RegExp(`<h1 id="${id}-title" tabindex="-1">`));
+  assert.match(app, /function showTab\(tab,\{focus=false\}=\{\}\)/);
+  assert.match(app, /if\(focus\)\{const h=\$\(`\$\{tab\}-title`\);if\(h\)h\.focus\(\{preventScroll:true\}\);\}/);
+  assert.match(app, /showTab\(btn\.dataset\.tab,\{focus:true\}\)/);
+  assert.match(app, /showTab\(btn\.dataset\.go,\{focus:true\}\)/);
+  assert.match(app, /if\(location\.hash\)showTab\(location\.hash\.slice\(1\)\);/);
+  assert.match(css, /h1:focus,h2:focus/);
 });

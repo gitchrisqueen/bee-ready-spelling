@@ -202,7 +202,7 @@ export class BeeVoiceService {
     if(!this.failedEngines.has('piper')){
       try{await this._preparePiper();return this.settings.mode==='device'?'device':'piper';}catch(e){console.info('Piper failed, using device:',messageOf(e));}
     }
-    this.activeEngine='device';this._status('ready','device','Device voice is available. Neural voices could not load.',null,'Select Try again to retry natural voices.',true);
+    this.activeEngine='device';this._status('ready','device','Device voice is available. Neural voices could not load.',null,'Go to Voices and tap Retry natural audio to try again.',true);
     return 'device';
   }
   stop(){

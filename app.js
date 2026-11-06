@@ -43,7 +43,7 @@ function paintRoundStar(){
 let clearStatusTimer=0;
 function setClearStatus(text){clearTimeout(clearStatusTimer);$('clearStarsStatus').textContent=text;if(text)clearStatusTimer=setTimeout(()=>{$('clearStarsStatus').textContent='';},5000);}
 function flipStar(id){const on=toggleStar(stars,id);saveStars(store(),stars);updateStats();paintRoundStar();if(on)setClearStatus('');return on;}
-function showTab(tab){
+function showTab(tab,{focus=false}={}){
   if(!['practice','words','voices','grownups'].includes(tab))tab='practice';
   appState.activeTab=tab;
   document.querySelectorAll('[data-tab]').forEach(button=>{
@@ -55,10 +55,13 @@ function showTab(tab){
   location.hash=tab;
   if(tab==='words')renderWordBank();
   window.scrollTo({top:0,behavior:'instant'});
+  // After a click, move focus to the new page's heading so keyboard and screen-reader users land on it
+  // (the button that was pressed may have just been hidden). Not on page load or a hash change.
+  if(focus){const h=$(`${tab}-title`);if(h)h.focus({preventScroll:true});}
 }
 function initNavigation(){
-  document.querySelectorAll('[data-tab]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.tab)));
-  document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.go)));
+  document.querySelectorAll('[data-tab]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.tab,{focus:true})));
+  document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>showTab(btn.dataset.go,{focus:true})));
   window.addEventListener('hashchange',()=>{
     const tab=location.hash.slice(1);
     if(tab && tab!==appState.activeTab)showTab(tab);
