@@ -60,11 +60,18 @@ jobs:
       contents: read
     outputs:
       voices: ${{ steps.voices.outputs.voices }}
+      sha: ${{ steps.sha.outputs.sha }}
     steps:
-      - name: Check out source
+      # Always work from the newest main, not the commit that happened to trigger this run. A run that
+      # was queued behind another one would otherwise start without that run's clip commit.
+      - name: Check out the newest main
         uses: actions/checkout@v4
         with:
+          ref: main
           persist-credentials: false
+      - name: Pin this run to that commit
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: List the voices from voice-service.js
         id: voices
         env:
@@ -92,9 +99,10 @@ jobs:
       matrix:
         voice: ${{ fromJSON(needs.plan.outputs.voices) }}
     steps:
-      - name: Check out source
+      - name: Check out the pinned commit
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -120,13 +128,13 @@ jobs:
           IN_FORCE: ${{ inputs.force_prune }}
         run: |
           [[ "$VOICE" =~ ^[a-z_]+$ ]] || { echo "bad voice id"; exit 1; }
-          args=(--prune --voice "$VOICE")
+          args=(--prune --max-minutes 280 --voice "$VOICE")
           if [ -n "$IN_LIMIT" ]; then
             [[ "$IN_LIMIT" =~ ^[0-9]+$ ]] || { echo "limit must be a whole number"; exit 1; }
             args+=(--limit "$IN_LIMIT")
           fi
           if [ -n "$IN_REDO" ]; then
-            [[ "$IN_REDO" =~ ^[a-z0-9][a-z0-9_-]*(,[a-z0-9][a-z0-9_-]*)*$ ]] || { echo "redo must be comma-separated clip keys"; exit 1; }
+            [[ "$IN_REDO" =~ ^[a-z0-9_][a-z0-9_-]*(,[a-z0-9_][a-z0-9_-]*)*$ ]] || { echo "redo must be comma-separated clip keys"; exit 1; }
             args+=(--redo "$IN_REDO")
           fi
           if [ "$IN_FORCE" = "true" ]; then args+=(--force-prune); fi
@@ -140,6 +148,7 @@ jobs:
             clips/${{ matrix.voice }}
             clips/settings.json
           retention-days: 3
+          overwrite: true
       - name: Fail the run if any clip failed (finished clips are still kept)
         if: ${{ !cancelled() && steps.gen.outcome == 'failure' }}
         run: |
@@ -156,114 +165,167 @@ jobs:
       contents: write
       actions: write
     steps:
-      - name: Check out main
+      - name: Check out the pinned commit
         uses: actions/checkout@v4
-      - name: Download clips
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - name: Download clips (one folder per voice's artifact)
         uses: actions/download-artifact@v4
         with:
           pattern: clips-*
-          merge-multiple: true
           path: ${{ runner.temp }}/clips-new
       - name: Stop if clips changed on main while this run was generating
+        env:
+          PINNED: ${{ needs.plan.outputs.sha }}
         run: |
           git fetch --quiet origin main
-          if [ -n "$(git diff --name-only "$GITHUB_SHA" origin/main -- clips)" ]; then
+          if [ -n "$(git diff --name-only "$PINNED" origin/main -- clips)" ]; then
             echo "clips/ changed on main after this run started, so these artifacts are stale."
             echo "Nothing was pushed. Run 'Generate voice clips' again from main."
             exit 1
           fi
-      - name: Build and validate the new clips folder
+      - name: Build and validate the new clips folder (voice by voice)
         env:
           NEW: ${{ runner.temp }}/clips-new
           STAGING: ${{ runner.temp }}/staging
+          SKIPPED: ${{ runner.temp }}/skipped.txt
           FORCE: ${{ inputs.force_prune }}
         run: |
           python3 -I - <<'PY'
           import json, os, re, shutil, stat, sys
-          new, staging = os.environ["NEW"], os.environ["STAGING"]
+          new, staging, skipped_file = os.environ["NEW"], os.environ["STAGING"], os.environ["SKIPPED"]
           force = os.environ.get("FORCE") == "true"
           voices = set(re.findall(r"kokoro:'([a-z_]+)'", open("voice-service.js", encoding="utf8").read()))
           if not voices:
               sys.exit("could not read the voice list from voice-service.js")
-          problems = []
+          MAX_FILES_PER_VOICE = 6000
+          fatal, skipped, ok_voices, settings_candidates = [], {}, [], []
 
           def lmode(path):
               return os.lstat(path).st_mode  # lstat: never follow links
 
-          # Start from the clips already on main, then replace only the voices that were just recorded.
+          def mp3_count(path):
+              return len([n for n in os.listdir(path) if n.endswith(".mp3")]) if os.path.isdir(path) else 0
+
+          def check_voice(voice, root):
+              """Return a list of problems for one voice folder. Never follows links."""
+              problems = []
+              total = 0
+              for name in os.listdir(root):
+                  fp = os.path.join(root, name)
+                  st = os.lstat(fp)
+                  if not stat.S_ISREG(st.st_mode) or st.st_nlink > 1:
+                      problems.append(f"{voice}/{name} is not a plain file")
+                      continue
+                  total += 1
+                  size = st.st_size
+                  if name == "manifest.json":
+                      if size > 1000000:
+                          problems.append(f"{voice}/manifest.json is larger than 1 MB")
+                          continue
+                      try:
+                          data = json.load(open(fp))
+                      except Exception as err:
+                          problems.append(f"{voice}/manifest.json is not valid JSON ({err.__class__.__name__})")
+                          continue
+                      if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+                          problems.append(f"{voice}/manifest.json is not a flat string map")
+                  elif re.fullmatch(r"[a-z0-9_-]+\.mp3", name):
+                      head = open(fp, "rb").read(3)
+                      if len(head) < 3 or not (head == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0)):
+                          problems.append(f"{voice}/{name} is not an MP3")
+                      if not 1200 <= size <= 300000:
+                          problems.append(f"{voice}/{name} has an odd size ({size} bytes)")
+                  else:
+                      problems.append(f"unexpected file {voice}/{name}")
+              if total > MAX_FILES_PER_VOICE:
+                  problems.append(f"{voice} has {total} files (limit {MAX_FILES_PER_VOICE})")
+              before = mp3_count(os.path.join("clips", voice))
+              if not force and mp3_count(root) < before * 0.95:
+                  problems.append(f"{voice}: {mp3_count(root)} clips would replace {before} (more than 5% fewer); re-run with force_prune if this is intended")
+              return problems
+
+          # Start from the clips already on main; only voices that pass their own checks replace main's copy.
           shutil.copytree("clips", staging, symlinks=True)
           if os.path.isdir(new) and stat.S_ISDIR(lmode(new)):
-              for entry in sorted(os.listdir(new)):
-                  src = os.path.join(new, entry)
-                  dst = os.path.join(staging, entry)
-                  if entry == "settings.json" and stat.S_ISREG(lmode(src)):
-                      shutil.copyfile(src, dst)
-                  elif entry in voices and stat.S_ISDIR(lmode(src)):
-                      shutil.rmtree(dst, ignore_errors=True)
-                      shutil.copytree(src, dst, symlinks=True)
+              for art in sorted(os.listdir(new)):
+                  artdir = os.path.join(new, art)
+                  m = re.fullmatch(r"clips-([a-z_]+)", art)
+                  if not m or m.group(1) not in voices or not stat.S_ISDIR(lmode(artdir)):
+                      fatal.append(f"unexpected artifact {art}")
+                      continue
+                  voice = m.group(1)
+                  voice_src = None
+                  for entry in os.listdir(artdir):
+                      src = os.path.join(artdir, entry)
+                      if entry == "settings.json" and stat.S_ISREG(lmode(src)):
+                          settings_candidates.append((voice, src))
+                      elif entry == voice and stat.S_ISDIR(lmode(src)):
+                          voice_src = src
+                      else:
+                          # includes another voice's folder: an artifact may only supply its own voice
+                          fatal.append(f"{art}: unexpected entry {entry}")
+                  if voice_src is None:
+                      continue
+                  problems = check_voice(voice, voice_src)
+                  if problems:
+                      skipped[voice] = problems
                   else:
-                      problems.append(f"unexpected entry {entry} in the artifacts")
-          if problems:
-              print("\n".join(problems[:50]))
+                      dst = os.path.join(staging, voice)
+                      shutil.rmtree(dst, ignore_errors=True)
+                      shutil.copytree(voice_src, dst, symlinks=False)
+                      ok_voices.append(voice)
+          if fatal:
+              print("\n".join(fatal[:50]))
               sys.exit(1)
 
-          # Only plain files and plain folders; no links, devices or hard links anywhere.
+          # settings.json: take a changed one from a voice that passed; it must be exactly four short strings.
+          main_settings = open(os.path.join("clips", "settings.json"), "rb").read() if os.path.exists(os.path.join("clips", "settings.json")) else b""
+          for voice, src in settings_candidates:
+              if voice not in ok_voices:
+                  continue
+              raw = open(src, "rb").read(4000)
+              if raw == main_settings:
+                  continue
+              try:
+                  data = json.loads(raw)
+              except Exception:
+                  skipped.setdefault("settings.json", []).append("settings.json is not valid JSON")
+                  continue
+              if set(data) != {"encoder", "digest", "kokoroJs", "modelRevision"} or not all(isinstance(v, str) for v in data.values()):
+                  skipped.setdefault("settings.json", []).append("settings.json is not the expected four string fields")
+                  continue
+              dst = os.path.join(staging, "settings.json")
+              if os.path.lexists(dst):
+                  os.unlink(dst)
+              shutil.copyfile(src, dst)
+
+          # Final safety pass over everything that will be committed.
+          problems = []
+          total_bytes = 0
           for dirpath, dirnames, filenames in os.walk(staging, followlinks=False):
               for name in dirnames + filenames:
                   p = os.path.join(dirpath, name)
                   st = os.lstat(p)
                   if stat.S_ISLNK(st.st_mode) or not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode)):
                       problems.append(f"{os.path.relpath(p, staging)} is not a plain file or folder")
-                  elif stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
-                      problems.append(f"{os.path.relpath(p, staging)} is a hard link")
-          if problems:
-              print("\n".join(problems[:50]))
-              sys.exit(1)
-
-          total_bytes = 0
-          for entry in sorted(os.listdir(staging)):
-              path = os.path.join(staging, entry)
-              if entry == "settings.json" and stat.S_ISREG(lmode(path)):
-                  data = json.load(open(path))
-                  keys = {"encoder", "digest", "kokoroJs", "modelRevision"}
-                  if os.path.getsize(path) > 2000 or set(data) != keys or not all(isinstance(v, str) for v in data.values()):
-                      problems.append("settings.json is not the expected four string fields")
-              elif stat.S_ISDIR(lmode(path)) and entry in voices:
-                  mp3s = 0
-                  for name in os.listdir(path):
-                      fp = os.path.join(path, name)
-                      size = os.path.getsize(fp)
-                      total_bytes += size
-                      if name == "manifest.json":
-                          data = json.load(open(fp))
-                          if size > 1000000 or not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
-                              problems.append(f"{entry}/manifest.json is not a flat string map under 1 MB")
-                      elif re.fullmatch(r"[a-z0-9_-]+\.mp3", name):
-                          mp3s += 1
-                          head = open(fp, "rb").read(3)
-                          if not (head == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0)):
-                              problems.append(f"{entry}/{name} is not an MP3")
-                          if not 1200 <= size <= 300000:
-                              problems.append(f"{entry}/{name} has an odd size ({size} bytes)")
-                      else:
-                          problems.append(f"unexpected file {entry}/{name}")
-                  old = os.path.join("clips", entry)
-                  before = len([n for n in os.listdir(old) if n.endswith(".mp3")]) if os.path.isdir(old) else 0
-                  if not force and mp3s < before * 0.95:
-                      problems.append(f"{entry}: {mp3s} clips would replace {before} (more than 5% fewer); re-run with force_prune if this is intended")
-              else:
+                  elif stat.S_ISREG(st.st_mode):
+                      total_bytes += st.st_size
+          for entry in os.listdir(staging):
+              if entry != "settings.json" and entry not in voices:
                   problems.append(f"unexpected entry {entry}")
-          for voice in sorted(voices):
-              old = os.path.join("clips", voice)
-              had = len([n for n in os.listdir(old) if n.endswith(".mp3")]) if os.path.isdir(old) else 0
-              if had and not force and not os.path.isdir(os.path.join(staging, voice)):
-                  problems.append(f"{voice}: no folder for this voice, which would delete its {had} clips")
           if total_bytes > 250 * 1024 * 1024:
               problems.append("the clips folder would be larger than 250 MB")
           if problems:
               print("\n".join(problems[:50]))
               sys.exit(1)
-          print("clips validated")
+
+          with open(skipped_file, "w") as fh:
+              for voice, issues in skipped.items():
+                  fh.write(f"{voice} was NOT updated:\n  " + "\n  ".join(issues[:10]) + "\n")
+          for voice, issues in skipped.items():
+              print(f"::warning::{voice} was not updated: {issues[0]}")
+          print(f"clips validated; updated voices: {sorted(ok_voices) or 'none'}; skipped: {sorted(skipped) or 'none'}")
           PY
       - name: Commit and push to main
         env:
@@ -296,3 +358,9 @@ jobs:
             done
             if [ "$ok" -ne 1 ]; then echo "Could not start $wf"; exit 1; fi
           done
+      - name: Fail the run if a voice was rejected (the other voices were still committed)
+        if: ${{ always() }}
+        env:
+          SKIPPED: ${{ runner.temp }}/skipped.txt
+        run: |
+          if [ -s "$SKIPPED" ]; then cat "$SKIPPED"; exit 1; fi

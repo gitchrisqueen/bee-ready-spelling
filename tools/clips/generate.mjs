@@ -1,10 +1,11 @@
-// Generates pre-recorded MP3 clips for every word (and the voice sample) with Kokoro.
+// Generates pre-recorded MP3 clips for every word, its practice sentence, and the voice sample, with Kokoro.
 //
 //   node generate.mjs [--voice af_heart] [--limit 10] [--redo key1,key2]
-//                     [--prune [--force-prune]] [--dry-run]
+//                     [--prune [--force-prune]] [--dry-run] [--max-minutes 280]
 //
 // --redo re-records the named clips (a key is the lowercase word, or `sentence_<hash>`; see clipKey and sentenceKey).
 // --dry-run prints how many clips each voice still needs, without loading the model.
+// --max-minutes stops cleanly between clips after that long (progress is saved, exit code 1: run again).
 //
 // Incremental: a clip is regenerated only when its text, voice, model revision or encoder
 // label changes, so adding words to words.json only generates the new ones.
@@ -70,6 +71,13 @@ for (const key of redo) {
   if (!/^[a-z0-9_-]+$/.test(key)) throw new Error(`--redo: "${key}" is not a clip key`);
   if (!owners.has(key)) console.warn(`--redo: no word or sample has the key "${key}"`);
 }
+let deadline = Infinity;
+if (flag('max-minutes')) {
+  const minutes = Number(option('max-minutes'));
+  if (!Number.isFinite(minutes) || minutes <= 0) throw new Error('--max-minutes needs a number above 0');
+  deadline = Date.now() + minutes * 60000;
+}
+let stoppedAtDeadline = false;
 let limit = Infinity;
 if (flag('limit')) {
   limit = Number(option('limit'));
@@ -149,6 +157,10 @@ for (const { kokoro: voice } of wanted) {
     const print = fingerprint(text, voice);
     if (!redo.has(key) && manifest[key] === print && existsSync(file)) continue;
     if (made >= limit) break;
+    if (Date.now() > deadline) {
+      stoppedAtDeadline = true;
+      break;
+    }
     try {
       const wav = join(work, `${voice}.wav`);
       const audio = await tts.generate(text, { voice, speed: SPEED });
@@ -202,6 +214,10 @@ writeFileSync(
   JSON.stringify({ encoder: ENCODER, digest: settingsDigest, kokoroJs: kokoroVersion, modelRevision: MODEL_REVISION }, null, 1) + '\n',
 );
 rmSync(work, { recursive: true, force: true });
+if (stoppedAtDeadline) {
+  console.error('Stopped at the --max-minutes limit. Finished clips are saved; run again to continue.');
+  process.exitCode = 1;
+}
 if (failures.length) {
   console.error(`${failures.length} clip(s) failed:\n${failures.join('\n')}`);
   process.exitCode = 1;
