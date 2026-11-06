@@ -108,7 +108,10 @@ const wf = name => {
 
 // The only jobs allowed to hold a write permission, and which scopes they may hold.
 const ALLOWED_WRITES = {
-  'generate-clips.yml': { commit: ['contents:write'], 'start-deploy': ['actions:write'] },
+  'generate-clips.yml': {
+    commit: ['contents:write', 'pull-requests:write'],
+    'start-deploy': ['actions:write', 'contents:write', 'pull-requests:write'],
+  },
   'pages.yml': { deploy: ['pages:write', 'id-token:write'] },
 };
 
@@ -145,11 +148,32 @@ test('write permissions exist only in the jobs that need them (the privilege spl
   }
 });
 
-test('commit holds no actions: write and start-deploy holds nothing but actions: write', () => {
+test('contents/pull-requests: write only in commit and start-deploy; actions: write only in start-deploy', () => {
   const clips = wf('generate-clips.yml');
-  assert.deepEqual([...clips.job('commit').writes], ['contents:write']);
-  assert.deepEqual([...clips.job('start-deploy').writes], ['actions:write']);
-  assert.match(clips.job('start-deploy').text, /^ {4}permissions:\s*\n {6}actions:\s*write\s*\n(?! {6}\S)/m, 'start-deploy permissions must be only actions: write');
+  const holders = (scope) => clips.jobs.filter(j => j.writes.has(scope)).map(j => j.name).sort();
+  assert.deepEqual(holders('contents:write'), ['commit', 'start-deploy']);
+  assert.deepEqual(holders('pull-requests:write'), ['commit', 'start-deploy']);
+  assert.deepEqual(holders('actions:write'), ['start-deploy']);
+  assert.deepEqual([...clips.job('commit').writes].sort(), ['contents:write', 'pull-requests:write'], 'commit must not get actions: write');
+  assert.deepEqual([...clips.job('start-deploy').writes].sort(), ['actions:write', 'contents:write', 'pull-requests:write']);
+  const pages = wf('pages.yml');
+  assert.deepEqual(pages.jobs.filter(j => j.writes.has('pages:write')).map(j => j.name), ['deploy']);
+  assert.deepEqual(pages.jobs.filter(j => j.writes.has('id-token:write')).map(j => j.name), ['deploy']);
+});
+
+test('commit and start-deploy run no npm or node code and use no setup-node; start-deploy has no checkout', () => {
+  const clips = wf('generate-clips.yml');
+  for (const name of ['commit', 'start-deploy']) {
+    const job = clips.job(name);
+    assert.doesNotMatch(job.text, /actions\/setup-node/, `${name}: no setup-node`);
+    for (const step of job.steps) {
+      for (const body of runBodies(step)) {
+        assert.doesNotMatch(body, /(^|[\s;&|(])(npm|npx|node)\s/m, `${name}: a run: block calls npm or node`);
+        assert.doesNotMatch(body, /\$\{\{/, `${name}: pass values to the script through env:, not a template expression in the body`);
+      }
+    }
+  }
+  assert.doesNotMatch(clips.job('start-deploy').text, /actions\/checkout@/, 'start-deploy must not check anything out');
 });
 
 test('the plan and generate jobs check out without stored credentials; so do the pages jobs', () => {
@@ -199,22 +223,62 @@ test('the commit and start-deploy jobs only run on refs/heads/main', () => {
   }
 });
 
-test('commit exposes pushed, and start-deploy needs it and runs last', () => {
+test('nothing pushes to main: the commit job pushes a clips/update- branch and opens a pull request', () => {
   const clips = wf('generate-clips.yml');
+  for (const { file, raw } of workflows) assert.doesNotMatch(raw, /git push origin HEAD:main/, `${file}: nothing may push straight to main`);
   const commit = clips.job('commit');
-  assert.match(commit.text, /^ {4}outputs:\s*\n {6}pushed:\s*\$\{\{\s*steps\.push\.outputs\.pushed\s*\}\}/m);
-  assert.match(commit.text, /echo "pushed=true" >> "\$GITHUB_OUTPUT"/);
+  const pushes = commit.text.split('\n').filter(l => /\bgit push\b/.test(l));
+  assert.ok(pushes.length > 0, 'commit must push the branch');
+  for (const line of pushes) assert.match(line, /git push(?: --force)? origin "\$BRANCH"\s*$/, `commit may only push the clips branch: ${line.trim()}`);
+  assert.match(commit.text, /^\s+BRANCH:\s*clips\/update-\$\{\{\s*github\.run_id\s*\}\}\s*$/m, 'the branch must be clips/update-<run id>');
+  assert.match(commit.text, /git switch -c "\$BRANCH" origin\/main/, 'branch from the current origin/main');
+  assert.match(commit.text, /gh pr create --base main --head "\$BRANCH" --title "Update pre-recorded voice clips \[skip ci\]"/);
+  assert.match(commit.text, /Nothing to commit/);
+  assert.match(commit.text, /^ {4}outputs:\s*\n {6}pr:\s*\$\{\{\s*steps\.pr\.outputs\.pr\s*\}\}\s*\n {6}branch:\s*\$\{\{\s*steps\.pr\.outputs\.branch\s*\}\}/m);
+  assert.match(commit.text, /echo "pr=" >> "\$GITHUB_OUTPUT"/, 'an empty pr output means nothing to merge');
+  assert.doesNotMatch(commit.text, /gh workflow run|gh pr merge/, 'commit must not start workflows or merge');
   assert.doesNotMatch(clips.text, /GITHUB_ENV/, 'do not pass state between steps through GITHUB_ENV');
-  assert.doesNotMatch(commit.text, /gh workflow run/, 'commit must not start workflows');
+});
+
+test('start-deploy needs commit, runs last, starts the checks on the PR branch, then enables auto-merge, then waits, then deploys main', () => {
+  const clips = wf('generate-clips.yml');
   const start = clips.job('start-deploy');
   assert.match(start.text, /^ {4}needs:\s*commit\s*$/m);
   assert.ok(start.condition.includes('!cancelled()'));
-  assert.ok(start.condition.includes("needs.commit.outputs.pushed == 'true'"));
-  assert.match(start.text, /gh workflow run "\$wf" --ref main/);
-  assert.match(start.text, /pages\.yml denylist-guard\.yml/);
-  assert.match(start.text, /for attempt in 1 2 3/);
+  assert.ok(start.condition.includes("needs.commit.outputs.pr != ''"));
   assert.ok(clips.jobs.at(-1).name === 'start-deploy', 'start-deploy must be the last job');
   assert.equal(start.steps.length, 1, 'start-deploy is one small step');
+  assert.match(start.text, /^ {4}timeout-minutes:\s*45\s*$/m);
+  // Everything from outside comes through env:.
+  for (const key of ['GH_TOKEN', 'GH_REPO', 'PR', 'BRANCH']) assert.match(start.text, new RegExp(`^\\s+${key}:\\s*\\$\\{\\{`, 'm'), `${key} must come from env:`);
+  const script = runBodies(start.steps[0]).join('\n');
+  const at = re => script.search(re);
+  const branchStart = at(/for wf in pages\.yml denylist-guard\.yml; do start "\$wf" "\$BRANCH"/);
+  const merge = at(/gh pr merge "\$PR" --auto --squash --delete-branch/);
+  const poll = at(/sleep 30/);
+  const mainStart = at(/for wf in pages\.yml denylist-guard\.yml; do start "\$wf" main/);
+  assert.ok(branchStart >= 0 && merge > branchStart, 'start both workflows on the PR branch before enabling auto-merge');
+  assert.ok(poll > merge && mainStart > poll, 'order must be: start checks, auto-merge, wait for merge, start deploy and scan on main');
+  assert.match(script, /gh workflow run "\$1" --ref "\$2"/);
+  assert.match(script, /for attempt in 1 2 3/);
+  assert.match(script, /seq 1 80/, '80 polls of 30 s is 40 minutes');
+  assert.match(script, /"MERGED"/, 'read the PR state first and skip what is done');
+  assert.match(script, /\^clips\/update-\[0-9\]\+\$/, 'validate the branch name');
+  assert.equal([...script.matchAll(/gh pr merge/g)].length, 1);
+  // The runbook in README.md quotes these exact messages.
+  for (const msg of ['Could not start', 'A required check failed on the clip pull request', 'The clip pull request did not merge in time', 'Could not enable auto-merge']) {
+    assert.ok(clips.text.includes(msg), `generate-clips.yml must print "${msg}"`);
+    assert.ok(read('README.md').includes(msg), `README.md must quote "${msg}"`);
+  }
+});
+
+test('gh pr merge --auto appears only in start-deploy', () => {
+  for (const { file, jobs } of workflows) {
+    for (const job of jobs) {
+      const has = /gh pr merge\b[^\n]*--auto/.test(job.text);
+      assert.equal(has, file === 'generate-clips.yml' && job.name === 'start-deploy', `${file}: job "${job.name}" ${has ? 'must not use' : 'must use'} gh pr merge --auto`);
+    }
+  }
 });
 
 test('actions/cache and every non-first-party action is pinned to a full SHA with a version comment', () => {
@@ -299,8 +363,9 @@ test('PR checks cancel superseded runs and deploys are never cancelled', () => {
   assert.match(wf('generate-clips.yml').text, /cancel-in-progress:\s*false/);
 });
 
-test('bot commits made by the clip workflow carry [skip ci]', () => {
+test('bot commits and pull requests made by the clip workflow carry [skip ci]', () => {
   assert.match(wf('generate-clips.yml').raw, /git commit -m "[^"]*\[skip ci\]"/);
+  assert.match(wf('generate-clips.yml').raw, /--title "Update pre-recorded voice clips \[skip ci\]"/);
 });
 
 test('the clip validator checks the bytes it copies', () => {

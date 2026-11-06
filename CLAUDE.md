@@ -31,11 +31,11 @@ node tools/device-test/device-test.mjs        # iPhone/iPad checks in WebKit (ne
 
 ## How work lands
 
-1. Branch from `main`. Never push straight to `main`.
+1. Branch from `main`. Never push straight to `main`: the ruleset "main protection" (Settings > Rules) requires a pull request, the checks `test` and `guard`, and blocks force-push and deletion. Only the owner can bypass it, and only through a pull request.
 2. Open a PR. CI (`npm test` and build) must be green.
 3. Run an independent review before merge, using the profile that fits the change: workflow, docs and code changes need security, operator and claims review; anything a child sees also needs an accessibility review. Fix findings, re-run the failing reviewers, keep the review record.
 4. Commits end with `Co-Authored-By: Claude <model name> <noreply@anthropic.com>`. PR bodies end with the Claude Code attribution line.
-5. Bot commits made by the clip workflow carry `[skip ci]`. Pushes made with the workflow token do not start other workflows, so that workflow starts the deploy itself.
+5. The clip workflow never pushes to `main`. It opens a bot pull request titled "Update pre-recorded voice clips [skip ci]" from a `clips/update-<run id>` branch. Events caused by the workflow token do not start other workflows, so its `start-deploy` job starts `test` and `guard` on that branch, turns on auto-merge, waits for the merge, then starts the deploy and the scan on `main`. Only that job holds `actions: write`; the `commit` job holds `contents: write` and `pull-requests: write`.
 
 ## Content rules
 
