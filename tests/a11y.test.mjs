@@ -47,7 +47,9 @@ test('a failed word list load is announced', () => {
 });
 
 test('the blank in the sentence clue is read as "blank" and everything else is escaped', () => {
-  assert.match(app, /<span class="blank" role="img" aria-label="blank">_______<\/span>/);
+  assert.match(app, /<span class="blank" role="img" aria-label="blank"><\/span>/);
+  assert.doesNotMatch(app.slice(app.indexOf('const BLANK_HTML')).split('\n')[0], /_{2,}/, 'no underscore characters: they draw a dashed line');
+  assert.match(css, /\.blank\{display:inline-block;width:5em;[^}]*border-bottom:3px solid currentColor/, 'one solid line, the same width for every word');
   assert.match(fn(app, 'hideWord'), /map\(escapeHtml\)/);
   assert.doesNotMatch(app, /escapeHtml\(hideWord/, 'hideWord returns escaped HTML already');
 });
