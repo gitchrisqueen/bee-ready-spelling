@@ -56,11 +56,11 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 
 ### Your progress stays on your device
 
-Practice history, starred words and voice settings are saved in your browser's local storage. Nothing is sent to a server. They are separate for each browser and each web address. Starred words are kept apart from practice history, so clearing one does not clear the other. The **Grown-ups** tab has a button to clear each.
+Practice history, starred words and voice settings are saved in your browser's local storage. Nothing is sent to a server. They are separate for each browser and each web address. Starred words are kept apart from practice history, so clearing one does not clear the other. The **Grown-ups** tab has buttons to clear practice history and to clear starred words. Voice settings have no clear button; they reset if you clear the site's data in the browser.
 
 ## Speech and voices
 
-Every word, its practice sentence (the "In a sentence" clue), and the voice sample are short **pre-recorded clips** made with the Kokoro neural voice, so it plays almost at once. There is nothing to download first, and it works on any phone or tablet.
+Every word, its practice sentence (the "In a sentence" clue), and the voice sample are recorded as short **clips** with the Kokoro neural voice by the clip workflow, so a recorded one plays almost at once. There is nothing to download first, and it works on any phone or tablet. Anything not recorded yet (a word or sentence that was just added or reworded) speaks right away with the device voice.
 
 ```
 Recorded clip  →  live Kokoro  →  Piper  →  Device speech
@@ -108,7 +108,7 @@ You can also use any static file server. Open `index.html` through a server, not
 | `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
 | `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
 | `clips/` | Pre-recorded word and sentence clips, one folder per voice |
-| `words.json` | The complete word data: word, part of speech, definition, language group, level |
+| `words.json` | The complete word data: id, word, part of speech, definition, language group, level, booklet page and practice sentence |
 | `scripts/build.mjs` | Copies an allowlist of files into `_site/` |
 | `scripts/fetch-voice-assets.mjs` | Downloads the pinned Kokoro model files into `_site/voice-assets/` and verifies every file's SHA-256 |
 
@@ -123,7 +123,7 @@ Edit `words.json` (a word's practice sentence is its `sentence` field there) and
 1. The site deploys right away. New words and new sentences work immediately, spoken by the device voice.
 2. The **Generate voice clips** workflow (`.github/workflows/generate-clips.yml`) records only the new or changed words and sentences, one parallel job per voice, commits them under `clips/`, and redeploys. Removed words and replaced sentences have their old clips pruned. It also runs when `sentences.js`, `voice-service.js` or `tools/clips/` changes, and you can start it by hand from the **Actions** tab.
 
-The word count and "1,155" appear as static text in `index.html` and this README. Update them by hand when the list changes. The tests check that the list is well-formed (unique words, valid level), not that it has a particular size. Changing a word's `word` or `part` in `words.json` also changes its practice sentence (the sentence templates use both), so both of that word's clips are recorded again.
+The tests check that the list is well-formed (unique words, valid level, and every `sentence` contains its word exactly once), not that it has a particular size. The page reads the word count from `words.json`. A word's practice sentence is its `sentence` field, so when you add or change a word, write or update its sentence too; a changed sentence is recorded again, and a word without a `sentence` gets a generic fallback sentence. The number "1,155" in this README is a snapshot and is not checked.
 
 **Safeguards.** The generator downloads the Kokoro model at one pinned revision and checks the model file's SHA-256 before it records anything. (The deploy step separately verifies every self-hosted voice file.) One failing word does not stop the run: finished clips are still committed and the run is marked failed. It refuses to delete more than 5% of a voice's clips without `--force-prune`, so an emptied `words.json` cannot wipe the clips. The workflow's `generate` job has a read-only token and runs npm with install scripts off. A separate `commit` job holds the write token, runs no npm code, and accepts only validated `.mp3` files, per-voice `manifest.json` files and `settings.json`. A manual run from any branch other than `main` does nothing.
 
@@ -137,11 +137,11 @@ node generate.mjs --voice af_heart --limit 10        # try a few
 node generate.mjs --prune                            # also delete clips for removed words
 ```
 
-Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and roughly 90 MB of disk for the clips (an estimate until the first full sentence run has finished; word clips alone are about 27 MB). Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
+Needs Node 22 or newer, `ffmpeg`, a download of about 90 MB for the model (cached in `tools/clips/node_modules`), and roughly 90 MB of disk for the clips (an estimate, about 80 MB: 19.5 MB of word clips and voice samples measured, plus 4,620 sentence clips at about 13 KB each). Pull before you generate, and do not push local clips while the workflow is running, because both rewrite the manifests.
 
 Voices are named by Kokoro id on disk: `af_heart` (Sunny), `af_bella` (Bella), `am_michael` (Miles) and `am_fenrir` (Finn). A clip is `clips/<voice id>/<key>.mp3`. A word's key is the word in lowercase ASCII: accents are dropped (`blasé` → `blase`) and any other character except `a-z`, `0-9` and `-` becomes `_`. A sentence's key is `sentence_` plus a hash of the exact sentence, so a clip can never play the wrong wording: if a sentence changes, its old clip is simply not found (the device voice speaks it) until the new one is recorded. To get a sentence's key (for `redo`), run `node -e "import('./voice-service.js').then(m=>console.log(m.sentenceKey(process.argv[1])))" "<the exact sentence>"`. Usually the easiest way to fix a bad sentence clip is to reword the sentence. The voice sample is `_preview`. The generator stops if two words would share a key. Each voice's `manifest.json` records a fingerprint of the text, voice, model revision and an `ENCODER` label. If you change the encoder filter, ffmpeg flags, model dtype, speed, model revision or `kokoro-js` version, the generator stops and asks you to bump the `ENCODER` label in `generate.mjs`, which regenerates every clip.
 
-Timings I measured: a word clip takes 1.4 to 2.0 seconds for one process on a laptop and on two servers, and a sentence clip about 5 seconds (12 samples on a laptop), so roughly 30 to 40 minutes per voice for words and about 1.5 hours per voice for sentences. I have not timed GitHub's runners. Each voice runs in its own parallel job, so the wall-clock time of a full run is about one voice's time, and the total runner time is about four times that. A job stops cleanly after 280 minutes (a hard stop at 300; the job limit of 350 is headroom for saving), keeping what it finished.
+Timings, from my own measurements while building this (no logs are kept in the repo): a word clip takes 1.4 to 2.0 seconds for one process on a laptop and on two servers, and a sentence clip about 5 seconds (12 samples on a laptop), so roughly 30 to 40 minutes per voice for words and about 1.5 hours per voice for sentences. I have not timed GitHub's runners. Each voice runs in its own parallel job, so the wall-clock time of a full run is about one voice's time, and the total runner time is about four times that. A job stops cleanly after 280 minutes (a hard stop at 300; the job limit of 350 is headroom for saving), keeping what it finished.
 
 **Check what a run would do:** `node generate.mjs --dry-run` prints how many clips each voice still needs, and how many stale clips a `--prune` run would delete, and exits without loading the model. On an up-to-date tree every voice shows `0` for both.
 
@@ -158,11 +158,11 @@ Timings I measured: a word clip takes 1.4 to 2.0 seconds for one process on a la
    ```
 3. Push. Expect a full run for the new voice. A test fails if a voice is missing from either place, or if `clips/` has a folder for a voice that is no longer in `VOICES`.
 
-**Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours (the four voices run in parallel, so about one voice's time on the wall clock), and each regeneration adds roughly the full size of the clips (about 90 MB, estimated) to git history, so consider splitting it with the `limit` option.
+**Changing the encoder** (bitrate, filter, speed, model revision, `kokoro-js` version): edit the constants at the top of `tools/clips/generate.mjs`, bump `ENCODER`, try `node generate.mjs --voice af_heart --limit 3` and listen to the result, then push. Every clip is regenerated, which takes hours (the four voices run in parallel, so about one voice's time on the wall clock), and each regeneration adds roughly the full size of the clips (about 80 MB, estimated) to git history, so consider splitting it with the `limit` option.
 
-The commit job only accepts clips that fit its validator: at most 300,000 bytes per clip, at most 250 MB for the whole clips folder, a valid MP3 header, and nothing but `<key>.mp3`, `manifest.json` and `settings.json`. A much higher bitrate (about 91 MB at 40 kbps would be roughly 440 MB at 192 kbps) can pass the tests and the local trial and then be refused by the commit job after hours of work. Check the expected total first, and raise the limits in the workflow's validator together with the bitrate change.
+The commit job only accepts clips that fit its validator: at most 300,000 bytes per clip, at most 250 MB for the whole clips folder, a valid MP3 header, and nothing but `<key>.mp3`, `manifest.json` and `settings.json`. A much higher bitrate (about 80 MB at 40 kbps would be roughly 380 MB at 192 kbps) can pass the tests and the local trial and then be refused by the commit job after hours of work. Check the expected total first, and raise the limits in the workflow's validator together with the bitrate change.
 
-The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three clips plus `clips/settings.json` into your working tree. Open the three changed files in `clips/af_heart/` to listen, then commit them or run `git checkout clips` to discard. If you edit the constants and forget to bump `ENCODER`, the generator stops with a message asking for it.
+The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three clips plus that voice's `manifest.json` and `clips/settings.json` into your working tree. Open the three new clips in `clips/af_heart/` to listen, then commit them or run `git checkout clips` to discard. If you edit the constants and forget to bump `ENCODER`, the generator stops with a message asking for it.
 
 ### When a run fails
 
@@ -253,15 +253,15 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 
 `npm test` runs the automated tests in `tests/`. The word-card tests check the labels, text escaping, sentence fallback, every part of speech and unique panel ids on generated markup; they do not click through the page. The starred-word tests check loading, saving, toggling and clearing against a fake storage object, including corrupt data and storage that refuses writes; they do not click through the page. The voice tests **mock** the network and speech playback. They cover recorded-clip playback and fallback, instant device speech when a clip is missing, the Kokoro → Piper → device order, cancellation, retry caching, and content checks such as unique words, ASCII clip names, and clip folders matching the voice list. They do not prove playback on a physical iPhone or iPad or in Safari.
 
-Manual checks, not part of CI: on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at 0.7×, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, but a full check of recorded sentences in a real browser is still open until the first full run has finished. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
+Manual checks, not part of CI, with no logs kept (my own observations): on the word-clips build I exercised a local build in desktop Chromium at a phone-sized viewport. All four voices played recorded clips, Slow speed played at 0.7×, and a prefetched word started playing in 43 ms. I confirmed that every word had a clip in every voice, and sampled 120 clips for cut-off starts and ends. For sentences, a local build played a recorded sentence clip for one voice and fell back to the device voice for a voice without one, but a full check of recorded sentences in a real browser is still open until the first full run has finished. I checked the model used for generation against the pinned SHA-256 on the three machines that generated clips. Real-device checks on iOS and iPadOS, including Safari's tap-to-play rule, are still open.
 
 Other limits:
 
-- Example sentences are generic study examples, not official competition clues.
+- Practice sentences are written for study, not taken from any competition, and are not official clues. A new word without its own sentence gets a generic fallback.
 - Definitions are simplified study explanations, not dictionary entries. Competition rules and word lists vary by organizer.
 - The language group is a label from the booklet. Many words passed through several languages.
 - Typed answers are compared simply; accents and punctuation are not graded strictly.
-- The word *learned* and a few others can be pronounced differently depending on meaning, so confirm with a grown-up.
+- The words *learned* and *dogged* can be pronounced differently depending on meaning, so confirm with a grown-up.
 
 ## Content and license
 
