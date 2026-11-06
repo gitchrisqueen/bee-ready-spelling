@@ -136,6 +136,8 @@ test('every stored sentence uses its word exactly once, as a whole word', () => 
     const low = w.sentence.toLowerCase();
     const word = w.word.toLowerCase();
     assert.equal(low.split(word).length - 1, 1, `${w.word}: the word must appear once and inside no other word: ${w.sentence}`);
+    const whole = low.match(new RegExp(`(?<![\\p{L}])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}])`, 'gu')) || [];
+    assert.equal(whole.length, 1, `${w.word}: must appear exactly once as a whole word: ${w.sentence}`);
     assert.match(w.sentence, /[.!?][”"]?$/, `${w.word}: sentence must end with . ! or ?`);
   }
 });

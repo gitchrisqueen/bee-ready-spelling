@@ -29,7 +29,7 @@ function updateStats(){
   $('heroMissed').textContent=Object.keys(history.missed||{}).length.toLocaleString();
   const n=starredWords().length;$('heroStarred').textContent=n.toLocaleString();
   const opt=$('pool').querySelector('option[value="starred"]');if(opt)opt.textContent=`My starred words (${n.toLocaleString()})`;
-  $('heroWordCount').textContent=words.length?words.length.toLocaleString():'1,155';
+  $('heroWordCount').textContent=words.length?words.length.toLocaleString():'—';
 }
 // Star buttons keep one fixed accessible name (set in the markup); aria-pressed carries the state and only the decorative glyph changes.
 // The round button's name never includes the word: in typed mode it would give the answer away.
@@ -286,7 +286,8 @@ async function main(){
   try{
     const response=await fetch('./words.json');if(!response.ok)throw new Error(`Word bank download failed (${response.status})`);
     words=await response.json();
-    if(words.length!==1155)console.warn('Expected 1155 entries. Received',words.length);
+    // The word list is the source of truth: counts shown on the page follow whatever words.json holds.
+    $('wordCount').max=String(words.length);$('pool').options[0].textContent=`All ${words.length.toLocaleString()} words`;
     [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(g=>{$('groupFilter').add(new Option(g,g));});
     updateStats();renderWordBank();
   }catch(err){

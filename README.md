@@ -46,6 +46,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 
 <p align="center">
   <img src="docs/screenshot-phone.png" alt="Bee Ready on a phone" width="260">
+  <img src="docs/screenshot-word-details.png" alt="A word card with its Details open, showing part of speech, origin, booklet list, the practice sentence and three listen buttons" width="300">
 </p>
 
 ### Printables

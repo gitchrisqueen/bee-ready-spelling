@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta name="theme-color" content="#261d48"/>
-  <meta name="description" content="Bee Ready: 1,155 spelling bee words, cheerful practice rounds, and free natural speaking voices with clear download progress."/>
+  <meta name="description" content="Bee Ready: more than 1,000 spelling bee words, cheerful practice rounds, and free natural speaking voices with clear download progress."/>
   <title>Bee Ready · Spelling Practice</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./styles.css"/>
@@ -27,7 +27,7 @@
             <span class="eyebrow">🐝 THE SPELLING BEE TRAINING CLUB</span>
             <h1 id="practice-title">Big words.<br><em>Brave spellers.</em></h1>
             <p>Hear a word, ask for clues, and spell it like a champion. Every try makes your brain stronger.</p>
-            <div class="statbar"><span><b id="heroWordCount">1,155</b> words</span><span><b id="heroBest">0</b> practiced</span><span><b id="heroMissed">0</b> to review</span><span><b id="heroStarred">0</b> starred</span></div>
+            <div class="statbar"><span><b id="heroWordCount">—</b> words</span><span><b id="heroBest">0</b> practiced</span><span><b id="heroMissed">0</b> to review</span><span><b id="heroStarred">0</b> starred</span></div>
           </div>
           <div class="hero-art" aria-hidden="true"><div class="bee-orbit">✦</div><div class="bee-friend">🐝</div><span class="star star-a">✧</span><span class="star star-b">✶</span><span class="star star-c">★</span><span class="hero-speech">You got this!</span></div>
         </div>
@@ -39,10 +39,10 @@
               <button class="count-option" data-count="10" aria-pressed="false">10<small>Steady</small></button>
               <button class="count-option" data-count="15" aria-pressed="false">15<small>Strong</small></button>
               <button class="count-option" data-count="20" aria-pressed="false">20<small>Super</small></button>
-              <label class="custom-count">Your number<input id="wordCount" type="number" min="1" max="1155" value="5" inputmode="numeric" aria-label="Custom number of words"></label>
+              <label class="custom-count">Your number<input id="wordCount" type="number" min="1" value="5" inputmode="numeric" aria-label="Custom number of words"></label>
             </div>
             <div class="form-row">
-              <label class="field">Choose words from <select id="pool"><option value="all">All 1,155 words</option><option value="study">Study words (booklet group)</option><option value="challenge">Challenge words (booklet group)</option><option value="missed">Words to review</option><option value="starred">My starred words</option></select></label>
+              <label class="field">Choose words from <select id="pool"><option value="all">All words</option><option value="study">Study words (booklet group)</option><option value="challenge">Challenge words (booklet group)</option><option value="missed">Words to review</option><option value="starred">My starred words</option></select></label>
               <label class="field">Spelling mode <select id="practiceMode"><option value="type">Type the letters</option><option value="oral">Say it out loud (with a grown-up)</option></select></label>
             </div>
             <button id="startRound" class="primary-btn big-btn">🐝 Start my spelling bee <span aria-hidden="true">→</span></button>
@@ -52,7 +52,7 @@
           <aside class="panel side-note">
             <div class="note-icon">🔊</div><h3>Meet your spelling bee host</h3><p>Choose a natural female or male voice in <strong>Voices</strong>. No account, no subscription.</p>
             <button class="soft-btn" data-go="voices">Choose my voice <span aria-hidden="true">↗</span></button>
-            <div class="note-divider"></div><p class="small-note">Natural voice files download the first time. You'll see a progress bar, and device speech is available on supported browsers.</p>
+            <div class="note-divider"></div><p class="small-note">Recorded voices play right away. An optional live voice can be downloaded on request, with a progress bar, and device speech is available on supported browsers.</p>
           </aside>
         </div>
         <div id="roundArea" class="round-panel hidden">
@@ -73,9 +73,9 @@
         </div>
       </section>
       <section class="tab-panel" id="tab-words" aria-labelledby="words-title">
-        <div class="section-intro"><span class="mini-kicker">THE COMPLETE REFERENCE</span><h1 id="words-title">Your word bank</h1><p>Explore all 1,155 spelling bee words, their definitions, original booklet groups, and dictionary pronunciation links. Study and Challenge are the original booklet's fixed groups, not grade levels. To save your own words, press the Star button (☆) on any card. Press <strong>Details</strong> on a card for its sentence, origin and slow audio.</p></div>
+        <div class="section-intro"><span class="mini-kicker">THE COMPLETE REFERENCE</span><h1 id="words-title">Your word bank</h1><p>Explore all the spelling bee words, their definitions, original booklet groups, and dictionary pronunciation links. Study and Challenge are the original booklet's fixed groups, not grade levels. To save your own words, press the Star button (☆) on any card. Press <strong>Details</strong> on a card for its sentence, origin and slow audio.</p></div>
         <div class="panel"><div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by group<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
-        <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">1,155 words</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button></div>
+        <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">Loading words…</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button></div>
       </section>
       <section class="tab-panel" id="tab-voices" aria-labelledby="voices-title">
         <div class="section-intro"><span class="mini-kicker">MEET YOUR BEE HOST</span><h1 id="voices-title">Find your favorite voice</h1><p>Natural American English voices, a reliable backup, and an instant device-voice option. No accounts or keys.</p></div>
@@ -85,13 +85,13 @@
           <h3 class="settings-heading">Choose your audio mode</h3><div class="audio-mode"><label><input type="radio" name="engineMode" value="auto" checked> Natural voice with automatic backup <small>Kokoro → Piper → device speech</small></label><label><input type="radio" name="engineMode" value="device"> Device voice only <small>No download, fastest start</small></label></div>
           <div class="voice-actions"><button id="prepareVoice" class="primary-btn">⬇ Add live voice for new words</button><button id="previewVoice" class="soft-btn">▶ Play voice sample</button><button id="retryVoice" class="text-btn">Retry natural audio</button></div>
           <div id="voiceStatus" class="status-message" role="status" aria-live="polite">Natural recorded voice ready. Every word plays instantly.</div>
-          <p class="helper">Words, sentence clues and the voice sample play from short recordings, with no download. Anything without a recording yet uses your device voice right away. The optional live voice is a large one-time download (about 90 MB) that can be slow on phones; the next engine is tried automatically. If Safari blocks playback, tap Play once more.</p>
+          <p class="helper">Recorded words, sentences and the voice sample play with no download. Anything without a recording yet uses your device voice right away. The optional live voice is a large one-time download (about 90 MB) that can be slow on phones; the next engine is tried automatically. If Safari blocks playback, tap Play once more.</p>
         </div>
       </section>
       <section class="tab-panel" id="tab-grownups" aria-labelledby="grownups-title">
         <div class="section-intro"><span class="mini-kicker">TOOLS FOR GROWN-UPS</span><h1 id="grownups-title">Practice that builds confidence</h1><p>Simple, repeatable spelling activities plus your printable word resources.</p></div>
         <div class="content-grid"><div class="panel"><h2>Try the 10-minute routine</h2><ol class="routine"><li><b>Warm up</b> with a few older words.</li><li><b>Say the new word</b>, explain what it means and use it in a sentence.</li><li><b>Notice the tricky letters</b> before hiding the spelling.</li><li><b>Spell from memory</b>, then check each letter.</li><li><b>Review missed words</b> tomorrow and later in the week.</li></ol><p class="helper">Study tips align with spaced retrieval and explicit letter-sound study.</p></div><div class="panel"><h2>Printable practice pack</h2><div class="downloads"><a href="./assets/Spelling_Bee_Practice_Workbook.pdf" download>📄 Practice workbook <span>PDF ↗</span></a><a href="./assets/Spelling_Bee_Alphabetical_List.pdf" download>📄 Alphabetical checklist <span>PDF ↗</span></a><a href="./assets/Spelling_Bee_Definitions_Reference.pdf" download>📄 Complete definitions <span>PDF ↗</span></a></div><p class="helper">For unusual pronunciations or meanings, consult the linked dictionaries or the competition's pronouncer.</p></div></div>
-        <div class="panel foot-note"><h3>About the clues and audio</h3><p>“Origin” uses the booklet's language group. Some words traveled through multiple languages; the group is not a complete etymology. Definitions are simplified study explanations, not official competition definitions. Spelling bee rules vary by organizer.</p><p>Natural voices run on the device and require a first download of model files. These files are cached by the browser when storage allows. Speech uses no account or API key. For words such as <i>learned</i> and <i>dogged</i>, pronunciation can depend on meaning and should be confirmed with a grown-up.</p><p>Practice history and starred words are saved only in this browser on this device. Nothing is sent to a server.</p><div class="clear-actions"><button id="clearHistory" class="text-btn">Clear this device's practice history</button><button id="clearStars" class="text-btn">Clear this device's starred words</button><span id="clearStarsStatus" class="clear-status" role="status" aria-live="polite"></span></div></div>
+        <div class="panel foot-note"><h3>About the clues and audio</h3><p>“Origin” uses the booklet's language group. Some words traveled through multiple languages; the group is not a complete etymology. Definitions are simplified study explanations, not official competition definitions. Spelling bee rules vary by organizer.</p><p>Words and sentences play from short recordings, with no download. If one has no recording yet, your device voice reads it. The optional live voice needs a first download of model files, which the browser caches when storage allows. Speech uses no account or API key. For words such as <i>learned</i> and <i>dogged</i>, pronunciation can depend on meaning and should be confirmed with a grown-up.</p><p>Practice history and starred words are saved only in this browser on this device. Nothing is sent to a server.</p><div class="clear-actions"><button id="clearHistory" class="text-btn">Clear this device's practice history</button><button id="clearStars" class="text-btn">Clear this device's starred words</button><span id="clearStarsStatus" class="clear-status" role="status" aria-live="polite"></span></div></div>
       </section>
     </main>
     <footer class="footer"><span>🐝 Bee Ready · Every word is a new adventure</span><span>No account required · Made for curious spellers</span></footer>
