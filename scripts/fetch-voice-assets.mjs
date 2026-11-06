@@ -1,12 +1,17 @@
 // Downloads the pinned Kokoro model files into <outDir>/voice-assets so the site can
 // serve them from its own origin. Run after `npm run build` (which recreates _site/).
 // Every file is checked against a pinned size and SHA-256; any mismatch fails the run.
+// Each file gets up to three attempts with a per-attempt timeout and a growing pause between
+// attempts, and a download is cut off as soon as it delivers more bytes than the pinned size.
+// A file that is already on disk (for example restored from the deploy cache) is re-hashed and
+// only kept when it matches, so a tampered cache fails closed and the file is downloaded again.
 import { createHash } from 'node:crypto';
 import {
-  createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, statSync, writeFileSync,
+  createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
+import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
 const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
@@ -22,10 +27,59 @@ const FILES = [
   ['voices/am_fenrir.bin', 522240, 'c27989f741f7ee34d273a39d8a595cc0837d35f5ced9a29b7cc162614616df43'],
 ];
 
+const MAX_ATTEMPTS = 3;
+const BASE_DELAY_MS = 2000;
+const BIG_FILE_BYTES = 10 * 1048576;
+const BIG_TIMEOUT_MS = 300_000;
+const SMALL_TIMEOUT_MS = 60_000;
+
 async function sha256(path) {
   const hash = createHash('sha256');
   await pipeline(createReadStream(path), hash);
   return hash.digest('hex');
+}
+
+const sleep = ms => new Promise(done => setTimeout(done, ms));
+
+// Passes bytes through and fails the stream once more than `limit` bytes have arrived.
+function byteLimit(limit, name) {
+  let seen = 0;
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      seen += chunk.length;
+      if (seen > limit) callback(new Error(`${name}: more than the pinned ${limit} bytes arrived`));
+      else callback(null, chunk);
+    },
+  });
+}
+
+async function downloadOnce(url, partial, name, size, expected) {
+  const timeout = size > BIG_FILE_BYTES ? BIG_TIMEOUT_MS : SMALL_TIMEOUT_MS;
+  const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(timeout) });
+  if (!response.ok || !response.body) throw new Error(`Download failed (${response.status}): ${url}`);
+  await pipeline(Readable.fromWeb(response.body), byteLimit(size, name), createWriteStream(partial));
+  const got = statSync(partial).size;
+  if (got !== size) throw new Error(`Size mismatch for ${name}: expected ${size}, got ${got}`);
+  const actual = await sha256(partial);
+  if (actual !== expected) throw new Error(`SHA-256 mismatch for ${name}: expected ${expected}, got ${actual}`);
+}
+
+async function download(url, target, name, size, expected) {
+  const partial = `${target}.part`;
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await downloadOnce(url, partial, name, size, expected);
+      renameSync(partial, target);
+      return;
+    } catch (error) {
+      lastError = error;
+      rmSync(partial, { force: true });
+      console.warn(`attempt ${attempt}/${MAX_ATTEMPTS} failed for ${name}: ${error.message}`);
+      if (attempt < MAX_ATTEMPTS) await sleep(BASE_DELAY_MS * 2 ** (attempt - 1));
+    }
+  }
+  throw lastError;
 }
 
 const outDir = resolve(process.argv[2] ?? '_site');
@@ -38,15 +92,8 @@ for (const [name, size, expected] of FILES) {
     console.log(`ok (cached)  ${name}`);
     continue;
   }
-  const url = `https://huggingface.co/${MODEL}/resolve/${REVISION}/${name}`;
-  const response = await fetch(url, { redirect: 'follow' });
-  if (!response.ok || !response.body) throw new Error(`Download failed (${response.status}): ${url}`);
-  const partial = `${target}.part`;
-  await pipeline(Readable.fromWeb(response.body), createWriteStream(partial));
-  if (statSync(partial).size !== size) throw new Error(`Size mismatch for ${name}: expected ${size}, got ${statSync(partial).size}`);
-  const actual = await sha256(partial);
-  if (actual !== expected) throw new Error(`SHA-256 mismatch for ${name}: expected ${expected}, got ${actual}`);
-  renameSync(partial, target);
+  rmSync(target, { force: true });
+  await download(`https://huggingface.co/${MODEL}/resolve/${REVISION}/${name}`, target, name, size, expected);
   console.log(`ok (${(size / 1048576).toFixed(1)} MB)  ${name}`);
 }
 

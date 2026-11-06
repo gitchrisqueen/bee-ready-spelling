@@ -6,8 +6,10 @@ name: Generate voice clips
 # committed to main and the site is redeployed.
 #
 # Privilege split on purpose. `generate` legs run npm and third-party code with a READ-ONLY token and no
-# stored credentials. `commit` holds the write token, runs no npm or node code, and only accepts a
-# strictly validated set of files from the artifacts.
+# stored credentials. `commit` holds the contents-write token, runs no npm or node code, and only accepts
+# a strictly validated set of files from the artifacts. `start-deploy` is a separate small job that only
+# holds actions-write, so a failed dispatch can be re-run on its own ("Re-run failed jobs") without
+# redoing the commit.
 #
 # Manual run options (Actions tab > Generate voice clips > Run workflow):
 #   voice        only this Kokoro voice id, e.g. af_heart
@@ -166,7 +168,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
-      actions: write
+    outputs:
+      pushed: ${{ steps.push.outputs.pushed }}
     steps:
       - name: Check out the pinned commit
         uses: actions/checkout@v4
@@ -223,11 +226,16 @@ jobs:
                   total += 1
                   size = st.st_size
                   if name == "manifest.json":
-                      if size > 1000000:
-                          problems.append(f"{voice}/manifest.json is larger than 1 MB")
+                      # Check the size first, then parse exactly the bytes that were read.
+                      if os.path.getsize(fp) >= 1000000:
+                          problems.append(f"{voice}/manifest.json is 1 MB or larger")
                           continue
                       try:
-                          data = json.load(open(fp))
+                          with open(fp, "rb") as fh:
+                              raw_manifest = fh.read(1000001)
+                          if len(raw_manifest) >= 1000000:
+                              raise ValueError("too large")
+                          data = json.loads(raw_manifest)
                       except Exception as err:
                           problems.append(f"{voice}/manifest.json is not valid JSON ({err.__class__.__name__})")
                           continue
@@ -283,11 +291,16 @@ jobs:
               sys.exit(1)
 
           # settings.json: take a changed one from a voice that passed; it must be exactly four short strings.
+          # Validate and copy the same bytes: read at most 5000, reject over 4000, parse those bytes, write those bytes.
           main_settings = open(os.path.join("clips", "settings.json"), "rb").read() if os.path.exists(os.path.join("clips", "settings.json")) else b""
           for voice, src in settings_candidates:
               if voice not in ok_voices:
                   continue
-              raw = open(src, "rb").read(4000)
+              with open(src, "rb") as fh:
+                  raw = fh.read(5000)
+              if len(raw) > 4000:
+                  skipped.setdefault("settings.json", []).append("settings.json is larger than 4000 bytes")
+                  continue
               if raw == main_settings:
                   continue
               try:
@@ -301,7 +314,8 @@ jobs:
               dst = os.path.join(staging, "settings.json")
               if os.path.lexists(dst):
                   os.unlink(dst)
-              shutil.copyfile(src, dst)
+              with open(dst, "wb") as fh:
+                  fh.write(raw)
 
           # Final safety pass over everything that will be committed.
           problems = []
@@ -331,6 +345,7 @@ jobs:
           print(f"clips validated; updated voices: {sorted(ok_voices) or 'none'}; skipped: {sorted(skipped) or 'none'}")
           PY
       - name: Commit and push to main
+        id: push
         env:
           STAGING: ${{ runner.temp }}/staging
         run: |
@@ -346,13 +361,30 @@ jobs:
           # After the rebase the only thing we add on top of main must be under clips/.
           if git diff --name-only origin/main..HEAD | grep -qv '^clips/'; then echo "commit touches files outside clips/"; exit 1; fi
           git push origin HEAD:main
-          echo "pushed=true" >> "$GITHUB_ENV"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+      - name: Fail the run if a voice was rejected (the other voices were still committed)
+        if: ${{ always() }}
+        env:
+          SKIPPED: ${{ runner.temp }}/skipped.txt
+        run: |
+          if [ -s "$SKIPPED" ]; then cat "$SKIPPED"; exit 1; fi
+
+  # Pushes made with GITHUB_TOKEN do not start other workflows, so start the deploy and the repository
+  # scan directly. This is its own job so that a failed dispatch can be re-run alone: the clips are
+  # already on main, and re-running `commit` would stop at its stale check.
+  start-deploy:
+    needs: commit
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.commit.outputs.pushed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
       - name: Start the deploy and the repository scan
-        if: ${{ env.pushed == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          # Pushes made with GITHUB_TOKEN do not start other workflows, so start them directly.
           for wf in pages.yml denylist-guard.yml; do
             ok=0
             for attempt in 1 2 3; do
@@ -361,9 +393,3 @@ jobs:
             done
             if [ "$ok" -ne 1 ]; then echo "Could not start $wf"; exit 1; fi
           done
-      - name: Fail the run if a voice was rejected (the other voices were still committed)
-        if: ${{ always() }}
-        env:
-          SKIPPED: ${{ runner.temp }}/skipped.txt
-        run: |
-          if [ -s "$SKIPPED" ]; then cat "$SKIPPED"; exit 1; fi

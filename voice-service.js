@@ -43,10 +43,15 @@ const PREFERRED_KOKORO_URL='https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/ko
 // Match Piper's WASM assets (1.18.0) instead of resolving the latest runtime.
 const PREFERRED_PIPER_URL='https://esm.sh/@mintplex-labs/piper-tts-web@1.0.5?bundle&deps=onnxruntime-web@1.18.0';
 const HF_MODEL_PREFIX=`https://huggingface.co/${modelId}/resolve/main/`;
+// Same revision as scripts/fetch-voice-assets.mjs (a test keeps them equal). The fallback to Hugging Face
+// asks for exactly these bytes, never for whatever `main` points at today.
+const MODEL_REVISION='1939ad2a8e416c0acfeecc08a694d14ef25f2231';
+const HF_PINNED_PREFIX=`https://huggingface.co/${modelId}/resolve/${MODEL_REVISION}/`;
 let selfHostPatched=false;
 // The model files are copied into the site at deploy time (scripts/fetch-voice-assets.mjs).
 // kokoro-js hardcodes its Hugging Face URLs, so requests for exactly that model are redirected
-// to this site. A missing or failing local file falls back to Hugging Face for that request.
+// to this site. A missing or failing local file falls back to Hugging Face for that request, using the
+// pinned revision instead of `main`.
 async function useSelfHostedModel(){
   if(typeof location==='undefined'||typeof globalThis.fetch!=='function') return false;
   const base=new URL(`./voice-assets/models/${modelId}/`,import.meta.url).href;
@@ -56,16 +61,21 @@ async function useSelfHostedModel(){
   globalThis.fetch=async(input,init)=>{
     const isText=typeof input==='string'||input instanceof URL;
     const url=isText?String(input):input?.url;
-    const rest=url&&url.startsWith(HF_MODEL_PREFIX)?url.slice(HF_MODEL_PREFIX.length).split('?')[0]:null;
-    let local=null;
-    if(rest&&!rest.includes('..')){try{const t=new URL(base+rest);if(t.href.startsWith(base))local=t.href;}catch{}}
+    if(!url||!url.startsWith(HF_MODEL_PREFIX)) return original(input,init);
+    const tail=url.slice(HF_MODEL_PREFIX.length);
+    const rest=tail.split('?')[0];
+    if(!rest||rest.includes('..')) throw new TypeError('Refusing an unexpected model path.');
+    let local=null,pinned=null;
+    try{const t=new URL(base+rest);if(t.href.startsWith(base))local=t.href;}catch{}
+    try{const p=new URL(HF_PINNED_PREFIX+tail);if(p.href.startsWith(HF_PINNED_PREFIX))pinned=p.href;}catch{}
+    if(!pinned) throw new TypeError('Refusing an unexpected model path.');
     if(local){
       try{
         const res=await original(local,isText?init:undefined);
         if(res.ok) return res;
       }catch{}
     }
-    return original(input,init);
+    return original(isText?pinned:new Request(pinned,input),isText?init:undefined);
   };
   selfHostPatched=true;return true;
 }
