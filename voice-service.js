@@ -117,7 +117,7 @@ export class BeeVoiceService {
     if(mode && mode!==this.settings.mode) this.stop();
     this.settings=validSettings({...this.settings,voiceId:voiceId??this.settings.voiceId,speedId:speedId??this.settings.speedId,mode:mode??this.settings.mode});
     try{localStorage.setItem(KEY,JSON.stringify(this.settings));}catch{}
-    if(this.settings.mode==='device') this._status('ready','device','Device voice selected. Tap Hear my word or Preview voice to listen.');
+    if(this.settings.mode==='device') this._status('ready','device','Device voice selected. Tap Hear my word or Play voice sample to listen.');
     else if(this.kokoro) this._status('ready','kokoro','Kokoro natural voice is ready.');
     else if(this.piper) this._status('ready','piper','Piper backup voice is ready.');
     else this._status('idle','clip','Natural recorded voice ready. Every word plays instantly.');
@@ -150,7 +150,7 @@ export class BeeVoiceService {
       // WASM works on a wider range of iPads than WebGPU. Use quantized weights.
       const tts=await KokoroTTS.from_pretrained(modelId,{dtype:'q8',device:'wasm',progress_callback:p=>this._fileProgress('kokoro',p)});
       this.kokoro=tts;
-      if(this.settings.mode!=='device'){this.activeEngine='kokoro';this._status('ready','kokoro','Natural voice ready! Tap Play or Start practice.');}
+      if(this.settings.mode!=='device'){this.activeEngine='kokoro';this._status('ready','kokoro','Natural voice ready! Tap Hear my word or Play voice sample.');}
       return tts;
     })().catch(err=>{
       this.failedEngines.add('kokoro');
@@ -227,7 +227,7 @@ export class BeeVoiceService {
     this.player=player;
     player.onended=()=>{if(this.player===player){this.player=null;this._status('ready',engine,`${engine==='piper'?'Backup':'Natural'} voice ready.`);if(this.objectUrl){URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;}}};
     try{await player.play();}catch(e){
-      if(e?.name==='NotAllowedError'){this._status('tap',engine,'Voice is ready. Tap Play once more to hear it.',null,'Safari may require a second tap after downloading audio.');return 'tap';}
+      if(e?.name==='NotAllowedError'){this._status('tap',engine,'Voice is ready. Tap Hear my word once more to hear it.',null,'Safari may require a second tap after downloading audio.');return 'tap';}
       throw e;
     }
     if(token!==this.sequence){player.pause();return;}

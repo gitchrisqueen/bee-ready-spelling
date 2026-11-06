@@ -102,3 +102,9 @@ test('focus never falls to <body> when the voice notice or a button in it is hid
   assert.doesNotMatch(app, /\$\('clearHistory'\)\.textContent/, 'the Clear history button keeps one fixed name');
   assert.match(app, /setClearStatus\('Practice history cleared\.'\)/);
 });
+
+test('voice status messages only name buttons that exist', () => {
+  const text = app + read('voice-service.js');
+  for (const stale of ['Preview voice', 'Start practice', 'Tap Play']) assert.ok(!text.includes(stale), `"${stale}" is not a button name`);
+  for (const name of ['Hear my word', 'Play voice sample']) assert.ok(html.includes(name), `${name} must be a real button name`);
+});

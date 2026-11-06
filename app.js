@@ -247,7 +247,7 @@ function initVoiceSettings(){
   $('prepareVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
   $('previewVoice').addEventListener('click',()=>voiceService.preview());
   $('retryVoice').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
-  $('downloadUseDevice').addEventListener('click',()=>{voiceService.stop();voiceService.select({mode:'device'});syncVoiceButtons();clearTimeout(noticeTimer);$('downloadLabel').textContent='Device voice selected';$('downloadDetail').textContent='Tap Hear my word or Preview voice to listen. No download needed.';});
+  $('downloadUseDevice').addEventListener('click',()=>{voiceService.stop();voiceService.select({mode:'device'});syncVoiceButtons();clearTimeout(noticeTimer);$('downloadLabel').textContent='Device voice selected';$('downloadDetail').textContent='Tap Hear my word or Play voice sample to listen. No download needed.';});
   $('downloadRetry').addEventListener('click',()=>{voiceService.select({mode:'auto'});syncVoiceButtons();voiceService.prepare({retry:true});});
   $('closeNotice').addEventListener('click',()=>{
     releaseNoticeFocus(true);
