@@ -109,6 +109,7 @@ You can also use any static file server. Open `index.html` through a server, not
 | `stars.js` | Starred words: load, save, toggle and clear a set of word ids in `localStorage` (key `bee-ready-starred-v1`). Takes a storage object, so it is tested without a browser |
 | `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
 | `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
+| `tools/pronunciation/` | Pronunciation audit: shortlists words likely to sound wrong. Not part of the deployed site |
 | `tools/device-test/` | Mobile browser checks with real WebKit and iPhone/iPad presets. Not part of the deployed site |
 | `fonts/` | The two web fonts and their license texts |
 | `clips/` | Pre-recorded word and sentence clips, one folder per voice |
@@ -152,6 +153,8 @@ Timings, from my own measurements while building this (no logs are kept in the r
 **Manual run options.** In **Actions → Generate voice clips → Run workflow** you can set `voice`, `limit` (stop after N new clips per voice, to split a big job or smoke-test), `redo` (clip keys to record again) and `force_prune` (allow deleting more than 5% of a voice's clips). `voice` is the Kokoro id (`af_heart`, `af_bella`, `am_michael`, `am_fenrir`), not the name shown in the app. Locally the same options are `--voice`, `--limit`, `--redo` and `--force-prune`.
 
 **Fixing one bad clip.** Run **Generate voice clips** with `redo` set to the clip key (for example `blase`). Locally: `node generate.mjs --redo blase`, then commit the change. Recording again uses the same model, voice and settings, so it normally produces the same audio. If a word is mispronounced, re-recording will not fix it. The remedy would be a spelling override (for example a `say` field in `words.json` used as the speech text), which does not exist yet.
+
+**Finding mispronounced words.** The voice guesses some loanwords wrong and nobody can listen to every clip. `tools/pronunciation/` shortlists the words most likely to sound wrong by transcribing the clips and comparing phonemes with a dictionary. It is a triage signal, not a verdict; see [tools/pronunciation/README.md](tools/pronunciation/README.md).
 
 **Adding a voice.**
 1. Add it to `VOICES` in `voice-service.js`, keeping the `kokoro:'id'` form (the workflow reads the list with that pattern; a test checks it). Fill in the `piper` backup voice too, and update the "four voices" wording in this README and the page.
@@ -257,6 +260,7 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 ├── clips/                               Pre-recorded word and sentence clips (4 voices)
 ├── fonts/                               DM Sans and Fredoka (web fonts) and their licenses
 ├── tools/clips/                         Clip generator and its dependencies
+├── tools/pronunciation/                 Audit that shortlists words likely to be mispronounced
 ├── tools/device-test/                   Mobile browser checks (WebKit, iPhone and iPad presets)
 ├── words.json                           1,155-word data set
 ├── assets/                              Three printable PDFs

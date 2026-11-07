@@ -1,0 +1,14 @@
+# Pinned for the pronunciation audit. Install into a virtual environment outside the repository.
+# Direct dependencies first, then what pip resolved on the recorded run (Python 3.10, macOS arm64).
+faster-whisper==1.1.1
+Metaphone==0.6
+av==17.1.0
+ctranslate2==4.8.5
+huggingface_hub==2.4.0
+numpy==2.2.6
+onnxruntime==1.23.2
+tokenizers==0.23.3
+requests==2.34.2
+urllib3==2.8.0
+certifi==2026.10.23
+charset-normalizer==3.5.2
