@@ -51,7 +51,7 @@ await step('speed switch: Slow', '[data-practice-speed="slow"]', 0.6, 'slow');
 await step('speed switch: Normal', '[data-practice-speed="normal"]', 1, 'normal');
 await step('sentence at Normal', '[data-clue="sentence"]', 1, 'normal');
 check('voice menu stays open while answering', JSON.stringify(await menuState()) === JSON.stringify({ expanded: 'true', hidden: false }));
-await page.fill('#answerInput', 'zzz');
+await page.locator('#answerInput').pressSequentially('zzz');
 await page.press('#answerInput', 'Enter');
 await page.waitForSelector('#nextWord:visible');
 await page.tap('#nextWord');

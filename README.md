@@ -35,7 +35,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 |---|---|
 | **1,155 words** | 911 Study words and 244 Challenge words, each with a definition and its language group. |
 | **Random rounds** | Choose 5, 10, 15, 20 or your own number. Draw from all words, Study only, Challenge only, words you missed, or your starred words. |
-| **Two ways to answer** | *Type the letters*, or *say it out loud* with a grown-up who reveals the spelling and marks it. |
+| **Two ways to answer** | *Type the letters*, or *say it out loud* with a grown-up who reveals the spelling and marks it. The answer box takes only letters the child types one at a time, not dictation, paste or suggestion taps. Limit: the iOS keyboard's microphone key still appears (a web page cannot hide it), and a grown-up can turn Dictation off in iOS Settings. |
 | **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. The clue buttons stay available after you answer, and the sentence then shows the word in bold instead of a blank. |
 | **Review missed words** | Words you miss are saved so you can practice them again. |
 | **Star your own words** | Tap the ☆ on any word, in the word bank or during a round, to save it. Study and Challenge are the original booklet's fixed groups; the star is how you keep your own list. Filter the word bank to starred words only, or start a round from **My starred words**. |
@@ -284,6 +284,7 @@ BASE=http://localhost:8080/ node device-test.mjs      # layout, tap targets, tex
 BASE=http://localhost:8080/ node speed-check.mjs      # plays a word at Normal, Clear and Slow and prints the rates
 BASE=http://localhost:8080/ node persist-check.mjs    # Repeat slowly, then the speed buttons in the voice menu: prints the rate of each play
 BASE=http://localhost:8080/ node after-answer-check.mjs  # clue buttons after an answer (exits 1 on a mismatch)
+BASE=http://localhost:8080/ node typed-only-check.mjs     # answer box rejects multi-character inserts, accepts typed letters (exits 1 on a mismatch)
 ```
 
 It checks that the tab bar fits, that form fields are at least 16 px (iOS Safari zooms the page when you tap a smaller field), that tap targets are at least 44 px, that no text is under 12 px, that nothing overflows sideways, that the page makes no third-party requests, and that a practice round, the word-bank details and stars, and the speed buttons on the Voices tab work by touch. `device-test.mjs` also opens the practice screen's voice and speed menu, checks that it starts closed, opens, stays open after a choice and that Escape closes it and returns focus to the toggle, and runs the tap-target, text-size and overflow checks with the menu open. `persist-check.mjs` covers the menu and Repeat slowly end to end (it checks that the menu starts closed, opens, stays open while answering and closes at the next word, that each press plays exactly once at the right rate, and that the saved speed is right); it exits 1 on a mismatch. Both scripts are manual and are not run by CI, so no workflow guards this control. It is emulation on a desktop machine: it does not use iOS itself, a real speaker, the iOS audio rules, or a screen reader.
