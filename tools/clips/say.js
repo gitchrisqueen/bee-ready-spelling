@@ -84,10 +84,13 @@ export function splitAtWord(sentence, word) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// A copy of how kokoro-js 1.2.1 (tools/clips/package.json) turns text into the phonemes the model reads:
-// its internal function in dist/kokoro.js (normalise the text, split it at punctuation, phonemize the pieces
-// with the `phonemizer` package, then apply the replacements). If kokoro-js changes, re-check this against
-// `tts.stream(text)`, which yields the phonemes it used. `phonemize` is injected: (text, 'en-us') => string[].
+// A hand-made copy of the steps of kokoro-js 1.2.1's internal function in dist/kokoro.js (tools/clips/package.json):
+// normalise the text, split it at punctuation, phonemize the pieces with the `phonemizer` package, then apply the
+// replacements. It has NOT been shown to give the same phonemes as kokoro-js: a first comparison against
+// `tts.stream(text)` (which returns the phonemes it used) did not finish, and no result is recorded.
+// One-time check to run and record (PR comment or README): for a sample of sentences, compare `sentencePhonemes`
+// output with `tts.stream` output, using kokoro-js's own sounds for the bare word as `say`, and count the
+// differences. Re-run it whenever kokoro-js is bumped. `phonemize` is injected: (text, 'en-us') => string[].
 
 const PUNCT_RUN = new RegExp(`(\\s*[${escapeRegExp(PUNCT)}]+\\s*)+`, 'g');
 

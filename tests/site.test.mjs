@@ -246,9 +246,31 @@ test('the fingerprint changes when say is added, changed or removed, and only th
   assert.notEqual(fp('krwɑːsˈɑːn'), fp('krwæsˈɑ̃'));
   assert.equal(fp('krwɑːsˈɑːn'), fp('krwɑːsˈɑːn'));
   assert.notEqual(clipFingerprint('croissant', 'af_bella', 'rev1', 'enc1', undefined), fp(undefined));
-  // Without say the hashed text is the one used before say existed, so existing clips stay valid.
   const before = createHash('sha256').update('croissant|af_heart|rev1|enc1').digest('hex').slice(0, 16);
   assert.equal(fp(undefined), before);
+  // Pinned to literal values copied from the committed clips/af_heart/manifest.json (word and sentence of "abdicate"),
+  // so changing the hashed text for a word without say fails here: that would re-record every existing clip.
+  const revision = '1939ad2a8e416c0acfeecc08a694d14ef25f2231';
+  const encoder = 'mp3-mono-40k-trim-v2';
+  const sentence = 'After ruling for fifty years, the old queen decided to abdicate and let her daughter wear the crown.';
+  assert.equal(clipFingerprint('abdicate', 'af_heart', revision, encoder, undefined), '61c8c8fc2e373a19');
+  assert.equal(clipFingerprint(sentence, 'af_heart', revision, encoder, undefined), '375c76b18c7455bf');
+  const manifestPath = join(root, 'clips/af_heart/manifest.json');
+  if (existsSync(manifestPath)) {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    const { sentenceKey } = await import('../voice-service.js');
+    assert.equal(manifest.abdicate, '61c8c8fc2e373a19', 'the literal must match the committed manifest');
+    assert.equal(manifest[sentenceKey(sentence)], '375c76b18c7455bf', 'the literal must match the committed manifest');
+  }
+});
+
+test('every word with a say can have it placed in its practice sentence', async () => {
+  const { splitAtWord } = await import('../tools/clips/say.js');
+  const { sentenceFor } = await import('../sentences.js');
+  for (const w of words) {
+    if (!Object.hasOwn(w, 'say')) continue;
+    assert.ok(splitAtWord(sentenceFor(w), w.word), `${w.word}: the sentence needs the word once, with a space or punctuation on both sides`);
+  }
 });
 
 test('a sentence is split around its word only when the word is a clean whole word', async () => {

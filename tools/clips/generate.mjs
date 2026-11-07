@@ -166,13 +166,19 @@ if (modelHash !== MODEL_SHA256) {
 // guess is skipped: the sounds go straight to the tokenizer and the model (generate_from_ids is what generate
 // calls last, with the same options), for the word clip and for the sentence clip alike.
 let kokoroPhonemes = null;
+const splitFallbacks = []; // "<voice>/<word>" for each sentence clip made with the split fallback (least verified path)
 async function synthesize({ text, say, word, sentence }, voice) {
   if (say === undefined) return tts.generate(text, { voice, speed: SPEED });
   if (!sentence) return tts.generate_from_ids(sayIds(tts.tokenizer, say, word), { voice, speed: SPEED });
-  // `phonemizer` is a dependency of kokoro-js (same version, hoisted by npm ci); loaded only when a `say` needs it.
+  // `phonemizer` is declared in package.json at the version kokoro-js uses; loaded only when a `say` needs it.
   kokoroPhonemes ??= makeKokoroPhonemizer((await import('phonemizer')).phonemize);
   const phonemes = await sentencePhonemes(text, word, say, kokoroPhonemes, {
-    onFallback: w => console.warn(`${w}: its sounds were not found in the sentence, so the sentence was split at the word`),
+    onFallback: w => {
+      splitFallbacks.push(`${voice}/${w}`);
+      console.warn(`${w}: its sounds were not found in the sentence, so the sentence was split at the word`);
+      // One annotation per word on the run summary page (the word comes from words.json; strip workflow-command characters).
+      if (process.env.GITHUB_ACTIONS) console.log(`::warning::${w.replace(/[\r\n%]/g, ' ')}: split fallback used`);
+    },
   });
   return tts.generate_from_ids(sentenceIds(tts.tokenizer, phonemes, say, word), { voice, speed: SPEED });
 }
@@ -256,6 +262,9 @@ rmSync(work, { recursive: true, force: true });
 if (stoppedAtDeadline) {
   console.error('Stopped at the --max-minutes limit. Finished clips are saved; run again to continue.');
   process.exitCode = 1;
+}
+if (splitFallbacks.length) {
+  console.log(`${splitFallbacks.length} sentence clip(s) used the split fallback: ${splitFallbacks.join(', ')}`);
 }
 if (failures.length) {
   console.error(`${failures.length} clip(s) failed:\n${failures.join('\n')}`);
