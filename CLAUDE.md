@@ -47,6 +47,7 @@ node tools/device-test/device-test.mjs        # iPhone/iPad checks in WebKit (ne
 
 - Form fields are at least 16 px (iOS Safari zooms the page below that). Tap targets are at least 44 px. No text under 12 px.
 - Buttons keep one fixed accessible name; state goes in `aria-pressed` or `aria-expanded`, not in a changing label.
+- `tests/a11y.test.mjs` parses `app.js` as text: keep `initAnswerBox`, `shouldBlockInsert`, `isBigJump` and `BLOCKED_INPUT_TYPES` as written, or update the tests in the same PR.
 - Run `tools/device-test` after any layout change. It is emulation (WebKit with iPhone and iPad presets), not a real device; say so when you report.
 
 ## CI standard (every workflow in this repo)
