@@ -73,7 +73,7 @@ The 241 and 1,155 figures belong to the recorded run. If `words.json` or the cli
 
 The repository owner decides when to rerun the audit and may assign an agent to do it. Rerun it after any change to `words.json` (new or reworded words) or to the voice, model or encoder settings, because the clips and so the transcripts change. A confirmed bad word becomes a spelling-override task in this repository (the override mechanism does not exist yet; see "Fixing one bad clip" in the main README). If the audit fails in a way this page does not explain, open an issue in this repository with the command and its output.
 
-The audit is run by hand. It is not part of `npm test` or CI; the only automated checks on this folder are the syntax checks in `npm test` and the public-repo scan in `tests/workflows.test.mjs`.
+The audit is run by hand. It is not part of `npm test` or CI; the only automated checks on this folder are the syntax checks in `npm test`, the public-repo scan in `tests/workflows.test.mjs`, and the `denylist-guard` workflow, which scans the whole tree and history, this folder included.
 
 ## Reading the result
 

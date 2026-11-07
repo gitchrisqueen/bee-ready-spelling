@@ -40,7 +40,7 @@ Precision check, known-wrong words:
 Method versions:
 
 - Recogniser: faster-whisper 1.1.1 with CTranslate2 4.8.5, model base.en (pinned revision in setup_assets.py), beam_size=5, temperature=0, language=en, compute_type=int8, no VAD, no prompt; voice af_heart; transcription took 1903 s.
-- Phonemes: kokoro-js 1.2.1 and phonemizer 1.2.1 (espeak-ng), language en-us, with kokoro-js's replacements (espeak.mjs lists the one it leaves out).
+- Phonemes: kokoro-js 1.2.1 and phonemizer 1.2.1 (espeak-ng), language en-us, with kokoro-js's replacement rules (espeak.mjs leaves out only the text clean-up before phonemizing: digits, titles, abbreviations).
 - Dictionary: CMU Pronouncing Dictionary (cmudict.dict), pinned commit and SHA-256 in setup_assets.py.
 - Scoring: audit.py in this folder; knobs are at its top. Metaphone 0.6.
 <!-- generated:end -->

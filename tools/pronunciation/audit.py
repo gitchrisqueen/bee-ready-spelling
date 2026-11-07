@@ -478,7 +478,7 @@ def build_summary(rows, flagged, args, asr, esp, words_sha, word_count):
         f"(pinned revision in setup_assets.py), {m['decoding']}; voice {m['voice']}; transcription took "
         f"{m['seconds']} s.",
         f"- Phonemes: kokoro-js {esp['meta']['kokoro-js']} and phonemizer {esp['meta']['phonemizer']} (espeak-ng), "
-        f"language {esp['meta']['lang']}, with kokoro-js's replacements (espeak.mjs lists the one it leaves out).",
+        f"language {esp['meta']['lang']}, with kokoro-js's replacement rules (espeak.mjs leaves out only the text clean-up before phonemizing: digits, titles, abbreviations).",
         "- Dictionary: CMU Pronouncing Dictionary (cmudict.dict), pinned commit and SHA-256 in setup_assets.py.",
         f"- Scoring: audit.py in this folder; knobs are at its top. Metaphone {importlib.metadata.version('Metaphone')}.",
         MARK_END,

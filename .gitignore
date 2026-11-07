@@ -8,3 +8,7 @@ node_modules/
 graft/
 .claude/
 tools/device-test/device-shots/
+__pycache__/
+*.pyc
+*.tmp
+tools/pronunciation/asr-smoke.json
