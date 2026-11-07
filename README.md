@@ -111,6 +111,7 @@ You can also use any static file server. Open `index.html` through a server, not
 | `stars.js` | Starred words: load, save, toggle and clear a set of word ids in `localStorage` (key `bee-ready-starred-v1`). Takes a storage object, so it is tested without a browser |
 | `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
 | `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
+| `tools/pronunciation/` | Pronunciation audit: shortlists words likely to sound wrong. Not part of the deployed site |
 | `tools/device-test/` | Mobile browser checks with real WebKit and iPhone/iPad presets. Not part of the deployed site |
 | `fonts/` | The two web fonts and their license texts |
 | `clips/` | Pre-recorded word and sentence clips, one folder per voice |
@@ -155,6 +156,8 @@ Timings, from my own measurements while building this (no logs are kept in the r
 
 **Fixing one bad clip.** Run **Generate voice clips** with `redo` set to the clip key (for example `blase`). Locally: `node generate.mjs --redo blase`, then commit the change. Recording again uses the same model, voice and settings, so it normally produces the same audio. If a word is mispronounced, re-recording will not fix it. The remedy would be a spelling override (for example a `say` field in `words.json` used as the speech text), which does not exist yet.
 
+**Finding mispronounced words.** The voice guesses some loanwords wrong and nobody can listen to every clip. `tools/pronunciation/` shortlists the words most likely to sound wrong by transcribing the clips and comparing phonemes with a dictionary. It is a triage signal, not a verdict; see [tools/pronunciation/README.md](tools/pronunciation/README.md).
+
 **Adding a voice.**
 1. Add it to `VOICES` in `voice-service.js`, keeping the `kokoro:'id'` form (the workflow reads the list with that pattern; a test checks it). Fill in the `piper` backup voice too, and update the "four voices" wording in this README and the page.
 2. Add its `voices/<id>.bin` to `scripts/fetch-voice-assets.mjs` with the size and SHA-256 from the pinned revision:
@@ -194,6 +197,7 @@ The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three cl
 | The `guard` check (denylist-guard) is red | The scan found a tree or history hit. Its log prints a per-hash table of counts and never the matched text. It blocks every pull request, including a revert. | A tree hit: fix the text on a branch and open a pull request. A history hit needs the owner to clean the history. Only the owner regenerates `denylist.sha256` (it is built outside CI from a private list), so ask the owner. |
 | **Test and deploy** is red at **Check that the live site answers** | The deploy succeeded, so the new build is already live, but one of the four checked URLs did not answer (the page, `words.json`, a clip or the model config). | Open the step log to see which URL failed. Re-run it with a fresh **Run workflow** on `main` if it was a hiccup. If the live site is broken, open a revert pull request (see Roll back) or take the site down at once with Settings → Pages → **Unpublish site**. |
 | `... would replace N (more than 5% fewer)` | The validator thinks an artifact would delete too many clips. | Run again with `force_prune` only if the removal is intended. |
+| `audit.py: refusing to run, nothing was written` (pronunciation audit, run by hand) | An input is incomplete or not the pinned one: a `--limit` transcript file, missing words or clips, a wrong CMUdict checksum, or a `summary.md` without its markers. The committed outputs are untouched. | Read the listed problems and rerun the failed step, as in [tools/pronunciation/README.md](tools/pronunciation/README.md). To undo a bad write: `git checkout -- tools/pronunciation/flagged.json tools/pronunciation/scores.json tools/pronunciation/summary.md`. |
 
 GitHub emails only the person who triggered a run, and a run that a bot starts may notify nobody. Check the **Actions** tab after merging a change to `words.json`, `sentences.js` or the voices. Deploys retry the Hugging Face download and keep a cache of the verified model files (keyed by revision and by a hash of the fetch script, so adding a voice saves a fresh cache), so a short outage does not block a deploy or a rollback. GitHub evicts caches that go unused for 7 days, so the first deploy after a quiet week downloads the files again. If the pinned model is ever removed from Hugging Face for good, upload the same files (same names, same bytes, same SHA-256) to a host you control and change the base URL in `scripts/fetch-voice-assets.mjs`, `tools/clips/generate.mjs` and the model rewrite in `voice-service.js`. If the files themselves change, update every pinned hash and bump `ENCODER`.
 
@@ -201,6 +205,7 @@ GitHub emails only the person who triggered a run, and a run that a bot starts m
 
 - **Owner:** the GitHub account `gitchrisqueen` owns and maintains this site.
 - **Who watches it:** the owner checks the Actions tab after merging changes to words, sentences or voices. There is no separate alert channel.
+- **Pronunciation audit:** the owner decides when to rerun `tools/pronunciation/` (after changes to words or voices) and what to do with a confirmed bad word; see its README, sections "Owner" and "Roll back".
 - **Report a problem or a leak:** use the repository's Security tab → **Report a vulnerability** (private). The steps are in `.github/SECURITY.md`.
 - **Emergency takedown, with no workflow needed:** Settings → Pages → **Unpublish site**. The repository and its history stay as they are; fix the problem, then publish again: set **Settings → Pages → Build and deployment → Source** back to **GitHub Actions** if it was cleared, then run **Test and deploy Bee Ready to GitHub Pages** on `main`.
 
@@ -260,6 +265,7 @@ To roll back the sentence clips themselves (revert the code that adds them): the
 ├── clips/                               Pre-recorded word and sentence clips (4 voices)
 ├── fonts/                               DM Sans and Fredoka (web fonts) and their licenses
 ├── tools/clips/                         Clip generator and its dependencies
+├── tools/pronunciation/                 Audit that shortlists words likely to be mispronounced
 ├── tools/device-test/                   Mobile browser checks (WebKit, iPhone and iPad presets)
 ├── words.json                           1,155-word data set
 ├── assets/                              Three printable PDFs
@@ -296,6 +302,7 @@ Manual checks, not part of CI, with no logs kept (my own observations; the mobil
 
 Other limits:
 
+- The pronunciation audit in `tools/pronunciation/` is run by hand and is not part of CI. `npm test` only syntax-checks its scripts; nothing tests its scoring or the shape of `flagged.json` and `scores.json`. Its shortlist is a triage signal that nobody has listened to, not a verdict.
 - Practice sentences are written for study, not taken from any competition, and are not official clues. A new word without its own sentence gets a generic fallback.
 - Definitions are simplified study explanations, not dictionary entries. Competition rules and word lists vary by organizer.
 - The language group is a label from the booklet. Many words passed through several languages.
