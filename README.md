@@ -194,6 +194,7 @@ The local trial (`node generate.mjs --voice af_heart --limit 3`) writes three cl
 | **Generate voice clips** is green but the site lacks the new clips | The deploy it started failed or never ran. A bot-started run may notify nobody. | Open the latest **Test and deploy** run, read why it failed, and run it again on `main`, and run **denylist-guard** on `main` too (Actions → the workflow → **Run workflow**, branch `main`), because the merge push is skipped by `[skip ci]`. Do not re-run **Generate voice clips** or its commit job: once the clips are on `main` it stops at the stale check. If only `start-deploy` is red, re-run just that job, as in the `Could not start` row above. To see which commit is live, compare the `github-pages` deployment's commit (repository **Deployments**) with the head of `main`. After every clip run, open the deploy run it started. |
 | The `guard` check (denylist-guard) is red | The scan found a tree or history hit. Its log prints a per-hash table of counts and never the matched text. It blocks every pull request, including a revert. | A tree hit: fix the text on a branch and open a pull request. A history hit needs the owner to clean the history. Only the owner regenerates `denylist.sha256` (it is built outside CI from a private list), so ask the owner. |
 | `... would replace N (more than 5% fewer)` | The validator thinks an artifact would delete too many clips. | Run again with `force_prune` only if the removal is intended. |
+| `audit.py: refusing to run, nothing was written` (pronunciation audit, run by hand) | An input is incomplete or not the pinned one: a `--limit` transcript file, missing words or clips, a wrong CMUdict checksum, or a `summary.md` without its markers. The committed outputs are untouched. | Read the listed problems and rerun the failed step, as in [tools/pronunciation/README.md](tools/pronunciation/README.md). To undo a bad write: `git checkout -- tools/pronunciation/flagged.json tools/pronunciation/scores.json tools/pronunciation/summary.md`. |
 
 GitHub emails only the person who triggered a run, and a run that a bot starts may notify nobody. Check the **Actions** tab after merging a change to `words.json`, `sentences.js` or the voices. Deploys retry the Hugging Face download and keep a cache of the verified model files (keyed by revision and by a hash of the fetch script, so adding a voice saves a fresh cache), so a short outage does not block a deploy or a rollback. GitHub evicts caches that go unused for 7 days, so the first deploy after a quiet week downloads the files again. If the pinned model is ever removed from Hugging Face for good, upload the same files (same names, same bytes, same SHA-256) to a host you control and change the base URL in `scripts/fetch-voice-assets.mjs`, `tools/clips/generate.mjs` and the model rewrite in `voice-service.js`. If the files themselves change, update every pinned hash and bump `ENCODER`.
 
@@ -201,6 +202,7 @@ GitHub emails only the person who triggered a run, and a run that a bot starts m
 
 - **Owner:** the GitHub account `gitchrisqueen` owns and maintains this site.
 - **Who watches it:** the owner checks the Actions tab after merging changes to words, sentences or voices. There is no separate alert channel.
+- **Pronunciation audit:** the owner decides when to rerun `tools/pronunciation/` (after changes to words or voices) and what to do with a confirmed bad word; see its README, sections "Owner" and "Roll back".
 - **Report a problem or a leak:** use the repository's Security tab → **Report a vulnerability** (private). The steps are in `.github/SECURITY.md`.
 - **Emergency takedown, with no workflow needed:** Settings → Pages → **Unpublish site**. The repository and its history stay as they are; fix the problem, then publish again: set **Settings → Pages → Build and deployment → Source** back to **GitHub Actions** if it was cleared, then run **Test and deploy Bee Ready to GitHub Pages** on `main`.
 
@@ -296,6 +298,7 @@ Manual checks, not part of CI, with no logs kept (my own observations; the mobil
 
 Other limits:
 
+- The pronunciation audit in `tools/pronunciation/` is run by hand and is not part of CI. `npm test` only syntax-checks its scripts; nothing tests its scoring or the shape of `flagged.json` and `scores.json`. Its shortlist is a triage signal that nobody has listened to, not a verdict.
 - Practice sentences are written for study, not taken from any competition, and are not official clues. A new word without its own sentence gets a generic fallback.
 - Definitions are simplified study explanations, not dictionary entries. Competition rules and word lists vary by organizer.
 - The language group is a label from the booklet. Many words passed through several languages.

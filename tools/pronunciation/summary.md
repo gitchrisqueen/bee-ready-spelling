@@ -3,8 +3,9 @@
 <!-- generated:start (written by audit.py; do not edit by hand) -->
 ## Run summary
 
+- Inputs: words.json SHA-256 `df47f3cad6bb3320c32d5b67108573d0d8dd0e70537eb1b489335501fc7527e8` (1155 words). If `shasum -a 256 words.json` no longer matches, this shortlist is stale.
 - Words scored: 1155. Shortlisted: **241** at score >= 0.25.
-- Signal A (speech round trip): 749 words transcribed exactly as spelled; 406 differ in some way, of which 48 are far from the word (similarity under 0.5). Clips transcribed: 1155; clips missing: 0.
+- Signal A (speech round trip): 749 words transcribed exactly as spelled; 406 differ in some way, of which 48 are far from the word (similarity of 0.5 or less). Clips transcribed: 1155; clips missing: 0.
 - Signal B (espeak against CMUdict): 261 words have no CMUdict entry; 19 have a coarse-phoneme distance of at least 0.30.
 - Signal C (origin prior): 915 words belong to a group with a bump; the bump is at most 0.10 points, so it cannot shortlist a word alone.
 
@@ -39,9 +40,9 @@ Precision check, known-wrong words:
 Method versions:
 
 - Recogniser: faster-whisper 1.1.1 with CTranslate2 4.8.5, model base.en (pinned revision in setup_assets.py), beam_size=5, temperature=0, language=en, compute_type=int8, no VAD, no prompt; voice af_heart; transcription took 1903 s.
-- Phonemes: kokoro-js 1.2.1 and phonemizer 1.2.1 (espeak-ng), language en-us, with kokoro-js's own replacements.
+- Phonemes: kokoro-js 1.2.1 and phonemizer 1.2.1 (espeak-ng), language en-us, with kokoro-js's replacements (espeak.mjs lists the one it leaves out).
 - Dictionary: CMU Pronouncing Dictionary (cmudict.dict), pinned commit and SHA-256 in setup_assets.py.
-- Scoring: audit.py in this folder; knobs are at its top.
+- Scoring: audit.py in this folder; knobs are at its top. Metaphone 0.6.
 <!-- generated:end -->
 
 ## Why this threshold
@@ -50,7 +51,7 @@ The score has no natural cut line, so the threshold was chosen by counting. The 
 
 ## Evidence review (read by a person, not listened to)
 
-Nobody listened to any clip. For each word below I read the evidence in `scores.json`: the transcript, the espeak phonemes, the CMUdict pronunciation, and my own knowledge of how the word is usually said (not checked against a dictionary here, except the CMUdict stress marks). "Likely wrong" and "likely fine" are readings of text, not hearing. The 30 words are not a random sample (the shortlisted ones are every 16th by rank from `flagged.json`; the unflagged ones are the highest-scoring words just under the line plus well-known loanwords), so they give no recall figure and no precision figure.
+Nobody listened to any clip. For each word below I read the evidence in `scores.json`: the transcript, the espeak phonemes, the CMUdict pronunciation, and my own knowledge of how the word is usually said (not checked against a dictionary here, except the CMUdict stress marks). "Likely wrong" and "likely fine" are readings of text, not hearing. The 30 words are not a random sample (the shortlisted ones are every 16th by rank from `flagged.json`; the unflagged ones are words I picked from just under the line, not all of the highest-scoring ones (mercerize at 0.247 and keelhaul, keeshond, mahimahi, malihini, muishond and witloof at 0.242 outscore some of them and are not in the table), plus well-known loanwords), so they give no recall figure and no precision figure.
 
 ### 15 shortlisted words
 

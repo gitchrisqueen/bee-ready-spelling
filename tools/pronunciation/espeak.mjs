@@ -3,9 +3,13 @@
 //   node tools/pronunciation/espeak.mjs <output.json>
 //
 // kokoro-js 1.2.1 phonemizes text with the `phonemizer` package (espeak-ng, language "en-us" for the American
-// voices) and then applies the string replacements below. This file repeats those replacements (from
-// kokoro-js/dist/kokoro.js, function m) for a single word; text normalisation that only touches digits,
-// titles and punctuation cannot change a bare word, except the curly-quote fold, which is kept.
+// voices) and then applies the string replacements in afterPhonemize below, in kokoro-js's order (from
+// kokoro-js/dist/kokoro.js, function m): the eight general replacements, then, for the American voices only,
+// `ti` -> `di` after `nˈaɪn` (the "ninety" rule; no word in words.json is affected).
+// Not repeated: kokoro-js's text clean-up before phonemizing (digits, titles such as "Dr.", spacing, a few
+// abbreviations). Only the curly-quote fold is kept. It was not checked that none of those steps changes a
+// word in words.json, so a word with a digit, a title or an unusual abbreviation would be phonemized
+// slightly differently here than in the generator.
 // Needs `npm ci` in tools/clips first (that installs kokoro-js and phonemizer at the pinned versions).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -19,7 +23,7 @@ const versions = { 'kokoro-js': versionOf('kokoro-js'), phonemizer: versionOf('p
 
 const LANG = 'en-us';
 
-// The same replacements, in the same order, as kokoro-js applies after phonemizing.
+// The same replacements, in the same order, as kokoro-js applies after phonemizing (LANG is American).
 export function afterPhonemize(ipa) {
   return ipa
     .replace(/kəkˈoːɹoʊ/g, 'kˈoʊkəɹoʊ')
@@ -30,6 +34,7 @@ export function afterPhonemize(ipa) {
     .replace(/ɬ/g, 'l')
     .replace(/(?<=[a-zɹː])(?=hˈʌndɹɪd)/g, ' ')
     .replace(/ z(?=[;:,.!?¡¿—…"«»“” ]|$)/g, 'z')
+    .replace(/(?<=nˈaɪn)ti(?!ː)/g, 'di')
     .trim();
 }
 
@@ -45,6 +50,7 @@ if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
   const result = {};
   for (const w of words) result[String(w.id)] = { word: w.word, espeak: await espeakFor(w.word) };
   writeFileSync(out, JSON.stringify({ meta: { ...versions, lang: LANG }, words: result }, null, 1));
-  console.log(`wrote ${out}: ${words.length} words, kokoro-js ${versions['kokoro-js']}, phonemizer ${versions.phonemizer}`);
+  console.log(`wrote ${out}: ${words.length} words, kokoro-js ${versions['kokoro-js']}, ` +
+    `phonemizer ${versions.phonemizer}`);
   process.exit(0);
 }

@@ -9,7 +9,7 @@ Outputs, committed in this folder:
 | File | What it is |
 |---|---|
 | `flagged.json` | The shortlist: `{id, word, group, score, reasons, asr, cmu, espeak}`, highest score first |
-| `scores.json` | Every word with its signals, for checking a word that is not on the shortlist |
+| `scores.json` | `{meta, words}`: `meta` records the `words.json` SHA-256 and word count, the transcript and phoneme tool versions, the threshold and the weights; `words` has every word with its signals, for checking a word that is not on the shortlist |
 | `summary.md` | Counts, the threshold and why, method versions, and a hand-read evidence check |
 
 ## The three signals
@@ -22,7 +22,7 @@ The weights, the threshold and the class tables are at the top of `audit.py`.
 
 ## Run it
 
-Needs Node.js 22 or newer, Python 3.10 or newer, and about 1 GB of free disk in a scratch folder (the Whisper model is about 145 MB). Every download is verified against a SHA-256 in `setup_assets.py`. Nothing below writes into the repository except the three output files; keep the scratch folder outside it.
+Needs Node.js 22 or newer and Python 3.10 or newer. Disk, as measured on the recorded run: about 350 MB for the Python environment, about 141 MB for the Whisper model and 3.5 MB for CMUdict in the scratch folder, plus about 410 MB for `tools/clips/node_modules`. Every download is verified against a SHA-256 in `setup_assets.py`. Nothing below writes into the repository except the three output files (`flagged.json`, `scores.json`, `summary.md`) and `tools/clips/node_modules` (gitignored) from `npm ci`. Keep the scratch folder outside the repository, and keep it until step 5 has finished: a reboot can clear a `/tmp` folder, and step 3 is the slow one.
 
 ```bash
 # from the repository root
@@ -36,8 +36,10 @@ python3 -m venv "$WORK/venv"
 # 2. Pinned CMUdict and Whisper model, each checked against its SHA-256
 "$WORK/venv/bin/python" -I tools/pronunciation/setup_assets.py --work-dir "$WORK" --model base.en
 
-# 3. Signal A: transcribe every word clip
+# 3. Signal A: transcribe every word clip (about 32 minutes; progress prints every 50 words)
 "$WORK/venv/bin/python" -I tools/pronunciation/asr.py --work-dir "$WORK" --model base.en
+#    quick smoke test of the same step; audit.py ignores and refuses this file:
+#    "$WORK/venv/bin/python" -I tools/pronunciation/asr.py --work-dir "$WORK" --model base.en --limit 20 --out asr-smoke.json
 
 # 4. Signal B input: the phonemes kokoro-js feeds the model
 (cd tools/clips && npm ci)
@@ -47,9 +49,31 @@ node tools/pronunciation/espeak.mjs "$WORK/espeak.json"
 "$WORK/venv/bin/python" -I tools/pronunciation/audit.py --work-dir "$WORK"
 ```
 
-`audit.py --threshold 0.35` changes the cut line without re-running the slow steps. `asr.py --limit 20` is a quick smoke test. Rerun step 3 only when the clips change; rerun step 5 when only the weights change. `summary.md` keeps whatever you wrote outside its generated markers.
+The default threshold is 0.25. `audit.py --threshold 0.30` is a stricter example that changes the cut line without re-running the slow steps. Rerun step 3 only when the clips change; rerun step 5 when only the weights or threshold change. `summary.md` keeps whatever you wrote outside its generated markers.
 
-**Runtime.** Step 3 dominates: see `summary.md` for the measured time on the recorded run. Steps 4 and 5 take seconds. Step 2 downloads about 150 MB once.
+`audit.py` refuses to run, writes nothing and exits non-zero when: the transcript file came from `--limit`, is missing words or clips, or covers a different number of words than `words.json`; `espeak.json` does not cover every word or lacks its version fields; `cmudict.dict` is not the pinned file; or `summary.md` lacks its two generated markers. It builds all three outputs in memory and swaps them in through temporary files, so a failed run leaves the committed outputs as they were.
+
+**Time and failure.** On the recorded run, step 3 took 1903 s (about 32 minutes, on a laptop CPU with 4 threads) and the other steps took seconds. Step 3 writes its file once at the end, through a temporary file, and has no resume: if it stops, start it again and it begins at the first word. A missing model folder stops it at once with a message pointing at step 2.
+
+## Verify a run
+
+After step 5, these should hold for the committed data (all at the default threshold 0.25):
+
+- The command prints `1155 words scored, 241 flagged at threshold 0.25`.
+- `summary.md` says 0 clips missing and lists croissant and blasé as in the shortlist.
+- The words.json hash in `summary.md` (also in `scores.json` under `meta`) equals `shasum -a 256 words.json`. If it does not, `words.json` changed after the run and the shortlist is stale: rerun from step 3 if the words or clips changed.
+
+The 241 and 1,155 figures belong to the recorded run. If `words.json` or the clips have changed they will differ, and that is expected; the hash check above is what tells you.
+
+## Roll back
+
+`git checkout -- tools/pronunciation/flagged.json tools/pronunciation/scores.json tools/pronunciation/summary.md` restores the committed outputs.
+
+## Owner
+
+The repository owner decides when to rerun the audit and may assign an agent to do it. Rerun it after any change to `words.json` (new or reworded words) or to the voice, model or encoder settings, because the clips and so the transcripts change. A confirmed bad word becomes a spelling-override task in this repository (the override mechanism does not exist yet; see "Fixing one bad clip" in the main README). If the audit fails in a way this page does not explain, open an issue in this repository with the command and its output.
+
+The audit is run by hand. It is not part of `npm test` or CI; the only automated checks on this folder are the syntax checks in `npm test` and the public-repo scan in `tests/workflows.test.mjs`.
 
 ## Reading the result
 
