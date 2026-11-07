@@ -212,3 +212,53 @@ test('clue buttons stay enabled after an answer, and the sentence then shows the
   assert.match(css, /\.clue-result>strong:first-child\{display:block/);
   assert.doesNotMatch(css, /\.clue-result strong\{/, 'an unscoped rule would turn the bold word into its own line');
 });
+
+const BLOCKED_TYPES = ['insertFromPaste', 'insertFromDrop', 'insertFromDictation', 'insertReplacementText', 'insertFromYank', 'insertFromPasteAsQuotation'];
+
+test('the answer box rejects whole-word insertions (dictation, paste, suggestions) and keeps typed letters', () => {
+  assert.match(html, /<p id="answerNote" class="helper" role="status" aria-live="polite"><\/p>/);
+  assert.match(html, /<\/form>\s*<p id="answerNote"/, 'the note sits right below the answer form');
+  for (const t of BLOCKED_TYPES) {
+    assert.ok(app.includes(`'${t}'`), `${t} must be blocked`);
+  }
+  const box = fn(app, 'initAnswerBox');
+  assert.match(box, /addEventListener\('beforeinput'/);
+  assert.match(box, /e\.preventDefault\(\)/);
+  assert.match(box, /addEventListener\('input'/);
+  assert.match(box, /input\.value=lastGoodValue/);
+  assert.match(box, /setSelectionRange\(lastGoodValue\.length,lastGoodValue\.length\)/);
+  assert.match(fn(app, 'showCurrent'), /\$\('answerInput'\)\.value='';resetAnswerBox\(\);/);
+  assert.match(fn(app, 'resetAnswerBox'), /lastGoodValue='';/);
+  assert.doesNotMatch(box, /focus\(|disabled|classList/, 'no focus move, no disabling, no flash or shake');
+  assert.match(app, /initRound\(\);initAnswerBox\(\);/);
+  assert.match(app, /'Please type the letters yourself, one at a time\.'/);
+  assert.match(app, /setTimeout\(\(\)=>\{note\.textContent='';\},6000\)/);
+});
+
+test('the answer-box rules run: one typed character passes, whole words and the dictation types do not', () => {
+  const src = ['charCount', 'graphemeCount', 'shouldBlockInsert', 'isBigJump'].map(n => fn(app, n)).join('\n');
+  const blocked = app.match(/const BLOCKED_INPUT_TYPES=\[[^\]]*\];/)[0];
+  const { shouldBlockInsert, isBigJump } = new Function(`${blocked}\n${src}; return {shouldBlockInsert,isBigJump};`)();
+  // beforeinput
+  for (const t of BLOCKED_TYPES) {
+    assert.equal(shouldBlockInsert(t, null, false), true, t);
+  }
+  assert.equal(shouldBlockInsert('insertText', 'a', false), false, 'one typed letter');
+  assert.equal(shouldBlockInsert('insertText', 'zzz', false), true, 'more than one character');
+  assert.equal(shouldBlockInsert('insertText', 'zzz', true), false, 'composition is allowed');
+  assert.equal(shouldBlockInsert('insertText', '\u{1F600}', false), false, 'one code point outside the BMP counts as one');
+  assert.equal(shouldBlockInsert('insertText', '\u{1F600}a', false), true);
+  assert.equal(shouldBlockInsert('insertCompositionText', 'é', true), false);
+  assert.equal(shouldBlockInsert('deleteContentBackward', null, false), false);
+  assert.equal(shouldBlockInsert('historyUndo', null, false), false);
+  assert.equal(shouldBlockInsert('historyRedo', null, false), false);
+  // input fallback
+  assert.equal(isBigJump('insertText', 'ab', 'abc', false), false, 'one more character');
+  assert.equal(isBigJump('insertText', 'ab', 'abzzz', false), true, 'three more characters');
+  assert.equal(isBigJump('insertReplacementText', '', 'cummerbund', false), true);
+  assert.equal(isBigJump('insertText', 'ab', 'abzzz', true), false, 'composition is exempt');
+  assert.equal(isBigJump('insertCompositionText', 'ab', 'abzzz', false), false);
+  assert.equal(isBigJump('deleteContentBackward', 'abc', 'ab', false), false);
+  assert.equal(isBigJump('historyUndo', 'a', 'abcdef', false), false, 'undo and redo keep working');
+  assert.equal(isBigJump('insertText', 'ab', 'abé', false), false, 'e plus an accent is one grapheme');
+});

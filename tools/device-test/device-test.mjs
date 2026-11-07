@@ -28,7 +28,7 @@ for (const name of names) {
   flows.hearStatus = await page.evaluate(() => document.getElementById('voiceStatus').textContent.slice(0, 50));
   for (const c of ['definition', 'origin', 'sentence', 'part', 'repeat']) { await page.tap(`[data-clue="${c}"]`); await page.waitForTimeout(200); }
   flows.clue = await page.evaluate(() => document.getElementById('clueResult').innerText.slice(0, 60));
-  await page.fill('#answerInput', 'test'); await page.tap('#answerForm button[type=submit]'); await page.waitForTimeout(200);
+  await page.locator('#answerInput').pressSequentially('test'); await page.tap('#answerForm button[type=submit]'); await page.waitForTimeout(200);
   flows.feedback = await page.evaluate(() => document.getElementById('answerFeedback').innerText.slice(0, 50));
   await page.tap('#nextWord'); await page.waitForTimeout(200);
   flows.next = await page.evaluate(() => document.getElementById('roundNumber').textContent);

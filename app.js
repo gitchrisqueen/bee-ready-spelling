@@ -126,7 +126,7 @@ function showCurrent(){
   $('clueResult').hidden=true;$('clueResult').textContent='';currentRound.answered=false;currentRound.lastClue=null;
   $('answerFeedback').className='feedback hidden';
   $('nextWord').classList.add('hidden');
-  $('answerInput').value='';$('answerInput').disabled=false;$('answerForm').classList.toggle('hidden',currentRound.mode==='oral');
+  $('answerInput').value='';resetAnswerBox();$('answerInput').disabled=false;$('answerForm').classList.toggle('hidden',currentRound.mode==='oral');
   $('oralButtons').classList.toggle('hidden',currentRound.mode!=='oral');
   $('revealOral').classList.remove('hidden');$('gradeOral').classList.add('hidden');
   $('hearWord').disabled=false;paintRoundStar();
@@ -174,6 +174,39 @@ function finishRound(){
   $('summaryHeading').focus({preventScroll:true});
   $('anotherRound').addEventListener('click',startRound);
   $('practiceMissed').addEventListener('click',()=>{$('pool').value='missed';startRound();});
+}
+// Answer box rejects whole-word inserts: input types the browser reports as paste, drop, dictation or suggestion, and multi-character insertText outside composition. Any single character is accepted.
+const BLOCKED_INPUT_TYPES=['insertFromPaste','insertFromDrop','insertFromDictation','insertReplacementText','insertFromYank','insertFromPasteAsQuotation'];
+const TYPED_ONLY_NOTE='Please type the letters yourself, one at a time.';
+let lastGoodValue='';let answerNoteTimer=null;
+function charCount(text){return Array.from(String(text??'')).length;}
+function graphemeCount(text){const t=String(text??'');return typeof Intl!=='undefined'&&Intl.Segmenter?Array.from(new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(t)).length:charCount(t);}
+function shouldBlockInsert(inputType,data,isComposing){
+  if(BLOCKED_INPUT_TYPES.includes(inputType))return true;
+  return inputType==='insertText'&&!isComposing&&charCount(data)>1;
+}
+function isBigJump(inputType,previous,next,isComposing){
+  if(isComposing||/^(history|delete)/.test(inputType||'')||inputType==='insertCompositionText')return false;
+  return graphemeCount(next)>graphemeCount(previous)+1;
+}
+function showAnswerNote(){
+  const note=$('answerNote');note.textContent=TYPED_ONLY_NOTE;
+  clearTimeout(answerNoteTimer);answerNoteTimer=setTimeout(()=>{note.textContent='';},6000);
+}
+function resetAnswerBox(){
+  lastGoodValue='';clearTimeout(answerNoteTimer);answerNoteTimer=null;$('answerNote').textContent='';
+}
+function initAnswerBox(){
+  const input=$('answerInput');
+  input.addEventListener('beforeinput',e=>{
+    if(shouldBlockInsert(e.inputType,e.data,e.isComposing)){e.preventDefault();showAnswerNote();}
+  });
+  input.addEventListener('input',e=>{
+    if(isBigJump(e.inputType,lastGoodValue,input.value,e.isComposing)){
+      input.value=lastGoodValue;input.setSelectionRange(lastGoodValue.length,lastGoodValue.length);showAnswerNote();return;
+    }
+    lastGoodValue=input.value;clearTimeout(answerNoteTimer);$('answerNote').textContent='';
+  });
 }
 function initRound(){
   $('hearWord').addEventListener('click',()=>{const w=currentWord();if(w)voiceService.speak(w.word,{kind:'word',instant:true});});
@@ -338,7 +371,7 @@ function initGrownups(){
   });
 }
 async function main(){
-  initNavigation();initBuilder();initRound();initWordBank();initVoiceSettings();initGrownups();
+  initNavigation();initBuilder();initRound();initAnswerBox();initWordBank();initVoiceSettings();initGrownups();
   updateStats();updateVoiceStatus(voiceService.status);
   try{
     const response=await fetch('./words.json');if(!response.ok)throw new Error(`Word bank download failed (${response.status})`);

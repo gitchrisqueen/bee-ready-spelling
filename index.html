@@ -69,6 +69,7 @@
             <div class="clue-actions" role="group" aria-label="Ask your spelling bee host"><button data-clue="definition">Definition</button><button data-clue="origin">Origin</button><button data-clue="sentence">Sentence</button><button data-clue="part">Part of speech</button><button data-clue="repeat">Repeat slowly</button></div>
             <div class="clue-result" id="clueResult" aria-live="polite" hidden></div>
             <form id="answerForm" autocomplete="off"><label for="answerInput">Spell your word</label><div class="answer-row"><input id="answerInput" type="text" spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off" placeholder="Type the letters here" required><button class="primary-btn" type="submit">Check spelling</button></div></form>
+            <p id="answerNote" class="helper" role="status" aria-live="polite"></p>
             <div id="oralButtons" class="hidden oral-buttons"><button id="revealOral" class="primary-btn">Reveal spelling</button><div id="gradeOral" class="hidden oral-grade"><button class="correct-btn" data-grade="correct"><span aria-hidden="true">✓</span> I got it!</button><button class="review-btn" data-grade="missed"><span aria-hidden="true">↻</span> Practice again</button></div></div>
             <div aria-live="polite"><div id="answerFeedback" class="feedback hidden"></div></div>
             <button id="nextWord" class="primary-btn hidden">Next word <span aria-hidden="true">→</span></button>

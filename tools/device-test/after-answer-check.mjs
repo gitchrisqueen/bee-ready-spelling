@@ -18,7 +18,7 @@ const check = (label, ok, detail = '') => { if (!ok) failed = true; console.log(
 
 await page.tap('[data-clue="sentence"]');
 check('blank before the answer', (await clueHtml()).includes('class="blank"'));
-await page.fill('#answerInput', 'zzz');
+await page.locator('#answerInput').pressSequentially('zzz');
 await page.press('#answerInput', 'Enter');
 await page.waitForSelector('#nextWord:visible');
 check('clue buttons enabled after the answer', (await disabled()).every(d => d === false), JSON.stringify(await disabled()));
