@@ -1,6 +1,7 @@
-// Checks that the practice answer box takes only letters typed one at a time (iPhone 13 WebKit emulation):
-// a multi-character insert (what dictation, paste and suggestion taps do) is rejected with a kind note,
-// while typing, Backspace and a one-character insert still work. Serve the built _site/ first.
+// Checks the practice answer box in iPhone 13 WebKit emulation: a multi-character insert (a stand-in for dictation,
+// paste and suggestion taps) is rejected with a kind note, while typing, Backspace and a one-character insert still work.
+// It cannot tell the beforeinput block from the input-event fallback; tests/a11y.test.mjs covers each rule separately.
+// Serve the built _site/ first.
 //   BASE=http://localhost:8080/ node typed-only-check.mjs
 // Exits 1 on any mismatch. It is emulation, not a real iPhone or a real iOS dictation.
 import { webkit, devices } from 'playwright';

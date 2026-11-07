@@ -175,7 +175,7 @@ function finishRound(){
   $('anotherRound').addEventListener('click',startRound);
   $('practiceMissed').addEventListener('click',()=>{$('pool').value='missed';startRound();});
 }
-// Answer box takes only letters the child types, one at a time: no dictation, paste, drop or suggestion taps.
+// Answer box rejects whole-word inserts: input types the browser reports as paste, drop, dictation or suggestion, and multi-character insertText outside composition. Any single character is accepted.
 const BLOCKED_INPUT_TYPES=['insertFromPaste','insertFromDrop','insertFromDictation','insertReplacementText','insertFromYank','insertFromPasteAsQuotation'];
 const TYPED_ONLY_NOTE='Please type the letters yourself, one at a time.';
 let lastGoodValue='';let answerNoteTimer=null;
