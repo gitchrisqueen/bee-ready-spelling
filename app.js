@@ -14,9 +14,14 @@ const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection
 // The blank is one solid line of the same width for every word (drawn with CSS, not with underscore
 // characters), so its length never hints at how many letters the word has.
 const BLANK_HTML='<span class="blank" role="img" aria-label="blank"></span>';
-function hideWord(sentence,word){
+// reveal=true (after the child has answered) shows the word in bold instead of the blank.
+function hideWord(sentence,word,reveal=false){
   const norm=word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return String(sentence).split(new RegExp(norm,'gi')).map(escapeHtml).join(BLANK_HTML);
+  const re=new RegExp(norm,'gi');
+  const parts=String(sentence).split(re).map(escapeHtml);
+  if(!reveal)return parts.join(BLANK_HTML);
+  const hits=String(sentence).match(re)||[];
+  return parts.map((p,i)=>i<hits.length?`${p}<strong>${escapeHtml(hits[i])}</strong>`:p).join('');
 }
 function comparison(s){return String(s).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US').replace(/[^\p{L}]/gu,'');}
 function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{attempts:{},missed:{},rounds:0};}catch{return {attempts:{},missed:{},rounds:0};}}
@@ -118,7 +123,7 @@ function showCurrent(){
   $('meterFill').style.width=`${100*currentRound.index/currentRound.items.length}%`;
   $('questionHeading').textContent='Your next word is ready!';
   $('questionHint').textContent=currentRound.mode==='oral'?'Ask your grown-up to listen as you spell.':'Hear the word, ask for clues, then type the letters.';
-  $('clueResult').hidden=true;$('clueResult').textContent='';
+  $('clueResult').hidden=true;$('clueResult').textContent='';currentRound.answered=false;currentRound.lastClue=null;
   $('answerFeedback').className='feedback hidden';
   $('nextWord').classList.add('hidden');
   $('answerInput').value='';$('answerInput').disabled=false;$('answerForm').classList.toggle('hidden',currentRound.mode==='oral');
@@ -128,16 +133,16 @@ function showCurrent(){
   document.querySelectorAll('[data-clue]').forEach(b=>b.disabled=false);
   voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');
 }
-function showClue(type){
+function showClue(type,{speak=true}={}){
   const w=currentWord();if(!w)return;
   // One-off slow playback, like hearFromCard: the saved speed (Voices tab) is never changed.
   if(type==='repeat'){voiceService.speak(w.word,{kind:'word',instant:true,speedId:'slow'});return;}
   const clueText = type==='definition'?`<strong>Definition</strong>${escapeHtml(w.definition)}`:
     type==='origin'?`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`:
     type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||'Word')}`:
-    `<strong>In a sentence</strong>${hideWord(sentenceFor(w),w.word)}`;
-  $('clueResult').innerHTML=clueText;$('clueResult').hidden=false;
-  if(type==='sentence')voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});
+    `<strong>In a sentence</strong>${hideWord(sentenceFor(w),w.word,Boolean(currentRound.answered))}`;
+  $('clueResult').innerHTML=clueText;$('clueResult').hidden=false;currentRound.lastClue=type;
+  if(type==='sentence'&&speak)voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});
 }
 function markAnswer(correct){
   const w=currentWord();if(!w)return;
@@ -151,7 +156,10 @@ function markAnswer(correct){
   f.innerHTML=`${correct?'🌟 Great job! You spelled it correctly.':'💛 Good try! Let’s learn the spelling together.'}<span class="correct-word">${escapeHtml(w.word)}</span>`;
   $('answerForm').classList.add('hidden');$('oralButtons').classList.add('hidden');$('nextWord').classList.remove('hidden');
   $('hearWord').disabled=false;
-  document.querySelectorAll('[data-clue]').forEach(b=>b.disabled=true);
+  // The clue buttons stay enabled so the child can still review the word before moving on.
+  // The sentence shows the word instead of a blank once it has been answered.
+  currentRound.answered=true;
+  if(currentRound.lastClue==='sentence')showClue('sentence',{speak:false});
   $('meterFill').style.width=`${100*(currentRound.index+1)/currentRound.items.length}%`;
   $('scoreLabel').textContent=`${currentRound.correct} correct so far`;
   // The focused control (answer box, grade button) just hid, so move focus to the next control instead of losing it to <body>.

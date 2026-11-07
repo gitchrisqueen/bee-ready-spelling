@@ -36,7 +36,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 | **1,155 words** | 911 Study words and 244 Challenge words, each with a definition and its language group. |
 | **Random rounds** | Choose 5, 10, 15, 20 or your own number. Draw from all words, Study only, Challenge only, words you missed, or your starred words. |
 | **Two ways to answer** | *Type the letters*, or *say it out loud* with a grown-up who reveals the spelling and marks it. |
-| **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. |
+| **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. The clue buttons stay available after you answer, and the sentence then shows the word in bold instead of a blank. |
 | **Review missed words** | Words you miss are saved so you can practice them again. |
 | **Star your own words** | Tap the ☆ on any word, in the word bank or during a round, to save it. Study and Challenge are the original booklet's fixed groups; the star is how you keep your own list. Filter the word bank to starred words only, or start a round from **My starred words**. |
 | **Word details** | In the word bank, tap **Details** on any card to see its part of speech, language group, booklet list (Study or Challenge) and practice sentence. Buttons there let you hear the word, hear it slowly, or hear the sentence. Hearing it slowly does not change your saved talking speed. Cards start closed, and open cards close again if you reload the page. |
@@ -218,7 +218,7 @@ Each entry in `words.json` looks like this:
 }
 ```
 
-`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology. `scan_page` is the page in the source booklet and is not shown in the app. `sentence` is the practice sentence read aloud by the "In a sentence" clue (with the word blanked on screen). It must contain the word exactly once, as a whole word. A word without a `sentence` gets a generic fallback sentence from `sentences.js`, so add one when you add a word.
+`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology. `scan_page` is the page in the source booklet and is not shown in the app. `sentence` is the practice sentence read aloud by the "In a sentence" clue (with the word blanked on screen until the child answers, then shown in bold). It must contain the word exactly once, as a whole word. A word without a `sentence` gets a generic fallback sentence from `sentences.js`, so add one when you add a word.
 
 ## Deployment
 
@@ -283,6 +283,7 @@ cd tools/device-test && npm ci && npx playwright install webkit
 BASE=http://localhost:8080/ node device-test.mjs      # layout, tap targets, text size, flows; exit code 1 on a problem
 BASE=http://localhost:8080/ node speed-check.mjs      # plays a word at Normal, Clear and Slow and prints the rates
 BASE=http://localhost:8080/ node persist-check.mjs    # Repeat slowly, then the speed switch: prints the rate of each play
+BASE=http://localhost:8080/ node after-answer-check.mjs  # clue buttons after an answer (exits 1 on a mismatch)
 ```
 
 It checks that the tab bar fits, that form fields are at least 16 px (iOS Safari zooms the page when you tap a smaller field), that tap targets are at least 44 px, that no text is under 12 px, that nothing overflows sideways, that the page makes no third-party requests, and that a practice round, the word-bank details and stars, and the speed buttons on the Voices tab work by touch. `persist-check.mjs` covers the practice screen's speed switch and Repeat slowly (it exits 1 on a wrong rate or saved speed). It is emulation on a desktop machine: it does not use iOS itself, a real speaker, the iOS audio rules, or a screen reader.

@@ -130,3 +130,22 @@ test('the practice screen has a visible speed switch, and Repeat slowly stays a 
   assert.match(app, /if\(type==='repeat'\)\{voiceService\.speak\(w\.word,\{kind:'word',instant:true,speedId:'slow'\}\);return;\}/);
   assert.match(css, /\.practice-speed \.speed-option\{min-height:44px/);
 });
+
+test('clue buttons stay enabled after an answer, and the sentence then shows the word', () => {
+  const mark = fn(app, 'markAnswer');
+  assert.doesNotMatch(mark, /\[data-clue\][^;]*disabled\s*=\s*true/, 'the clue buttons must not be disabled after answering');
+  assert.match(mark, /currentRound\.answered=true;/);
+  assert.match(mark, /if\(currentRound\.lastClue==='sentence'\)showClue\('sentence',\{speak:false\}\)/);
+  assert.match(fn(app, 'showCurrent'), /\[data-clue\]'\)\.forEach\(b=>b\.disabled=false\)/);
+  assert.match(fn(app, 'showCurrent'), /currentRound\.answered=false;currentRound\.lastClue=null;/);
+  // Run the real hideWord with the real escapeHtml: blank before the answer, bold word after it.
+  const escapeHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const BLANK_HTML = '<span class="blank"></span>';
+  const hideWord = new Function('escapeHtml', 'BLANK_HTML', `${fn(app, 'hideWord')}; return hideWord;`)(escapeHtml, BLANK_HTML);
+  assert.equal(hideWord('We met at the plaza <today>.', 'plaza'), `We met at the ${BLANK_HTML} &lt;today&gt;.`);
+  assert.equal(hideWord('We met at the plaza <today>.', 'plaza', true), 'We met at the <strong>plaza</strong> &lt;today&gt;.');
+  assert.equal(hideWord('The Plaza is big.', 'plaza', true), 'The <strong>Plaza</strong> is big.');
+  // Only the clue label is a block; the bold word inside the sentence must stay inline.
+  assert.match(css, /\.clue-result>strong:first-child\{display:block/);
+  assert.doesNotMatch(css, /\.clue-result strong\{/, 'an unscoped rule would turn the bold word into its own line');
+});
