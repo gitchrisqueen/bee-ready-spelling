@@ -5,7 +5,7 @@ Public repository. A static spelling-bee practice site for children, hosted on G
 ## What it is
 
 - Plain HTML, CSS and JavaScript modules. No framework, bundler or backend. No runtime npm dependencies.
-- `words.json` is the word data: id, word, part, definition, group, level, scan_page, sentence.
+- `words.json` is the word data: id, word, part, definition, group, level, scan_page, sentence, and an optional `say`.
 - Speech: recorded clips in `clips/` first, then live Kokoro, then Piper, then the device voice (`voice-service.js`).
 - Everything the child saves (history, stars, voice settings) stays in that browser's local storage and is never sent by the site. GitHub hosts the site and sees visitor IP addresses; the optional live voice also loads files from cdn.jsdelivr.net, esm.sh and huggingface.co.
 - Read `README.md` first: it documents features, the clip pipeline, deployment, the failure runbook and testing.
@@ -41,6 +41,7 @@ node tools/device-test/device-test.mjs        # iPhone/iPad checks in WebKit (ne
 
 - Each word needs a `sentence` that uses the word exactly once, as a whole word (a test checks it). A word without one falls back to a generic sentence, so write one.
 - Do not hand-edit `clips/`, except deleting a removed voice's folder in the commit that removes the voice (README, "Removing a voice"). Change `words.json` or `sentences.js` and let the clip workflow record the difference, or run `tools/clips/generate.mjs`. One bad clip is fixed with `--redo` (see README).
+- A mispronounced word is fixed with the optional `say` field in `words.json` (the word's sounds as IPA in the model's notation, checked by `tools/clips/say.js` and `npm test`), not by re-recording. See README, "Fixing a mispronounced word".
 - The page reads the word count from `words.json`. Do not hard-code 1,155 in code.
 
 ## UI rules (children on phones and tablets)

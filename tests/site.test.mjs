@@ -198,3 +198,136 @@ test('fonts are hosted in the repo and the page makes no request to a font CDN',
   assert.match(css, /@font-face\{font-family:'Fredoka'/);
   assert.match(read('scripts/build.mjs'), /'fonts'/);
 });
+
+// ---- optional `say` override (IPA) per word: tools/clips/say.js, used by the clip generator ----
+
+test('words.json: an optional `say` is valid when present (none is required)', async () => {
+  const { sayProblems } = await import('../tools/clips/say.js');
+  for (const w of words) {
+    if (!Object.hasOwn(w, 'say')) continue;
+    assert.deepEqual(sayProblems(w.say), [], `${w.word}: invalid say`);
+  }
+});
+
+test('say validation accepts model-notation IPA and rejects everything else', async () => {
+  const { sayProblems, SAY_MAX_LENGTH } = await import('../tools/clips/say.js');
+  for (const ok of ['kɹwɑːsˈɑːn', 'kɹwæsˈɑ̃', 'ˌæbdɪkˈeɪt', 'ɐ bˈɪɡ ɹˈɛd', 'a'.repeat(SAY_MAX_LENGTH)]) {
+    assert.deepEqual(sayProblems(ok), [], ok);
+  }
+  const bad = {
+    '': /empty/, '   ': /empty/, ' krwɑːsˈɑːn': /start or end/, 'krwɑːsˈɑːn ': /start or end/,
+    'krwɑː sˈɑːn1': /digits/, k2: /digits/, 'kɹ  wɑː': /two spaces/,
+    [`${'a'.repeat(SAY_MAX_LENGTH)}a`]: /limit/,
+    croissant: /outside the allowed set.*"r".*ɹ/, 'bɪg': /"g"/, 'kˈɑːn.': /"\."/, 'kˈɑːn!': /"!"/,
+    'ka\nb': /U\+000A/, 'ka\tb': /U\+0009/, 'ɑ↗': /U\+2197/, 'ʲa': /U\+02B2/, xa: /"x"/, 'é': /U\+00E9/,
+  };
+  for (const [say, expected] of Object.entries(bad)) {
+    const problems = sayProblems(say);
+    assert.ok(problems.length, `should be rejected: ${JSON.stringify(say)}`);
+    assert.match(problems.join('; '), expected, JSON.stringify(say));
+  }
+  for (const notString of [undefined, null, 5, ['a'], {}]) assert.ok(sayProblems(notString).length);
+});
+
+test('sayOf returns undefined without say and names the word when say is invalid', async () => {
+  const { sayOf } = await import('../tools/clips/say.js');
+  assert.equal(sayOf({ word: 'plaza' }), undefined);
+  assert.equal(sayOf({ word: 'plaza', say: 'plˈɑːzə' }), 'plˈɑːzə');
+  assert.throws(() => sayOf({ word: 'plaza', say: 'plaza2' }), /^Error: plaza: .*digits/);
+  assert.throws(() => sayOf({ word: 'plaza', say: null }), /plaza/);
+});
+
+test('the fingerprint changes when say is added, changed or removed, and only then', async () => {
+  const { clipFingerprint } = await import('../tools/clips/say.js');
+  const { createHash } = await import('node:crypto');
+  const fp = say => clipFingerprint('croissant', 'af_heart', 'rev1', 'enc1', say);
+  assert.equal(fp(undefined), fp(undefined));
+  assert.notEqual(fp(undefined), fp('krwɑːsˈɑːn'));
+  assert.notEqual(fp('krwɑːsˈɑːn'), fp('krwæsˈɑ̃'));
+  assert.equal(fp('krwɑːsˈɑːn'), fp('krwɑːsˈɑːn'));
+  assert.notEqual(clipFingerprint('croissant', 'af_bella', 'rev1', 'enc1', undefined), fp(undefined));
+  // Without say the hashed text is the one used before say existed, so existing clips stay valid.
+  const before = createHash('sha256').update('croissant|af_heart|rev1|enc1').digest('hex').slice(0, 16);
+  assert.equal(fp(undefined), before);
+});
+
+test('a sentence is split around its word only when the word is a clean whole word', async () => {
+  const { splitAtWord } = await import('../tools/clips/say.js');
+  assert.deepEqual(splitAtWord('She ate a croissant.', 'croissant'), { left: 'She ate a ', right: '.' });
+  assert.deepEqual(splitAtWord('Croissant, please!', 'croissant'), { left: '', right: ', please!' });
+  assert.deepEqual(splitAtWord('We said “croissant” twice.', 'croissant'), { left: 'We said “', right: '” twice.' });
+  assert.equal(splitAtWord('A croissant and a croissant.', 'croissant'), null, 'twice');
+  assert.equal(splitAtWord('She ate a pastry.', 'croissant'), null, 'absent');
+  assert.equal(splitAtWord('Two croissants sat there.', 'croissant'), null, 'inside another word');
+  assert.equal(splitAtWord("The croissant's layers were thin.", 'croissant'), null, "'s changes the sounds");
+  assert.equal(splitAtWord('The mid-croissant layer.', 'croissant'), null, 'a hyphen joins it to another word');
+});
+
+test('sentence sounds are left + say + right with the spacing the model sees', async () => {
+  const { makeKokoroPhonemizer, sentencePhonemes } = await import('../tools/clips/say.js');
+  // A stub phonemizer that upper-cases each word. The generator itself runs the real one.
+  const calls = [];
+  const phonemes = makeKokoroPhonemizer(async (text, lang) => {
+    calls.push([text, lang]);
+    return text.toUpperCase().split(' ');
+  });
+  assert.equal(await sentencePhonemes('She ate a croissant.', 'croissant', 'SAY', phonemes), 'SHE ATE A SAY.');
+  assert.equal(await sentencePhonemes('Croissant, please!', 'croissant', 'SAY', phonemes), 'SAY, PLEASE!');
+  assert.equal(await sentencePhonemes('We said “croissant” twice.', 'croissant', 'SAY', phonemes), 'WE SAID "SAY" TWICE.'); // kokoro-js turns curly quotes into straight ones
+  assert.equal(await sentencePhonemes('Croissant', 'croissant', 'SAY', phonemes), 'SAY');
+  assert.ok(calls.every(([, lang]) => lang === 'en-us'));
+  await assert.rejects(
+    sentencePhonemes('A croissant and a croissant.', 'croissant', 'SAY', phonemes),
+    /croissant: cannot place/,
+  );
+});
+
+test('sentence sounds keep the phonemizer\'s in-context sounds, and fall back to splitting when the word changed', async () => {
+  const { makeKokoroPhonemizer, sentencePhonemes } = await import('../tools/clips/say.js');
+  // Stub: "a" is "EY" when it ends the text and "ə" otherwise (like a real phonemizer's reduced little words).
+  const reduce = makeKokoroPhonemizer(async text => {
+    const list = text.split(' ');
+    return list.map((w, i) => (w === 'a' ? (i === list.length - 1 ? 'EY' : 'ə') : w.toUpperCase()));
+  });
+  const fellBack = [];
+  const opts = { onFallback: w => fellBack.push(w) };
+  assert.equal(await sentencePhonemes('She ate a croissant.', 'croissant', 'SAY', reduce, opts), 'SHE ATE ə SAY.');
+  assert.deepEqual(fellBack, [], 'the word was found in the whole sentence, so no fallback');
+  // Stub: the word's sounds differ in context ("CRX") from its sounds alone ("CROISSANT"), so it cannot be found.
+  const changes = makeKokoroPhonemizer(async text => text.split(' ').map(w => (w === 'croissant' && text !== w ? 'CRX' : w.toUpperCase())));
+  assert.equal(await sentencePhonemes('She ate a croissant.', 'croissant', 'SAY', changes, opts), 'SHE ATE A SAY.');
+  assert.deepEqual(fellBack, ['croissant']);
+});
+
+test('the kokoro-js text normalisation is mirrored (numbers, titles, quotes)', async () => {
+  const { normalizeText } = await import('../tools/clips/say.js');
+  assert.equal(normalizeText('  It’s “fine”  '), 'It\'s "fine"');
+  assert.equal(normalizeText('Dr. Smith came in 1999.'), 'Doctor Smith came in 19 99.');
+});
+
+// A fake tokenizer shaped like the real one: 0 before and after, one id per known character, unknown dropped.
+function fakeTokenizer(known) {
+  return text => {
+    const ids = [0, ...[...text].filter(ch => known.has(ch)).map(ch => ch.codePointAt(0)), 0];
+    return { input_ids: { dims: [1, ids.length], ids } };
+  };
+}
+
+test('sayIds fails loudly, naming the word and the characters the tokenizer does not know', async () => {
+  const { sayIds, sentenceIds } = await import('../tools/clips/say.js');
+  const tokenizer = fakeTokenizer(new Set('kɹwɑːsˈn '));
+  assert.equal(sayIds(tokenizer, 'kɹwɑːsˈɑːn', 'croissant').ids.length, 12);
+  assert.throws(() => sayIds(tokenizer, 'kɹwɑːsˈɑ̃n', 'croissant'), /croissant: .*does not know "̃" \(U\+0303\)/);
+  assert.throws(() => sayIds(tokenizer, 'kxw', 'croissant'), /croissant: .*"x" \(U\+0078\)/);
+  assert.throws(() => sentenceIds(tokenizer, 'ʃi ate kɹwæ.', 'kɹwæ', 'croissant'), /croissant: .*"æ"/);
+  assert.equal(sentenceIds(tokenizer, 'sn kɹwɑːn', 'kɹwɑːn', 'croissant').ids.length, 11);
+});
+
+test('every character allowed in say is in the Kokoro vocabulary (when the model files are cached locally)', async () => {
+  const { SAY_CHARS } = await import('../tools/clips/say.js');
+  const model = 'tools/clips/node_modules/@huggingface/transformers/.cache/onnx-community/Kokoro-82M-v1.0-ONNX';
+  const cached = join(root, model, 'tokenizer.json');
+  if (!existsSync(cached)) return; // CI does not download the model; the generator checks again at run time.
+  const vocab = new Set(Object.keys(JSON.parse(readFileSync(cached, 'utf8')).model.vocab));
+  for (const ch of SAY_CHARS) assert.ok(vocab.has(ch), `U+${ch.codePointAt(0).toString(16)} is not in the vocabulary`);
+});
