@@ -45,6 +45,9 @@ Method versions:
 - Scoring: audit.py in this folder; knobs are at its top. Metaphone 0.6.
 <!-- generated:end -->
 
+> Note (after PR #15): `words.json` now has `say` values on 123 words, so its SHA-256 no longer matches the one recorded above even though no word text changed. The shortlist above is the one the `say` values were written from. Rerun the audit on the re-recorded clips to check the overrides.
+
+
 ## Why this threshold
 
 The score has no natural cut line, so the threshold was chosen by counting. The ladder above shows 113 words at 0.30 (under the 150 target), 241 at 0.25 and 357 at 0.20 (over the 300 limit). 0.25 is the round number inside the 150 to 300 range, so the shortlist is 241 words. The counts roughly double between 0.30 and 0.25, so the words just under the line are mostly weak evidence (a transcript that differs by one letter, plus an origin bump). Run `audit.py --threshold 0.30` for a stricter list of 113.

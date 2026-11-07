@@ -61,7 +61,7 @@ After step 5, these should hold for the committed data (all at the default thres
 
 - The command prints `1155 words scored, 241 flagged at threshold 0.25`.
 - `summary.md` says 0 clips missing and lists croissant and blasé as in the shortlist.
-- The words.json hash in `summary.md` (also in `scores.json` under `meta`) equals `shasum -a 256 words.json`. If it does not, `words.json` changed after the run and the shortlist is stale: rerun from step 3 if the words or clips changed.
+- The words.json hash in `summary.md` (also in `scores.json` under `meta`) equals `shasum -a 256 words.json`. If it does not, `words.json` changed after the run and the shortlist is stale: rerun from step 3 if the words or clips changed. After PR #15 added `say` values the hash no longer matches although no word text changed: that mismatch is expected, and rerunning the audit on the re-recorded clips (step 3 onward) is also the check of whether the overrides worked.
 
 The 241 and 1,155 figures belong to the recorded run. If `words.json` or the clips have changed they will differ, and that is expected; the hash check above is what tells you.
 
@@ -71,7 +71,7 @@ The 241 and 1,155 figures belong to the recorded run. If `words.json` or the cli
 
 ## Owner
 
-The repository owner decides when to rerun the audit and may assign an agent to do it. Rerun it after any change to `words.json` (new or reworded words) or to the voice, model or encoder settings, because the clips and so the transcripts change. A confirmed bad word becomes a spelling-override task in this repository (the override mechanism does not exist yet; see "Fixing one bad clip" in the main README). If the audit fails in a way this page does not explain, open an issue in this repository with the command and its output.
+The repository owner decides when to rerun the audit and may assign an agent to do it. Rerun it after any change to `words.json` (new or reworded words) or to the voice, model or encoder settings, because the clips and so the transcripts change. A confirmed bad word becomes a spelling-override task in this repository (add a `say` value; see "Fixing a mispronounced word" in the main README). If the audit fails in a way this page does not explain, open an issue in this repository with the command and its output.
 
 The audit is run by hand. It is not part of `npm test` or CI; the only automated checks on this folder are the syntax checks in `npm test`, the public-repo scan in `tests/workflows.test.mjs`, and the `denylist-guard` workflow, which scans the whole tree and history, this folder included.
 
@@ -79,7 +79,7 @@ The audit is run by hand. It is not part of `npm test` or CI; the only automated
 
 Open `flagged.json`, start at the top, and listen to `clips/af_heart/<key>.mp3` (the key is the lowercase word with accents dropped, for example `blase`). `reasons` says why a word is there; `asr` is what the recogniser heard; `espeak` is what the model was given; `cmu` is the dictionary pronunciation reduced to coarse classes.
 
-A confirmed bad word cannot be fixed by recording it again (see "Fixing one bad clip" in the main README); it needs a spelling override, which does not exist yet.
+A confirmed bad word cannot be fixed by recording it again (see "Fixing one bad clip" in the main README); it needs a spelling override, the `say` field (see "Fixing a mispronounced word" and the Data format section in the main README).
 
 ## Licences and limits
 
