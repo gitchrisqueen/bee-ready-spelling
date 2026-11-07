@@ -116,7 +116,7 @@ function startRound(){
 }
 function currentWord(){return currentRound?.items[currentRound?.index]??null;}
 function showCurrent(){
-  voiceService.stop();
+  voiceService.stop();setVoiceMenu(false);
   const w=currentWord();if(!w){finishRound();return;}
   $('roundNumber').textContent=`WORD ${currentRound.index+1} OF ${currentRound.items.length}`;
   $('scoreLabel').textContent=`${currentRound.correct} correct so far`;
@@ -244,21 +244,38 @@ function initWordBank(){
 }
 function syncVoiceButtons(){
   const settings=voiceService.settings;
-  document.querySelectorAll('[data-voice]').forEach(b=>{
-    const selected=b.dataset.voice===settings.voiceId;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));
+  document.querySelectorAll('[data-voice],[data-practice-voice]').forEach(b=>{
+    const selected=(b.dataset.voice||b.dataset.practiceVoice)===settings.voiceId;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));
   });
+  // The collapsed line on the practice screen names the current voice and speed in plain words.
+  const cur=$('practiceVoiceCurrent');
+  if(cur)cur.textContent=`${(VOICES.find(v=>v.id===settings.voiceId)||VOICES[0]).label} · ${(SPEEDS.find(s=>s.id===settings.speedId)||SPEEDS[0]).label}`;
   document.querySelectorAll('[data-speed],[data-practice-speed]').forEach(b=>{const selected=(b.dataset.speed||b.dataset.practiceSpeed)===settings.speedId;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));});
   const radio=document.querySelector(`input[name="engineMode"][value="${settings.mode}"]`);if(radio)radio.checked=true;
 }
+// Opens or closes the practice voice menu. When it closes while focus is inside the panel, focus goes to the
+// toggle first, so it never falls to <body> (the toggle's name never changes; aria-expanded carries the state).
+function setVoiceMenu(open){
+  const toggle=$('practiceVoiceToggle'),panel=$('practiceVoicePanel');
+  if(!open&&panel.contains(document.activeElement))toggle.focus({preventScroll:true});
+  toggle.setAttribute('aria-expanded',String(open));panel.hidden=!open;
+}
 function initVoiceSettings(){
   $('voiceChoices').innerHTML=VOICES.map((v,i)=>`<button class="voice-card" data-voice="${v.id}" aria-pressed="false"><span class="avatar" aria-hidden="true">${['👩🏽','👩🏻','👨🏽','👨🏻'][i]}</span><strong>${v.label}</strong><small>${v.subtitle}</small><em>${v.gender}</em></button>`).join('');
-  // The speed switch on the practice screen: always visible, so a child can go back to Normal at any time.
-  // Unlike "Repeat slowly" (one word, one time), this saves the speed, the same as the Voices tab.
-  $('practiceSpeed').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-practice-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
-  document.querySelectorAll('[data-practice-speed]').forEach(b=>b.addEventListener('click',()=>{
-    voiceService.select({speedId:b.dataset.practiceSpeed});syncVoiceButtons();
-    const w=currentWord();if(w)voiceService.speak(w.word,{kind:'word',instant:true});
+  // The voice menu on the practice screen: one collapsed line, one tap to open (it starts closed on every page load and every new word).
+  // Unlike "Repeat slowly" (one word, one time), a choice here is saved, the same as the Voices tab, and the word plays once at the new setting.
+  // The panel stays open after a choice (a child may try several) and the pressed button keeps focus.
+  $('practiceVoices').innerHTML=VOICES.map(v=>`<button type="button" class="speed-option" data-practice-voice="${v.id}" aria-pressed="false">${v.label}</button>`).join('');
+  $('practiceSpeed').innerHTML=SPEEDS.map(s=>`<button type="button" class="speed-option" data-practice-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
+  const replay=()=>{const w=currentWord();if(w)voiceService.speak(w.word,{kind:'word',instant:true});};
+  document.querySelectorAll('[data-practice-voice]').forEach(b=>b.addEventListener('click',()=>{
+    voiceService.select({voiceId:b.dataset.practiceVoice});syncVoiceButtons();replay();
   }));
+  document.querySelectorAll('[data-practice-speed]').forEach(b=>b.addEventListener('click',()=>{
+    voiceService.select({speedId:b.dataset.practiceSpeed});syncVoiceButtons();replay();
+  }));
+  $('practiceVoiceToggle').addEventListener('click',()=>setVoiceMenu($('practiceVoiceToggle').getAttribute('aria-expanded')!=='true'));
+  $('practiceVoicePanel').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();setVoiceMenu(false);}});
   $('speedChoices').innerHTML=SPEEDS.map(s=>`<button class="speed-option" data-speed="${s.id}" aria-pressed="false">${s.label}</button>`).join('');
   syncVoiceButtons();
   document.querySelectorAll('[data-voice]').forEach(b=>b.addEventListener('click',()=>{voiceService.select({voiceId:b.dataset.voice});syncVoiceButtons();const w=currentWord();if(w){voiceService.prefetch(w.word);voiceService.prefetch(sentenceFor(w),'sentence');}}));

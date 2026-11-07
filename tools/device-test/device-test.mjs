@@ -34,8 +34,8 @@ for (const name of names) {
   flows.next = await page.evaluate(() => document.getElementById('roundNumber').textContent);
   // word bank
   await page.evaluate(() => { location.hash = 'words'; }); await page.waitForSelector('.word-card');
-  await page.tap('button[aria-expanded]'); await page.waitForTimeout(200);
-  flows.details = await page.evaluate(() => document.querySelector('button[aria-expanded]').getAttribute('aria-expanded'));
+  await page.tap('#wordGrid button[aria-expanded]'); await page.waitForTimeout(200);
+  flows.details = await page.evaluate(() => document.querySelector('#wordGrid button[aria-expanded]').getAttribute('aria-expanded'));
   await page.tap('[data-star-id]'); await page.waitForTimeout(150);
   flows.starCount = await page.evaluate(() => document.getElementById('heroStarred').textContent);
   // voices: tapping a speed plays the sample

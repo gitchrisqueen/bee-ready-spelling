@@ -2,7 +2,7 @@
 // rate of every audio element and the saved speed after each step. Serve the built _site/ first.
 //   BASE=http://localhost:8080/ node persist-check.mjs
 // Expected: Repeat slowly plays at 0.6 and saves nothing; the next word and sentence play at 1; the speed
-// switch Slow plays at 0.6 and saves "slow"; Normal plays at 1 and saves "normal". Exits 1 on any mismatch.
+// switch (opened from the collapsed voice menu) Slow plays at 0.6 and saves "slow"; Normal plays at 1 and saves "normal". Exits 1 on any mismatch.
 import { webkit, devices } from 'playwright';
 const BASE = process.env.BASE || 'http://localhost:8080/';
 const browser = await webkit.launch();
@@ -41,6 +41,8 @@ await step('repeat slowly', '[data-clue="repeat"]', 0.6, null);
 await step('hear word (after slow)', '#hearWord', 1, null);
 await step('sentence clue', '[data-clue="sentence"]', 1, null);
 await step('hear word again', '#hearWord', 1, null);
+// The speed buttons live in the collapsed voice menu: open it first.
+await page.click('#practiceVoiceToggle');
 await step('speed switch: Slow', '[data-practice-speed="slow"]', 0.6, 'slow');
 await step('speed switch: Normal', '[data-practice-speed="normal"]', 1, 'normal');
 await step('sentence at Normal', '[data-clue="sentence"]', 1, 'normal');
