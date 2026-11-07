@@ -42,6 +42,18 @@ for (const name of names) {
   await page.evaluate(() => { location.hash = 'voices'; }); await page.waitForTimeout(300);
   await page.tap('[data-speed="slow"]'); await page.waitForTimeout(500);
   flows.speed = await page.evaluate(() => ({ selected: document.querySelector('[data-speed][aria-pressed="true"]')?.dataset.speed, status: document.getElementById('voiceStatus').textContent.slice(0, 45) }));
+  // practice voice menu: starts closed, a tap opens it, a choice keeps it open, Escape closes it and returns focus to the toggle
+  await page.evaluate(() => { location.hash = 'practice'; }); await page.waitForTimeout(250);
+  const menu = () => page.evaluate(() => ({ expanded: document.getElementById('practiceVoiceToggle').getAttribute('aria-expanded'), hidden: document.getElementById('practiceVoicePanel').hidden }));
+  flows.menuClosed = await menu();
+  await page.tap('#practiceVoiceToggle'); await page.waitForTimeout(200);
+  flows.menuOpen = await menu();
+  await page.tap('#practiceVoicePanel [data-practice-speed="clear"]'); await page.waitForTimeout(300);
+  flows.menuAfterChoice = await menu();
+  await page.focus('#practiceVoicePanel [data-practice-speed="clear"]');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+  flows.menuEscape = { ...(await menu()), focus: await page.evaluate(() => document.activeElement.id) };
+  await page.tap('#practiceVoiceToggle'); await page.waitForTimeout(200); // leave it open: the practice layout check below measures the open panel
   res.flows = flows;
   // layout checks per tab
   res.tabs = {};
@@ -60,6 +72,10 @@ for (const name of names) {
 }
 await browser.close();
 const problems = report.flatMap(d => [
+  ...(d.flows.menuClosed.expanded === 'false' && d.flows.menuClosed.hidden ? [] : [`${d.name}: voice menu is not closed at the start`]),
+  ...(d.flows.menuOpen.expanded === 'true' && !d.flows.menuOpen.hidden ? [] : [`${d.name}: voice menu does not open`]),
+  ...(d.flows.menuAfterChoice.expanded === 'true' ? [] : [`${d.name}: voice menu closes after a choice`]),
+  ...(d.flows.menuEscape.expanded === 'false' && d.flows.menuEscape.hidden && d.flows.menuEscape.focus === 'practiceVoiceToggle' ? [] : [`${d.name}: Escape does not close the voice menu and return focus to the toggle`]),
   ...(d.nav.fits ? [] : [`${d.name}: tab bar does not fit`]),
   ...d.fields.map(f => `${d.name}: field ${f} is under 16px`),
   ...Object.entries(d.tabs).flatMap(([t, v]) => [
