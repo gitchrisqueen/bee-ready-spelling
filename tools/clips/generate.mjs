@@ -7,8 +7,9 @@
 // --dry-run prints how many clips each voice still needs, without loading the model.
 // --max-minutes stops cleanly between clips after that long (progress is saved, exit code 1: run again).
 //
-// Incremental: a clip is regenerated only when its text, voice, model revision or encoder
-// label changes, so adding words to words.json only generates the new ones.
+// Incremental: a clip is regenerated only when its text, voice, model revision, encoder
+// label or the word's optional `say` (IPA override, see say.js) changes, so adding words to
+// words.json only generates the new ones.
 // Output: <repo>/clips/<kokoro voice>/<key>.mp3 plus clips/<voice>/manifest.json.
 // Each word gets a word clip and a sentence clip (the "In a sentence" clue); the voice sample is one more clip.
 // Requires ffmpeg (with libmp3lame) on PATH.
@@ -26,6 +27,7 @@ import { join, resolve } from 'node:path';
 import { KokoroTTS } from 'kokoro-js';
 import { PREVIEW_TEXT, VOICES, clipKey, sentenceKey } from '../../voice-service.js';
 import { sentenceFor } from '../../sentences.js';
+import { clipFingerprint, makeKokoroPhonemizer, sayIds, sayOf, sentenceIds, sentencePhonemes, splitAtWord } from './say.js';
 
 const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const MODEL_REVISION = '1939ad2a8e416c0acfeecc08a694d14ef25f2231';
@@ -49,9 +51,21 @@ const root = resolve(import.meta.dirname, '..', '..');
 const words = JSON.parse(readFileSync(join(root, 'words.json'), 'utf8'));
 const items = [];
 for (const w of words) {
-  items.push({ text: w.word, key: clipKey(w.word) });
+  // `say` (optional, validated here) is the word's sounds as IPA; see say.js and the README.
+  let say;
   const sentence = sentenceFor(w);
-  items.push({ text: sentence, key: sentenceKey(sentence) });
+  try {
+    say = sayOf(w);
+    if (say !== undefined && !splitAtWord(sentence, w.word)) {
+      throw new Error(`${w.word}: cannot place "say" in the sentence (the word must appear once, as a whole word): ${sentence}`);
+    }
+  } catch (err) {
+    // The kokoro-js import below installs a handler that prints a huge dump for uncaught errors; exit plainly instead.
+    console.error(`words.json: ${err.message}`);
+    process.exit(1);
+  }
+  items.push({ text: w.word, key: clipKey(w.word), word: w.word, say });
+  items.push({ text: sentence, key: sentenceKey(sentence), word: w.word, say, sentence: true });
 }
 items.push({ text: PREVIEW_TEXT, key: '_preview' });
 
@@ -101,20 +115,29 @@ if (existsSync(settingsPath)) {
   }
 }
 
-const fingerprint = (text, voice) =>
-  createHash('sha256').update(`${text}|${voice}|${MODEL_REVISION}|${ENCODER}`).digest('hex').slice(0, 16);
+// A word with a `say` override adds it to the fingerprint, so adding, changing or removing `say` re-records
+// exactly that word's word clip and sentence clip. Without `say` the text is exactly what it always was,
+// so every existing fingerprint (and clip) stays valid.
+const fingerprint = (text, voice, say) => clipFingerprint(text, voice, MODEL_REVISION, ENCODER, say);
 
 if (flag('dry-run')) {
   for (const { kokoro: voice } of wanted) {
     const dir = join(root, 'clips', voice);
     const manifestPath = join(dir, 'manifest.json');
     const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
-    const todo = items.filter(({ text, key }) => {
-      return redo.has(key) || !(manifest[key] === fingerprint(text, voice) && existsSync(join(dir, `${key}.mp3`)));
+    const todo = items.filter(({ text, key, say }) => {
+      return redo.has(key) || !(manifest[key] === fingerprint(text, voice, say) && existsSync(join(dir, `${key}.mp3`)));
     });
     const keep = new Set(items.map(item => item.key));
     const stale = existsSync(dir) ? readdirSync(dir).filter(n => n.endsWith('.mp3') && !keep.has(n.slice(0, -4))).length : 0;
     console.log(`${voice}: ${todo.length} clip(s) to generate, ${stale} stale clip(s) a --prune run would delete`);
+    // "changed" = a clip is recorded already but its fingerprint no longer matches (new text, new `say`, or `say` removed).
+    const changed = todo.filter(({ key }) => manifest[key] !== undefined && !redo.has(key));
+    for (const { key, word, say, sentence } of changed.slice(0, 20)) {
+      const kind = sentence ? 'sentence' : 'word';
+      console.log(`  changed: ${key} (${kind} clip for "${word}"${say === undefined ? ', no say' : `, say "${say}"`})`);
+    }
+    if (changed.length > 20) console.log(`  ... and ${changed.length - 20} more changed clip(s)`);
   }
   process.exit(0);
 }
@@ -139,6 +162,27 @@ if (modelHash !== MODEL_SHA256) {
   throw new Error(`Model SHA-256 mismatch: expected ${MODEL_SHA256}, got ${modelHash}. Refusing to generate.`);
 }
 
+// Audio for one clip. Without `say` this is exactly tts.generate (kokoro-js guesses the sounds). With `say` the
+// guess is skipped: the sounds go straight to the tokenizer and the model (generate_from_ids is what generate
+// calls last, with the same options), for the word clip and for the sentence clip alike.
+let kokoroPhonemes = null;
+const splitFallbacks = []; // "<voice>/<word>" for each sentence clip made with the split fallback (least verified path)
+async function synthesize({ text, say, word, sentence }, voice) {
+  if (say === undefined) return tts.generate(text, { voice, speed: SPEED });
+  if (!sentence) return tts.generate_from_ids(sayIds(tts.tokenizer, say, word), { voice, speed: SPEED });
+  // `phonemizer` is declared in package.json at the version kokoro-js uses; loaded only when a `say` needs it.
+  kokoroPhonemes ??= makeKokoroPhonemizer((await import('phonemizer')).phonemize);
+  const phonemes = await sentencePhonemes(text, word, say, kokoroPhonemes, {
+    onFallback: w => {
+      splitFallbacks.push(`${voice}/${w}`);
+      console.warn(`${w}: its sounds were not found in the sentence, so the sentence was split at the word`);
+      // One annotation per word on the run summary page (the word comes from words.json; strip workflow-command characters).
+      if (process.env.GITHUB_ACTIONS) console.log(`::warning::${w.replace(/[\r\n%]/g, ' ')}: split fallback used`);
+    },
+  });
+  return tts.generate_from_ids(sentenceIds(tts.tokenizer, phonemes, say, word), { voice, speed: SPEED });
+}
+
 const work = mkdtempSync(join(tmpdir(), 'bee-clips-'));
 const failures = [];
 
@@ -152,9 +196,10 @@ for (const { kokoro: voice } of wanted) {
   };
   let made = 0;
   const started = Date.now();
-  for (const { text, key } of items) {
+  for (const item of items) {
+    const { text, key, say } = item;
     const file = join(dir, `${key}.mp3`);
-    const print = fingerprint(text, voice);
+    const print = fingerprint(text, voice, say);
     if (!redo.has(key) && manifest[key] === print && existsSync(file)) continue;
     if (made >= limit) break;
     if (Date.now() > deadline) {
@@ -163,7 +208,7 @@ for (const { kokoro: voice } of wanted) {
     }
     try {
       const wav = join(work, `${voice}.wav`);
-      const audio = await tts.generate(text, { voice, speed: SPEED });
+      const audio = await synthesize(item, voice);
       await audio.save(wav);
       // Encode outside clips/ and copy in only after the clip is checked, so an interrupted run
       // can never leave a truncated file behind or overwrite a good clip with a bad one.
@@ -217,6 +262,9 @@ rmSync(work, { recursive: true, force: true });
 if (stoppedAtDeadline) {
   console.error('Stopped at the --max-minutes limit. Finished clips are saved; run again to continue.');
   process.exitCode = 1;
+}
+if (splitFallbacks.length) {
+  console.log(`${splitFallbacks.length} sentence clip(s) used the split fallback: ${splitFallbacks.join(', ')}`);
 }
 if (failures.length) {
   console.error(`${failures.length} clip(s) failed:\n${failures.join('\n')}`);
