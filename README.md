@@ -218,7 +218,7 @@ Each entry in `words.json` looks like this:
 }
 ```
 
-`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology. `scan_page` is the page in the source booklet and is not shown in the app. `sentence` is the practice sentence read aloud by the "In a sentence" clue (with the word blanked on screen). It must contain the word exactly once, as a whole word. A word without a `sentence` gets a generic fallback sentence from `sentences.js`, so add one when you add a word.
+`level` is `Study` or `Challenge`. `group` is the language group from the source booklet, not a full etymology. `scan_page` is the page in the source booklet and is not shown in the app. `sentence` is the practice sentence read aloud by the "In a sentence" clue (with the word blanked on screen until the child answers, then shown in bold). It must contain the word exactly once, as a whole word. A word without a `sentence` gets a generic fallback sentence from `sentences.js`, so add one when you add a word.
 
 ## Deployment
 
@@ -283,6 +283,7 @@ cd tools/device-test && npm ci && npx playwright install webkit
 BASE=http://localhost:8080/ node device-test.mjs      # layout, tap targets, text size, flows; exit code 1 on a problem
 BASE=http://localhost:8080/ node speed-check.mjs      # plays a word at Normal, Clear and Slow and prints the rates
 BASE=http://localhost:8080/ node persist-check.mjs    # Repeat slowly, then the speed switch: prints the rate of each play
+BASE=http://localhost:8080/ node after-answer-check.mjs  # clue buttons after an answer (exits 1 on a mismatch)
 ```
 
 It checks that the tab bar fits, that form fields are at least 16 px (iOS Safari zooms the page when you tap a smaller field), that tap targets are at least 44 px, that no text is under 12 px, that nothing overflows sideways, that the page makes no third-party requests, and that a practice round, the word-bank details and stars, and the speed buttons on the Voices tab work by touch. `persist-check.mjs` covers the practice screen's speed switch and Repeat slowly (it exits 1 on a wrong rate or saved speed). It is emulation on a desktop machine: it does not use iOS itself, a real speaker, the iOS audio rules, or a screen reader.

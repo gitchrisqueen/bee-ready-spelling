@@ -145,4 +145,7 @@ test('clue buttons stay enabled after an answer, and the sentence then shows the
   assert.equal(hideWord('We met at the plaza <today>.', 'plaza'), `We met at the ${BLANK_HTML} &lt;today&gt;.`);
   assert.equal(hideWord('We met at the plaza <today>.', 'plaza', true), 'We met at the <strong>plaza</strong> &lt;today&gt;.');
   assert.equal(hideWord('The Plaza is big.', 'plaza', true), 'The <strong>Plaza</strong> is big.');
+  // Only the clue label is a block; the bold word inside the sentence must stay inline.
+  assert.match(css, /\.clue-result>strong:first-child\{display:block/);
+  assert.doesNotMatch(css, /\.clue-result strong\{/, 'an unscoped rule would turn the bold word into its own line');
 });
