@@ -121,14 +121,77 @@ test('switching tabs by click moves focus to the new page heading, and page load
   assert.match(css, /h1:focus,h2:focus/);
 });
 
-test('the practice screen has a visible speed switch, and Repeat slowly stays a one-time slow play', () => {
+test('the practice screen has one collapsed voice menu, and Repeat slowly stays a one-time slow play', () => {
+  // The toggle: one fixed name, state only in aria-expanded, panel linked by aria-controls, starts collapsed.
+  const toggle = html.match(/<button type="button" class="voice-toggle" id="practiceVoiceToggle"([^>]*)>([^<]*)<span class="chev" aria-hidden="true">[^<]*<\/span><\/button>/);
+  assert.ok(toggle, 'toggle button not found');
+  assert.equal(toggle[2].trim(), 'Voice and speed', 'one fixed accessible name');
+  assert.match(toggle[1], /aria-expanded="false"/, 'starts collapsed');
+  assert.match(toggle[1], /aria-controls="practiceVoicePanel"/);
+  assert.doesNotMatch(toggle[1], /aria-label=/, 'the name is the visible text, never a changing label');
+  assert.match(html, /<div class="practice-voice-panel" id="practiceVoicePanel" hidden>/, 'panel starts hidden');
+  // The current voice and speed are plain text beside the button, not part of its name.
+  assert.match(html, /<span class="practice-voice-current" id="practiceVoiceCurrent">[^<]*<\/span><button type="button" class="voice-toggle"/);
+  // Nothing in app.js ever rewrites the toggle's text or label.
+  assert.doesNotMatch(app, /practiceVoiceToggle'\)\.(textContent|innerHTML|innerText)/);
+  assert.doesNotMatch(app, /practiceVoiceToggle'\)\.setAttribute\('aria-label'/);
+  assert.doesNotMatch(html, /id="practiceSpeed" class="segmented" role="group" aria-labelledby="practiceSpeedLabel"><\/div><\/div><div class="clue-actions"/, 'the speed row is no longer always open outside the panel');
+  // Panel contents come from VOICES and SPEEDS, with fixed names and state in aria-pressed.
+  assert.match(app, /\$\('practiceVoices'\)\.innerHTML=VOICES\.map\(v=>`<button type="button" class="speed-option" data-practice-voice="\$\{v\.id\}" aria-pressed="false">\$\{v\.label\}<\/button>`\)/);
+  assert.match(app, /\$\('practiceSpeed'\)\.innerHTML=SPEEDS\.map\(s=>`<button type="button" class="speed-option" data-practice-speed="\$\{s\.id\}" aria-pressed="false">\$\{s\.label\}<\/button>`\)/);
+  assert.match(html, /<div id="practiceVoices" class="segmented" role="group" aria-labelledby="practiceVoiceLabel">/);
   assert.match(html, /<div id="practiceSpeed" class="segmented" role="group" aria-labelledby="practiceSpeedLabel">/);
-  assert.match(html, /id="practiceSpeedLabel">Voice speed</);
-  assert.match(app, /data-practice-speed="\$\{s\.id\}" aria-pressed="false">\$\{s\.label\}</, 'one button per speed, fixed names, state in aria-pressed');
-  assert.match(app, /voiceService\.select\(\{speedId:b\.dataset\.practiceSpeed\}\)/);
-  assert.match(app, /\[data-speed\],\[data-practice-speed\]/, 'both speed groups stay in sync');
+  // A choice does what the Voices tab does, replays the word once, and does not collapse the panel.
+  const init = fn(app, 'initVoiceSettings');
+  assert.match(init, /voiceService\.select\(\{voiceId:b\.dataset\.practiceVoice\}\);syncVoiceButtons\(\);replay\(\)/);
+  assert.match(init, /voiceService\.select\(\{speedId:b\.dataset\.practiceSpeed\}\);syncVoiceButtons\(\);replay\(\)/);
+  assert.match(init, /const replay=\(\)=>\{const w=currentWord\(\);if\(w\)voiceService\.speak\(w\.word,\{kind:'word',instant:true\}\);\};/);
+  const choices = init.slice(init.indexOf('data-practice-voice]'), init.indexOf("$('practiceVoiceToggle').addEventListener"));
+  assert.ok(!choices.includes('setVoiceMenu'), 'choosing a voice or speed leaves the panel open');
+  // syncVoiceButtons keeps every copy in step and updates the current-values line.
+  const sync = fn(app, 'syncVoiceButtons');
+  assert.match(sync, /\[data-voice\],\[data-practice-voice\]/);
+  assert.match(sync, /\(b\.dataset\.voice\|\|b\.dataset\.practiceVoice\)===settings\.voiceId/);
+  assert.match(sync, /\[data-speed\],\[data-practice-speed\]/);
+  assert.match(sync, /practiceVoiceCurrent/);
+  assert.match(sync, /VOICES\.find\(v=>v\.id===settings\.voiceId\)/);
+  // Open and close: the toggle flips aria-expanded; a new word closes the panel with one added call.
+  assert.match(init, /\$\('practiceVoiceToggle'\)\.addEventListener\('click',\(\)=>setVoiceMenu\(\$\('practiceVoiceToggle'\)\.getAttribute\('aria-expanded'\)!=='true'\)\)/);
+  assert.match(fn(app, 'showCurrent'), /voiceService\.stop\(\);setVoiceMenu\(false\);/);
+  assert.match(app, /\$\('practiceVoicePanel'\)\.addEventListener\('keydown',e=>\{if\(e\.key==='Escape'\)\{e\.preventDefault\(\);setVoiceMenu\(false\);\}\}\)/);
+  // Focus goes to the toggle before the panel hides, so it never falls to <body>.
+  const menu = fn(app, 'setVoiceMenu');
+  const focusAt = menu.indexOf('toggle.focus(');
+  assert.ok(focusAt > 0 && focusAt < menu.indexOf('panel.hidden=!open'), 'move focus before hiding');
+  assert.match(menu, /if\(!open&&panel\.contains\(document\.activeElement\)\)toggle\.focus\(/);
+  // Repeat slowly is unchanged.
   assert.match(app, /if\(type==='repeat'\)\{voiceService\.speak\(w\.word,\{kind:'word',instant:true,speedId:'slow'\}\);return;\}/);
-  assert.match(css, /\.practice-speed \.speed-option\{min-height:44px/);
+  // Size and wrapping.
+  assert.match(css, /\.voice-toggle\{min-width:44px;min-height:44px/);
+  assert.match(css, /\.practice-voice-panel \.speed-option\{min-height:44px/);
+  assert.match(css, /\.practice-voice-panel\[hidden\]\{display:none\}/);
+});
+
+test('the voice menu logic runs: closing with focus inside moves focus to the toggle first', () => {
+  const calls = [];
+  const toggle = { attrs: {}, setAttribute(k, v) { calls.push(`toggle.${k}=${v}`); this.attrs[k] = v; }, focus() { calls.push('focus'); } };
+  const panel = { hidden: true, contains: el => el === 'inside' };
+  const doc = { activeElement: 'inside' };
+  const $ = id => ({ practiceVoiceToggle: toggle, practiceVoicePanel: panel })[id];
+  const setVoiceMenu = new Function('$', 'document', `${fn(app, 'setVoiceMenu')}; return setVoiceMenu;`)($, doc);
+  setVoiceMenu(true);
+  assert.equal(panel.hidden, false);
+  assert.equal(toggle.attrs['aria-expanded'], 'true');
+  assert.ok(!calls.includes('focus'), 'opening does not move focus');
+  calls.length = 0;
+  setVoiceMenu(false);
+  assert.equal(calls[0], 'focus', 'focus moves to the toggle before anything is hidden');
+  assert.equal(panel.hidden, true);
+  assert.equal(toggle.attrs['aria-expanded'], 'false');
+  doc.activeElement = 'outside';
+  calls.length = 0;
+  setVoiceMenu(false);
+  assert.ok(!calls.includes('focus'), 'no focus move when focus is elsewhere');
 });
 
 test('clue buttons stay enabled after an answer, and the sentence then shows the word', () => {
