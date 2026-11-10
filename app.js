@@ -1,7 +1,7 @@
 import { BeeVoiceService, VOICES, SPEEDS } from './voice-service.js';
 import { sentenceFor } from './sentences.js';
 import { loadStars, saveStars, toggleStar, clearStars } from './stars.js';
-import { wordCardHtml } from './wordcard.js';
+import { wordCardHtml, UNKNOWN_ORIGIN, NOT_KNOWN_YET } from './wordcard.js';
 import { MINE_ENABLED } from './mine/config.js';
 const $ = id => document.getElementById(id);
 const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -151,8 +151,8 @@ function showClue(type,{speak=true}={}){
   // One-off slow playback, like hearFromCard: the saved speed (Voices tab) is never changed.
   if(type==='repeat'){voiceService.speak(w.word,{kind:'word',instant:true,speedId:'slow'});return;}
   const clueText = type==='definition'?`<strong>Definition</strong>${escapeHtml(w.definition)}`:
-    type==='origin'?(w.custom?`<strong>Origin</strong>${escapeHtml(w.group)}`:`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`): // preflight: ok
-    type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||'Word')}`:
+    type==='origin'?(w.custom?`<strong>Origin</strong>${escapeHtml(w.group===UNKNOWN_ORIGIN?NOT_KNOWN_YET:w.group)}`:`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`): // preflight: ok
+    type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||(w.custom?NOT_KNOWN_YET:'Word'))}`:
     `<strong>In a sentence</strong>${hideWord(sentenceFor(w),w.word,Boolean(currentRound.answered))}`;
   $('clueResult').innerHTML=clueText;$('clueResult').hidden=false;currentRound.lastClue=type;
   if(type==='sentence'&&speak)voiceService.speak(sentenceFor(w),{kind:'sentence',instant:true});

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { wordCardHtml, detailsData, detailsPanelId, wordTitleId, toggleLabel, starLabelDefault, ORIGIN_NOTE, BOOKLET_NOTE } from '../wordcard.js';
+import {
+  wordCardHtml, detailsData, detailsPanelId, wordTitleId, toggleLabel, starLabelDefault, ORIGIN_NOTE, BOOKLET_NOTE,
+  UNKNOWN_ORIGIN, NOT_KNOWN_YET,
+} from '../wordcard.js';
 import { sentenceFor } from '../sentences.js';
 
 const POS = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', interj: 'interjection' };
@@ -163,3 +166,37 @@ test('a My words card has no booklet row, and credits only the two Wiktionary ho
   assert.ok(card({ word: 'cat' }).includes('Booklet list'), 'a default card is unchanged');
   assert.equal(card({ word: 'cat' }).includes('source-credit'), false);
 });
+
+test('a My words card prints only what is known: no "Mine" tag and no placeholder "word" next to the title', () => {
+  const meta = html => /<div class="word-meta">([^<]*)<\/div>/.exec(html)[1];
+  const mine = { custom: true, level: 'Mine', word: 'tear' };
+  assert.equal(meta(card({ ...mine, group: 'Old English', part: 'n' })), 'Old English · noun');
+  assert.equal(meta(card({ ...mine, group: UNKNOWN_ORIGIN, part: 'n' })), 'noun');
+  assert.equal(meta(card({ ...mine, group: 'Latin', part: '' })), 'Latin');
+  assert.equal(meta(card({ ...mine, group: UNKNOWN_ORIGIN, part: '' })), 'My word');
+  for (const part of ['', undefined, 'zzz']) {
+    assert.equal(/Mine|· word</.test(card({ ...mine, group: UNKNOWN_ORIGIN, part })), false, String(part));
+  }
+  assert.equal(meta(card({ word: 'cat' })), 'Latin · Study · verb', 'a default card keeps its three tags');
+});
+
+test('a My words card says "Not known yet" for an unknown part or origin, not a repeated label', () => {
+  const html = card({ custom: true, level: 'Mine', word: 'quay', group: UNKNOWN_ORIGIN, part: '' });
+  assert.ok(html.includes(`<dt>Part of speech</dt><dd>${NOT_KNOWN_YET}</dd>`));
+  assert.ok(html.includes(`<dt>Origin</dt><dd>${NOT_KNOWN_YET}`));
+  assert.equal(html.includes('Origin not available'), false);
+  assert.equal(detailsData({ ...base, part: '' }, POS, sentenceFor).part, 'Not listed', 'a default card is unchanged');
+});
+
+test('the page ships the My words speller screens closed: words are behind "for grown-ups" controls', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<div id="mineLinkCard"[^>]* hidden>/, 'the link card starts hidden');
+  assert.match(html, /<details id="mineWordsBox"[^>]*>(?!.*\bopen\b)/s, 'the saved words start closed');
+  assert.equal(/<details id="mineWordsBox"[^>]*\bopen\b/.test(html), false);
+  assert.equal(/<details id="mineLinkGrownups"[^>]*\bopen\b/.test(html), false);
+  assert.match(html, /Grown-ups: check the words first/);
+  assert.match(html, /Start practising/);
+  const card = /<div id="mineLinkCard"[\s\S]*?<\/details>\s*<\/div>/.exec(html)[0];
+  assert.equal(/mineChips|mineWordList/.test(card), false, 'the link card holds no word list');
+});
+

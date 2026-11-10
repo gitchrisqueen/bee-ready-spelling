@@ -12,6 +12,15 @@ const creditHtml = w => {
   const links = hosts.map(link);
   return `<p class="source-credit">Source: ${links.join(', ')} (CC BY-SA 4.0)</p>`;
 };
+// A child's own word has no booklet group. Where the origin or part of speech is not known, the card says nothing
+// instead of printing a placeholder such as "Mine" or "word" next to the title.
+export const UNKNOWN_ORIGIN = 'Origin not available';
+export const NOT_KNOWN_YET = 'Not known yet';
+const metaLine = (w,part) => {
+  if(!w.custom) return `${escapeHtml(w.group)} · ${escapeHtml(w.level)} · ${escapeHtml(part||'word')}`;
+  const known = [w.group===UNKNOWN_ORIGIN ? '' : String(w.group??'').trim(), part].filter(Boolean);
+  return escapeHtml(known.length ? known.join(' · ') : 'My word');
+};
 export const ORIGIN_NOTE = "This group is only a hint. It is not the whole story of where the word came from.";
 export const BOOKLET_NOTE = "These are the original booklet's fixed groups. To save your own words, press the Star button (☆) on a word.";
 const idKey = id => String(id).replace(/[^A-Za-z0-9_-]/g,'_');
@@ -28,17 +37,17 @@ export function detailsData(w,POS,sentenceFor){
   let sentence = '';
   try{ sentence = String(sentenceFor(w)??'').trim(); }catch{}
   return {
-    part: part || 'Not listed',
-    origin: String(w.group??'').trim() || 'Not listed',
+    part: part || (w.custom ? NOT_KNOWN_YET : 'Not listed'),
+    origin: w.custom && w.group===UNKNOWN_ORIGIN ? NOT_KNOWN_YET : (String(w.group??'').trim() || 'Not listed'),
     booklet: w.level==='Study'||w.level==='Challenge' ? w.level : (String(w.level??'').trim() || 'Not listed'),
     sentence: sentence || 'No sentence yet.',
   };
 }
 export function wordCardHtml(w,POS,sentenceFor,{starred=false,open=false,starLabel=starLabelDefault}={}){
   const d = detailsData(w,POS,sentenceFor), id = escapeHtml(w.id), panel = detailsPanelId(w.id), title = wordTitleId(w.id), word = escapeHtml(w.word);
-  const metaPart = POS && Object.hasOwn(POS,w.part) ? POS[w.part] : 'word';
+  const metaPart = POS && Object.hasOwn(POS,w.part) ? POS[w.part] : '';
   const row = (label,value,note='') => `<div class="details-row"><dt>${label}</dt><dd>${escapeHtml(value)}${note?`<small class="details-note">${escapeHtml(note)}</small>`:''}</dd></div>`;
-  return `<article class="word-card" aria-labelledby="${title}"><div class="word-meta">${escapeHtml(w.group)} · ${escapeHtml(w.level)} · ${escapeHtml(metaPart)}</div><h3 id="${title}">${word}</h3><p>${escapeHtml(w.definition)}</p>`
+  return `<article class="word-card" aria-labelledby="${title}"><div class="word-meta">${metaLine(w,metaPart)}</div><h3 id="${title}">${word}</h3><p>${escapeHtml(w.definition)}</p>`
     + `<div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${id}" aria-label="Listen to ${word}"><span aria-hidden="true">🔊</span> Listen</button><button class="star-btn" data-star-id="${id}" aria-pressed="${starred}" aria-label="${escapeHtml(starLabel(w,starred))}"><span class="star-glyph" aria-hidden="true">${starred?'★':'☆'}</span></button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer" aria-label="Dictionary entry for ${word} (opens in a new tab)">Dictionary <span aria-hidden="true">↗</span></a></div>`
     + `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w))}">Details <span class="chev" aria-hidden="true">▸</span></button>`
     + `<div class="word-details" id="${panel}"${open?'':' hidden'}><dl class="details-list">`

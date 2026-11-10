@@ -139,3 +139,12 @@ The entry checks above were run in the Phase 1 pull request. The parser figures 
 | Browser check | `tools/device-test/mine-check.mjs`, iPhone SE and iPad (gen 7) presets, Chromium emulation (WebKit could not start on the build machine): the sample link shows the three words for review with the list's name, the only request beyond the page files is `lists/<id>.json` on this site, nothing is stored until Save, and an unknown id shows "does not include the words". |
 | Growth tooling | `build.mjs --extra-words <file>` (parser in `tools/library/wordlist.mjs`, tested) adds words after the NGSL seed, requires `# source:` and `# licence:` lines and credits them in `library/NOTICE.md`. The shipped library was not regrown in this phase: it is still the NGSL seed, so no new library text exists to be read. |
 | Not tested | WebKit, a real device and a screen reader; a published list that is long (200 words) on a phone; a list file served with a stale cache after an edit. |
+
+## Shared-link screen and plain labels (follow-up to Phase 3)
+
+The first live use showed two problems. A link opened the full review editor, so a speller saw every word and could not hide them, and the list was not started. Word cards also printed labels a child cannot read ("Mine", and a placeholder "word" where the part of speech was not known).
+
+- A link now opens a card with the list name and word count, a **Start practising** button, and a closed **Grown-ups: check the words first** control. Start saves the list under its own name and begins a round. The saved word list and the Word bank in My words are closed by default behind "Show the words in this list (for grown-ups)".
+- Word cards show only what is known (origin and part of speech), or "My word". An unknown part or origin reads "Not known yet" instead of repeating the label. The default list's cards are unchanged.
+- "Filter by group" is now "Filter by origin".
+- Checks: `tools/device-test/mine-check.mjs` (links, Start, hidden saved words, gated Word bank, card tags) and `tests/wordcard.test.mjs`. Emulation only; not tested on a real device or with a screen reader.

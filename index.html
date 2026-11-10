@@ -35,14 +35,23 @@
         </div>
         <section id="mineRoot" class="panel mine-panel" aria-labelledby="mineTitle" hidden>
           <div class="section-title"><div><span class="mini-kicker">MY WORDS</span><h2 id="mineTitle" tabindex="-1">Practice your own list</h2></div></div>
-          <p class="helper">Type or paste this week's words. Words already in Bee Ready come right in. For new words we look for a definition, part of speech, origin and sentence. Your lists stay in this browser.</p>
-          <div class="form-row">
+          <div id="mineLinkCard" class="mine-link-card" hidden>
+            <h3 id="mineLinkTitle" tabindex="-1">Your spelling list is ready</h3>
+            <p id="mineLinkText" class="helper"></p>
+            <div class="mine-actions"><button type="button" id="mineLinkStart" class="primary-btn">Start practising</button></div>
+            <details id="mineLinkGrownups" class="mine-reveal">
+              <summary>Grown-ups: check the words first</summary>
+              <p class="helper">The words stay hidden from the speller until you open this. You can look up missing words, fix a word, or press Save to keep the list without starting.</p>
+            </details>
+          </div>
+          <p class="helper" data-editor>Type or paste this week's words. Words already in Bee Ready come right in. For new words we look for a definition, part of speech, origin and sentence. Your lists stay in this browser.</p>
+          <div class="form-row" data-editor>
             <label class="field">My list<select id="mineList"></select></label>
             <label class="field">List name<input id="mineName" type="text" maxlength="40" autocomplete="off"></label>
           </div>
-          <div class="mine-actions"><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
-          <label class="field" for="mineText">Add words<textarea id="mineText" rows="4" placeholder="apple, banana, cherry, or one word on each line" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
-          <button type="button" id="mineCheck" class="primary-btn">Check my words</button>
+          <div class="mine-actions" data-editor><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
+          <label class="field" data-editor for="mineText">Add words<textarea id="mineText" rows="4" placeholder="apple, banana, cherry, or one word on each line" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
+          <button type="button" id="mineCheck" class="primary-btn" data-editor>Check my words</button>
           <div id="minePhotoBlock" class="mine-photo" hidden>
             <p class="helper">Or use a picture of the list:</p>
             <div class="mine-actions">
@@ -64,15 +73,18 @@
             </div>
             <div class="mine-actions"><button type="button" id="mineSave" class="primary-btn">Save these words</button><button type="button" id="mineCancel" class="text-btn">Cancel</button></div>
           </div>
-          <h3 id="mineWordsHead" class="settings-heading" tabindex="-1">Words in your list</h3>
-          <p id="mineEmpty" class="helper">No words yet. Add some in the Add words box.</p>
-          <ul id="mineWordList" class="mine-word-list" aria-labelledby="mineWordsHead"></ul>
-          <div class="mine-actions">
+          <h3 id="mineWordsHead" class="settings-heading" tabindex="-1" data-editor>Your list</h3>
+          <p id="mineEmpty" class="helper" data-editor>No words yet. Add some in the Add words box.</p>
+          <details id="mineWordsBox" class="mine-reveal" data-editor>
+            <summary>Show the words in this list (for grown-ups)</summary>
+            <ul id="mineWordList" class="mine-word-list" aria-labelledby="mineWordsHead"></ul>
+          </details>
+          <div class="mine-actions" data-editor>
             <button type="button" id="mineShare" class="soft-btn">Show a link to share this list</button>
             <button type="button" id="mineExport" class="soft-btn">Download a backup</button>
             <label class="soft-btn file-btn">Open a backup<input id="mineImportFile" type="file" accept="application/json,.json"></label>
           </div>
-          <label class="field" for="mineShareUrl"><span class="sr-only">Share link</span><input id="mineShareUrl" type="text" readonly hidden></label>
+          <label class="field" data-editor for="mineShareUrl"><span class="sr-only">Share link</span><input id="mineShareUrl" type="text" readonly hidden></label>
           <p class="helper">Definitions and sentences come from the Bee Ready library (Open English WordNet and Wiktionary, see <a href="./library/NOTICE.md" target="_blank" rel="noopener noreferrer">the library notice<span class="sr-only"> (opens in a new tab)</span></a>) or from Wiktionary when you ask. Wiktionary text is CC BY-SA 4.0. Pronunciation of rare words by the device voice can be wrong.</p>
         </section>
         <div class="content-grid">
@@ -121,7 +133,7 @@
       </section>
       <section class="tab-panel" id="tab-words" aria-labelledby="words-title">
         <div class="section-intro"><span class="mini-kicker">THE COMPLETE REFERENCE</span><h1 id="words-title" tabindex="-1">Your word bank</h1><p>Explore all the spelling bee words, their definitions, original booklet groups, and dictionary pronunciation links. Study and Challenge are the original booklet's fixed groups, not grade levels. To save your own words, press the Star button (☆) on any card. Press <strong>Details</strong> on a card for its sentence, origin and slow audio.</p></div>
-        <div class="panel"><div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by group<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
+        <div class="panel"><div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by origin<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
         <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">Loading words…</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button></div>
       </section>
       <section class="tab-panel" id="tab-voices" aria-labelledby="voices-title">
