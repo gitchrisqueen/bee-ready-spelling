@@ -5,7 +5,7 @@
 import { sentenceFor } from '../sentences.js';
 import { clipKey, sentenceKey } from '../voice-service.js';
 import { allowedClipKeys, installClipGuard } from './clipguard.js';
-import { LIVE_LOOKUP_ENABLED } from './config.js';
+import { LIVE_LOOKUP_ENABLED, OCR_ENABLED } from './config.js';
 import { filterReady, loadBlocklist } from './filter.js';
 import { chipsToEntries, entryFromBackup, resolveWords, toPracticeWord } from './import.js';
 import {
@@ -13,6 +13,7 @@ import {
   findListByWords, loadSettings, loadStore, parseExport, saveSettings, saveStore, updateList, writeBackup,
 } from './lists.js';
 import { HOSTS, cleanLookupCache, entryUrl, lookupMissing } from './lookup.js';
+import { MAX_PHOTO_BYTES, OCR_DIR, loadTesseract, ocrOptions, readPhoto } from './ocr.js';
 import { buildShareUrl, idMatches, listId, parseShareLocation, unpackWords } from './share.js';
 import { LIMITS, cleanField, normalizeWord, parseWords } from './validate.js';
 
@@ -77,6 +78,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   $('mineGrownups').hidden = false;
   $('mineEnterBlock').hidden = true;
   $('mineSettingsBlock').hidden = false;
+  $('minePhotoBlock').hidden = !OCR_ENABLED;
   document.documentElement.classList.add('mine-mode');
   for (const v of ['study', 'challenge']) $('pool').querySelector(`option[value="${v}"]`)?.remove();
   $('levelFilter').closest('label')?.setAttribute('hidden', '');
@@ -340,6 +342,37 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     activate();
     status(`${added} ${added === 1 ? 'word' : 'words'} saved. Words already in the list were not added twice.`);
     focusSoon($('mineWordsHead'));
+  }
+
+  // ---- photo import ----------------------------------------------------------------------------------------------
+  function setPhotoBusy(busy) {
+    $('minePhotoBlock').setAttribute('aria-busy', String(busy));
+    for (const id of ['minePhotoCamera', 'minePhotoPick']) $(id).disabled = busy;
+  }
+  async function onPhoto(file) {
+    if (!file) return;
+    if (file.size > MAX_PHOTO_BYTES) { status('That picture is too big. Try a smaller one.'); return; }
+    const base = new URL(OCR_DIR, document.baseURI).href;
+    const env = {
+      createImageBitmap: f => createImageBitmap(f), makeCanvas: () => document.createElement('canvas'),
+      loadTesseract: () => loadTesseract(document, base), options: ocrOptions(base),
+    };
+    setPhotoBusy(true);
+    status('Reading your picture on this device. The first one downloads about 7 MB from this site. Nothing is uploaded.');
+    try {
+      const { words } = await readPhoto(file, env);
+      if (!words.length) {
+        status('No words were found in that picture. Try a clearer, closer photo, or type the words.');
+        return;
+      }
+      await showReview(words, 'Read from a picture. Check every word: handwriting is harder to read than print.');
+      status(`Found ${words.length} ${words.length === 1 ? 'word' : 'words'}. Check them below.`);
+    } catch {
+      status('This browser could not read the picture. You can type the words instead.');
+    } finally { setPhotoBusy(false); }
+  }
+  for (const id of ['minePhotoCamera', 'minePhotoPick']) {
+    $(id).addEventListener('change', e => { const file = e.target.files?.[0]; e.target.value = ''; onPhoto(file); });
   }
 
   // ---- list actions ----------------------------------------------------------------------------------------------

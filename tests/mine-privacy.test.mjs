@@ -75,10 +75,12 @@ test('a dictionary request starts only from the "Look up the missing words" butt
   assert.equal(/lookupMissing|lookupOne/.test(read('mine/import.js')), false, 'checking words never calls the dictionary'); // preflight: ok
 });
 
-test('the kill switches exist and the safe values are the shipped ones for photos', () => {
+test('the kill switches exist and their shipped values are as documented', () => {
   const config = read('mine/config.js');
   for (const name of ['MINE_ENABLED', 'LIVE_LOOKUP_ENABLED', 'OCR_ENABLED']) assert.match(config, new RegExp(`export const ${name} =`)); // preflight: ok
-  assert.match(config, /export const OCR_ENABLED = false;/, 'photo import is not part of this phase');
+  assert.match(config, /export const OCR_ENABLED = true;/, 'photo import ships with Phase 2');
+  assert.match(config, /export const MINE_ENABLED = true;/);
+  assert.match(config, /export const LIVE_LOOKUP_ENABLED = true;/);
 });
 
 test('the page tells grown-ups what is sent, where, and how to turn it off', () => {
@@ -106,4 +108,20 @@ test('a failed My words load is visible, and a share link is taken out of the ad
   assert.match(app, /return mineFailed\?NO_SAVE:mine\?mine\.starsStorage/);
   assert.match(app, /if\(mineFailed\)\$\('roundBuilder'\)\.insertAdjacentHTML\([^)]*My words could not load/);
   assert.match(app, /history\.replaceState\(null,'',location\.pathname\+location\.search\)/);
+});
+
+test('photo import reads on the device from this site only, and keeps nothing', () => {
+  const code = read('mine/ocr.js').replace(/^\s*\/\/.*$/gm, '');
+  for (const banned of [/https?:\/\//, /localStorage/, /sessionStorage/, /indexedDB/, /createObjectURL/, /fetch\(/, /XMLHttpRequest/]) {
+    assert.equal(banned.test(code), false, `mine/ocr.js uses ${banned}`);
+  }
+  assert.match(code, /workerBlobURL: false/);
+  assert.match(code, /cacheMethod: 'none'/);
+  assert.match(code, /workerPath: at\('worker\.min\.js'\), corePath: at\('core\/'\), langPath: at\('lang\/'\)/);
+  assert.match(code, /new URL\(path, base\)\.href/);
+  assert.match(code, /canvas\.width = 0; canvas\.height = 0;/);
+  const ui = read('mine/ui.js');
+  assert.match(ui, /\$\('minePhotoBlock'\)\.hidden = !OCR_ENABLED/);
+  assert.match(ui, /new URL\(OCR_DIR, document\.baseURI\)\.href/);
+  assert.match(read('index.html'), /The picture is never sent anywhere or saved\. The first picture downloads about 7 MB from this site/);
 });
