@@ -129,3 +129,14 @@ test('photo import reads on the device from this site only, and keeps nothing', 
   assert.match(ui, /console\.warn\('My words photo import failed:', error\?\.name, error\?\.message\)/);
   assert.equal(/console\.[a-z]+\([^)]*file/.test(ui.slice(ui.indexOf('async function onPhoto'), ui.indexOf('// ---- list actions'))), false, 'the log never names the file'); // preflight: ok
 });
+
+test('a published list is asked for only from this site, by a validated id, without credentials or a referrer', () => {
+  const registry = read('mine/registry.js');
+  assert.equal(/https?:|\/\//.test(registry.replace(/^\s*\/\/.*$/gm, '')), false, 'no absolute URL in registry.js');
+  assert.match(registry, /credentials: 'omit'/);
+  assert.match(registry, /referrerPolicy: 'no-referrer'/);
+  assert.match(read('mine/share.js'),
+    /registryPath = id => \(LIST_ID_RE\.test\(id\) \? `\.\/lists\/\$\{id\}\.json` : null\)/);
+  assert.match(read('mine/ui.js'), /loadRegistryList\(fetch, share\.id\)/);
+});
+
