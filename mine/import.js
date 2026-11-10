@@ -1,6 +1,7 @@
 // Turns a list of words into review "chips": each word is matched against the default list (kept as it is, with its
 // recorded clip), then the static library, and what is still missing is left for manual entry or a live lookup that the
-// grown-up asks for. Nothing here touches the network except the library files from this site, and nothing saves anything.
+// grown-up asks for. Nothing here touches the network except the library files from this site, and nothing saves
+// anything.
 import { libraryEntry, loadShard } from './lookup.js';
 import { HOSTS, normalizeWord } from './validate.js';
 

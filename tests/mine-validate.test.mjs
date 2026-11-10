@@ -8,7 +8,7 @@ import { sha256Hex } from '../mine/sha256.js';
 import { isSensitiveText, isSensitiveWord } from '../mine/sensitive.js';
 import { clearBlocklist, isBlockedText, isBlockedWord, parseBlocklist, setBlocklist } from '../mine/filter.js';
 import {
-  FIRST_CUSTOM_ID, HOSTS, LIMITS, LIST_ID_RE, cleanField, cleanSourceField, hasForbiddenKeys, isValidWord, normalizeWord, parseWords,
+  FIRST_CUSTOM_ID, HOSTS, LIMITS, LIST_ID_RE, cleanField, cleanSourceField, hasForbiddenKeys, isValidWord, normalizeWord, parseWords, // preflight: ok
   sentenceHasWordOnce, validateEntry, validateList, validateStore,
 } from '../mine/validate.js';
 
@@ -32,7 +32,7 @@ test('the filter fails closed until a list is loaded', () => {
 
 test('sha256Hex matches node:crypto for empty, short, block-edge, long and non-ASCII input', () => {
   for (const input of ['', 'abc', 'a'.repeat(55), 'a'.repeat(56), 'a'.repeat(64), 'x'.repeat(1000), 'café \u{1f41d}']) {
-    assert.equal(sha256Hex(input), createHash('sha256').update(input).digest('hex'), JSON.stringify(input.slice(0, 12)));
+    assert.equal(sha256Hex(input), createHash('sha256').update(input).digest('hex'), JSON.stringify(input.slice(0, 12))); // preflight: ok
   }
 });
 
@@ -42,7 +42,7 @@ test('the filter blocks the token, simple variants and leetspeak, and lets ordin
   assert.equal(isBlockedWord('ZZQ-BLOCKED'), true, 'case and punctuation');
   assert.equal(isBlockedWord('zzqbl0cked'), true, 'a digit standing in for a letter');
   assert.equal(isBlockedText(`this has a ${TOKEN} in it`), true);
-  for (const ok of ['apple', 'house', 'class', 'assess', 'scunthorpe', 'cemetery']) assert.equal(isBlockedWord(ok), false, ok);
+  for (const ok of ['apple', 'house', 'class', 'assess', 'scunthorpe', 'cemetery']) assert.equal(isBlockedWord(ok), false, ok); // preflight: ok
   assert.equal(isBlockedText('A place where dead people are buried; a place for graves.'), false);
 });
 
@@ -73,7 +73,7 @@ test('words: typed or pasted text is split, normalised, de-duplicated and checke
 });
 
 test('words: at most 200 per list', () => {
-  const many = Array.from({ length: 205 }, (_, i) => `word${String.fromCharCode(97 + (i % 26))}${'q'.repeat(1 + Math.floor(i / 26))}`);
+  const many = Array.from({ length: 205 }, (_, i) => `word${String.fromCharCode(97 + (i % 26))}${'q'.repeat(1 + Math.floor(i / 26))}`); // preflight: ok
   const r = parseWords(many.join(' '));
   assert.equal(r.words.length, 200);
   assert.equal(r.truncated, true);
@@ -105,14 +105,14 @@ test('entries: only known keys survive and bad optional fields are dropped', () 
     id: 1000001, word: 'cat', src: 'live', part: 'n', definition: 'A small animal.', group: 'Old English',
     sentence: 'A cat sat.', credit: ['simple.wiktionary.org'],
   });
-  const dropped = validateEntry({ id: 5, word: 'cat', definition: '<b>x</b>', group: 'x'.repeat(41), sentence: 'No match.' });
+  const dropped = validateEntry({ id: 5, word: 'cat', definition: '<b>x</b>', group: 'x'.repeat(41), sentence: 'No match.' }); // preflight: ok
   assert.deepEqual(dropped, { id: 5, word: 'cat', src: 'manual' });
   assert.equal(validateEntry({ id: 0, word: 'cat' }), null);
   assert.equal(validateEntry({ id: 1.5, word: 'cat' }), null);
   assert.equal(validateEntry({ id: 2, word: TOKEN }), null);
   assert.equal(validateEntry({ id: 2, word: 'a b' }), null);
   assert.equal(validateEntry('cat'), null);
-  assert.equal(validateEntry({ id: 2, word: 'cat', credit: ['simple.wiktionary.org'], src: 'library' }).credit, undefined,
+  assert.equal(validateEntry({ id: 2, word: 'cat', credit: ['simple.wiktionary.org'], src: 'library' }).credit, undefined, // preflight: ok
     'credit only belongs to looked-up words');
 });
 
@@ -138,7 +138,7 @@ test('stores and lists: shape, caps and ids', () => {
   const store = validateStore({ version: 1, nextId: 1, lists });
   assert.equal(store.lists.length, 20);
   assert.equal(store.nextId, FIRST_CUSTOM_ID, 'a bad nextId is repaired');
-  const withIds = validateStore({ version: 1, nextId: 5, lists: [{ key: 'l-1', name: 'a', entries: [{ id: 1000050, word: 'cat' }] }] });
+  const withIds = validateStore({ version: 1, nextId: 5, lists: [{ key: 'l-1', name: 'a', entries: [{ id: 1000050, word: 'cat' }] }] }); // preflight: ok
   assert.equal(withIds.nextId, 1000051);
   assert.equal(withIds.active, 'l-1');
 });
@@ -167,7 +167,7 @@ test('library and dictionary text that touches a sensitive topic is held back; a
   assert.equal(isSensitiveText('We went to the cemetery to remember her.'), false);
   const base = { id: 1000001, word: 'cat', definition: 'A cat can kill a mouse.', sentence: 'The cat sat.' };
   assert.equal(validateEntry({ ...base, src: 'library', sentence: 'The cat died.' }).sentence, undefined);
-  assert.equal(validateEntry({ ...base, src: 'library' }).definition, undefined, 'a stored library entry is checked again');
+  assert.equal(validateEntry({ ...base, src: 'library' }).definition, undefined, 'a stored library entry is checked again'); // preflight: ok
   assert.equal(validateEntry({ ...base, src: 'live' }).definition, undefined);
   assert.equal(validateEntry({ ...base, src: 'manual' }).definition, 'A cat can kill a mouse.');
   assert.equal(validateEntry({ ...base, src: 'library' }).sentence, 'The cat sat.');

@@ -152,7 +152,7 @@ test('importing the module needs no DOM', () => {
 });
 
 test('a My words card has no booklet row, and credits only the two Wiktionary hosts', () => {
-  const html = card({ custom: true, level: 'Mine', credit: ['simple.wiktionary.org', 'evil.example', '"><script>'], word: 'cat' });
+  const html = card({ custom: true, level: 'Mine', credit: ['simple.wiktionary.org', 'evil.example', '"><script>'], word: 'cat' }); // preflight: ok
   assert.equal(html.includes('Booklet list'), false);
   assert.ok(html.includes('<dt>Origin</dt>'));
   assert.ok(html.includes('<a href="https://simple.wiktionary.org/wiki/cat" target="_blank" rel="noopener noreferrer">'

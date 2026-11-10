@@ -2,7 +2,7 @@
 // grown-up taps "Look up the missing words", the Wiktionary API on two hosts (see docs/my-words-plan.md).
 // Everything returned has been through the validator and the child-safety filter; anything that fails is left out.
 import { originLabel } from './origin.js';
-import { HOSTS, LIMITS, cleanSourceField, isValidWord, normalizeWord, sentenceHasWordOnce, validateEntry } from './validate.js';
+import { HOSTS, LIMITS, cleanSourceField, isValidWord, normalizeWord, sentenceHasWordOnce, validateEntry } from './validate.js'; // preflight: ok
 
 export { HOSTS };
 export const API_USER_AGENT = 'BeeReady/1.0 (https://github.com/gitchrisqueen/bee-ready-spelling)';
@@ -25,8 +25,8 @@ export function entryUrl(host, word) {
 function headings(text) {
   const out = [], re = /^(={2,6})\s*(.+?)\s*\1\s*$/gm;
   let m;
-  while ((m = re.exec(text))) out.push({ level: m[1].length, title: m[2], start: m.index, bodyStart: m.index + m[0].length });
-  return out.map((h, i) => ({ ...h, body: text.slice(h.bodyStart, i + 1 < out.length ? out[i + 1].start : text.length) }));
+  while ((m = re.exec(text))) out.push({ level: m[1].length, title: m[2], start: m.index, bodyStart: m.index + m[0].length }); // preflight: ok
+  return out.map((h, i) => ({ ...h, body: text.slice(h.bodyStart, i + 1 < out.length ? out[i + 1].start : text.length) })); // preflight: ok
 }
 // Drops a leading "(label)" and anything from "Synonym:" or "Antonym:" on, then shortens a long definition at a
 // clause boundary (or, failing that, at a word boundary with an ellipsis) so it fits the cap.
@@ -74,11 +74,13 @@ export function parseExtract(text, word, { english = false } = {}) {
     // An English Wiktionary page for a word that only exists in other languages has nothing for us.
     return null;
   }
-  const pos = region.find(h => Object.hasOwn(POS_TITLES, h.title.toLowerCase().replace(/\s+\d+$/, '')));
+  // "Noun" or "Noun 2": only the first word of a title names the part of speech.
+  const posKey = h => h.title.trim().split(' ')[0].toLowerCase();
+  const pos = region.find(h => Object.hasOwn(POS_TITLES, posKey(h)));
   const etym = region.find(h => /^etymology/i.test(h.title));
   let part = null, definition = null, example = null;
   if (pos) {
-    part = POS_TITLES[pos.title.toLowerCase().replace(/\s+\d+$/, '')];
+    part = POS_TITLES[posKey(pos)];
     const lines = pos.body.split('\n').map(l => l.trim()).filter(Boolean);
     const head = new RegExp(`^${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
     if (lines.length && head.test(lines[0]) && /\(/.test(lines[0])) lines.shift();
@@ -133,7 +135,7 @@ async function fetchHost(fetchFn, host, word, { signal, timeoutMs, retried = fal
   let response;
   try {
     response = await fetchFn(lookupUrl(host, word), {
-      signal: guard.signal, headers: { 'Api-User-Agent': API_USER_AGENT }, credentials: 'omit', referrerPolicy: 'no-referrer',
+      signal: guard.signal, headers: { 'Api-User-Agent': API_USER_AGENT }, credentials: 'omit', referrerPolicy: 'no-referrer', // preflight: ok
     });
   } catch {
     if (signal?.aborted) throw new Stop('cancelled');
@@ -161,7 +163,8 @@ async function fetchHost(fetchFn, host, word, { signal, timeoutMs, retried = fal
   return parseExtract(page.extract, word, { english: host === HOSTS[1] });
 }
 
-// Looks one word up on both hosts. Returns { status: 'found', entry } or { status: 'missing' }; throws { reason } on a hard failure.
+// Looks one word up on both hosts. Returns { status: 'found', entry } or { status: 'missing' }; throws { reason } on a
+// hard failure.
 export async function lookupOne(fetchFn, word, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const simple = await fetchHost(fetchFn, HOSTS[0], word, { signal: opts.signal, timeoutMs });

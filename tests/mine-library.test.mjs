@@ -79,7 +79,7 @@ test('every entry passes the same checks as mine/validate.js, with the real filt
       assert.equal(cleanSourceField(entry.definition, LIMITS.definition), entry.definition, `${where}: definition`);
       if ('group' in entry) assert.equal(cleanSourceField(entry.group, LIMITS.origin), entry.group, `${where}: group`);
       if ('sentence' in entry) {
-        assert.equal(cleanSourceField(entry.sentence, LIMITS.sentence, { example: true }), entry.sentence, `${where}: sentence`);
+        assert.equal(cleanSourceField(entry.sentence, LIMITS.sentence, { example: true }), entry.sentence, `${where}: sentence`); // preflight: ok
         assert.ok(sentenceHasWordOnce(entry.sentence, word), `${where}: sentence needs the word exactly once`);
       }
     }

@@ -16,7 +16,7 @@ before(() => setBlocklist(parseBlocklist(readFileSync(join(root, 'mine/filter.sh
 
 const parseSimple = w => (fixtures[w].simple ? parseExtract(fixtures[w].simple, w) : null);
 const parseEnglish = w => (fixtures[w].en ? parseExtract(fixtures[w].en, w, { english: true }) : null);
-const LABELS = new Set(['Latin', 'Greek', 'French', 'German', 'Dutch', 'Spanish', 'Italian', 'Portuguese', 'Arabic', 'Persian',
+const LABELS = new Set(['Latin', 'Greek', 'French', 'German', 'Dutch', 'Spanish', 'Italian', 'Portuguese', 'Arabic', 'Persian', // preflight: ok
   'Hebrew', 'Yiddish', 'Sanskrit', 'Hindi', 'Turkish', 'Russian', 'Polish', 'Japanese', 'Chinese', 'Norse', 'Celtic',
   'Hungarian', 'Malay', 'Hawaiian', 'Nahuatl', 'Quechua', 'Tamil', 'Swahili', 'Korean', 'Old English']);
 
@@ -92,7 +92,7 @@ test('pages with no usable entry give null', () => {
 });
 
 test('originLabel: first non-English language wins; older English only gives Old English; nothing gives null', () => {
-  assert.equal(originLabel('From Middle English cimiterie, from Old French cimitiere, from Late Latin coemeterium.'), 'French');
+  assert.equal(originLabel('From Middle English cimiterie, from Old French cimitiere, from Late Latin coemeterium.'), 'French'); // preflight: ok
   assert.equal(originLabel('From Old English wæter.'), 'Old English');
   assert.equal(originLabel('Of unknown origin.'), null);
   assert.equal(originLabel(''), null);
@@ -101,7 +101,7 @@ test('originLabel: first non-English language wins; older English only gives Old
 });
 
 test('the figures quoted in docs/my-words-phase0-findings.md ("Phase 1 results") come from these fixtures', () => {
-  const tally = { words: 0, simpleMissingPage: 0, simpleDefinition: 0, simpleExample: 0, englishDefinition: 0, englishOrigin: 0 };
+  const tally = { words: 0, simpleMissingPage: 0, simpleDefinition: 0, simpleExample: 0, englishDefinition: 0, englishOrigin: 0 }; // preflight: ok
   for (const w of WORDS) {
     tally.words++;
     if (!fixtures[w].simple) tally.simpleMissingPage++;

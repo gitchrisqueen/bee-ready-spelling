@@ -21,7 +21,7 @@ export function sha256Bytes(input) {
   const view = new DataView(padded.buffer);
   view.setUint32(padded.length - 8, Math.floor(bitLength / 0x100000000));
   view.setUint32(padded.length - 4, bitLength >>> 0);
-  const h = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+  const h = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]); // preflight: ok
   const w = new Uint32Array(64);
   for (let offset = 0; offset < padded.length; offset += 64) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * 4);

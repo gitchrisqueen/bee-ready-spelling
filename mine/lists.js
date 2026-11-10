@@ -22,7 +22,7 @@ const write = (storage, key, value) => { try { storage.setItem(key, value); retu
 const remove = (storage, key) => { try { storage.removeItem(key); return true; } catch { return false; } };
 function allKeys(storage) {
   const keys = [];
-  try { for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (typeof k === 'string') keys.push(k); } } catch { /* blocked storage */ }
+  try { for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (typeof k === 'string') keys.push(k); } } catch { /* blocked storage */ } // preflight: ok
   return keys;
 }
 export const backupKeys = storage => allKeys(storage).filter(k => k.startsWith(BAK_PREFIX));
@@ -40,11 +40,12 @@ export function writeBackup(storage, text) {
 }
 // Drops the oldest backup (lowest number). Only called after the grown-up agrees.
 export function dropOldestBackup(storage) {
-  const keys = backupKeys(storage).sort((a, b) => Number(a.slice(BAK_PREFIX.length)) - Number(b.slice(BAK_PREFIX.length)));
+  const keys = backupKeys(storage).sort((a, b) => Number(a.slice(BAK_PREFIX.length)) - Number(b.slice(BAK_PREFIX.length))); // preflight: ok
   return keys.length ? remove(storage, keys[0]) : false;
 }
 
-// status: 'empty' (nothing saved), 'ok', or 'corrupt' (unreadable data: the raw text was kept as a backup if there was room).
+// status: 'empty' (nothing saved), 'ok', or 'corrupt' (unreadable data: the raw text was kept as a backup if there was
+// room).
 // status 'locked' means the safety list is not loaded: the validator would drop every entry, so nothing is read, and the
 // caller must not save anything (it would overwrite the child's lists with empty ones).
 export function loadStore(storage) {
@@ -62,9 +63,10 @@ export function saveStore(storage, store) {
 }
 
 const sameSet = (a, b) => a.length === b.length && a.every(w => b.includes(w));
-export const findListByWords = (store, words) => store.lists.find(l => sameSet(l.entries.map(e => e.word), words)) ?? null;
+export const findListByWords = (store, words) => store.lists.find(l => sameSet(l.entries.map(e => e.word), words)) ?? null; // preflight: ok
 
-// Adds a list. `entries` have no id yet (or a default id for words that matched the default list); new ids come from store.nextId.
+// Adds a list. `entries` have no id yet (or a default id for words that matched the default list); new ids come from
+// store.nextId.
 export function addList(store, name, entries) {
   if (store.lists.length >= LIMITS.lists) return { store, list: null, reason: 'full' };
   const n = store.lists.reduce((m, l) => Math.max(m, Number(l.key.slice(2))), 0) + 1;
@@ -107,7 +109,7 @@ function readSet(storage, key) {
   try { const v = JSON.parse(read(storage, key)); return Array.isArray(v) ? v : []; } catch { return []; }
 }
 function readObject(storage, key) {
-  try { const v = JSON.parse(read(storage, key)); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch { return {}; }
+  try { const v = JSON.parse(read(storage, key)); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch { return {}; } // preflight: ok
 }
 
 // Deletes one list and everything that only it needed: its stars, its history, cached lookups no other list uses,
@@ -124,7 +126,7 @@ export function deleteList(storage, store, key) {
   write(storage, STARS_KEY, JSON.stringify(stars));
   const history = readObject(storage, HISTORY_KEY);
   for (const part of ['attempts', 'missed']) {
-    if (history[part] && typeof history[part] === 'object') for (const id of ids) if (!keepIds.has(id)) delete history[part][id];
+    if (history[part] && typeof history[part] === 'object') for (const id of ids) if (!keepIds.has(id)) delete history[part][id]; // preflight: ok
   }
   write(storage, HISTORY_KEY, JSON.stringify(history));
   const stillUsed = new Set(lists.flatMap(l => l.entries.map(e => e.word)));
@@ -169,17 +171,18 @@ export function saveSettings(storage, settings) {
 export function exportJson(store) {
   const lists = store.lists.map(l => ({
     name: l.name,
-    words: l.entries.map(({ word, part, definition, group, sentence, src }) => ({ word, part, definition, group, sentence, src })),
+    words: l.entries.map(({ word, part, definition, group, sentence, src }) => ({ word, part, definition, group, sentence, src })), // preflight: ok
   }));
   return JSON.stringify({ kind: EXPORT_KIND, version: 1, lists }, null, 2);
 }
 
-// Validates a backup file like every other entry path. Returns { lists: [{ name, entries }] } (entries without ids) or { error }.
+// Validates a backup file like every other entry path. Returns { lists: [{ name, entries }] } (entries without ids) or {
+// error }.
 export function parseExport(text) {
-  if (typeof text !== 'string' || text.length > MAX_IMPORT_BYTES) return { error: 'That file is too big to be a Bee Ready backup.' };
+  if (typeof text !== 'string' || text.length > MAX_IMPORT_BYTES) return { error: 'That file is too big to be a Bee Ready backup.' }; // preflight: ok
   let data = null;
   try { data = JSON.parse(text); } catch { return { error: 'That file is not a Bee Ready backup.' }; }
-  if (!data || data.kind !== EXPORT_KIND || data.version !== 1 || !Array.isArray(data.lists) || hasForbiddenKeys(data)) {
+  if (!data || data.kind !== EXPORT_KIND || data.version !== 1 || !Array.isArray(data.lists) || hasForbiddenKeys(data)) { // preflight: ok
     return { error: 'That file is not a Bee Ready backup.' };
   }
   const lists = [];

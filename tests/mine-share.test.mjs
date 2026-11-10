@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { SALT } from '../mine/salt.js';
 import { parseBlocklist, setBlocklist } from '../mine/filter.js';
 import {
-  buildShareUrl, canonicalWords, idMatches, listId, packWords, parseShareLocation, registryPath, toBase64Url, unpackWords,
+  buildShareUrl, canonicalWords, idMatches, listId, packWords, parseShareLocation, registryPath, toBase64Url, unpackWords, // preflight: ok
 } from '../mine/share.js';
 import { LIMITS, LIST_ID_RE } from '../mine/validate.js';
 
@@ -17,7 +17,7 @@ before(() => setBlocklist(parseBlocklist(readFileSync(join(root, 'mine/filter.sh
 
 test('the list id is 22 base64url characters of SHA-256(salt + sorted unique lowercase words)', () => {
   const words = ['Banana', 'apple', 'cherry', 'apple'];
-  const expected = createHash('sha256').update(`${SALT}\napple\nbanana\ncherry`).digest().subarray(0, 16).toString('base64url');
+  const expected = createHash('sha256').update(`${SALT}\napple\nbanana\ncherry`).digest().subarray(0, 16).toString('base64url'); // preflight: ok
   assert.equal(listId(words), expected);
   assert.match(listId(words), LIST_ID_RE);
   assert.equal(listId(['cherry', 'banana', 'APPLE']), expected, 'order and case do not matter');
@@ -36,7 +36,7 @@ test('words pack into a fragment and unpack to the same list', async () => {
 });
 
 test('a full list fits in the fragment cap', async () => {
-  const words = Array.from({ length: LIMITS.words }, (_, i) => `${'abcdefghij'[i % 10]}${'xyz'.repeat(1 + (i % 4))}${'lmnop'[i % 5]}${'q'.repeat(1 + Math.floor(i / 10))}`);
+  const words = Array.from({ length: LIMITS.words }, (_, i) => `${'abcdefghij'[i % 10]}${'xyz'.repeat(1 + (i % 4))}${'lmnop'[i % 5]}${'q'.repeat(1 + Math.floor(i / 10))}`); // preflight: ok
   const packed = await packWords(words);
   assert.ok(packed.length <= LIMITS.fragment, `${packed.length} characters`);
   assert.equal((await unpackWords(packed)).words.length, new Set(words).size);

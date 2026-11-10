@@ -1,6 +1,8 @@
 // Keeps a child's own words off the network. A word that is not in the default list has no recorded clip, so the voice
-// code would ask this site's host for ./clips/<voice>/<word>.mp3 and get a 404 that still lands in the host's request log.
-// This wraps fetch: a request for a clip is passed on only if its file name belongs to a default-list word or sentence (or
+// code would ask this site's host for ./clips/<voice>/<word>.mp3 and get a 404 that still lands in the host's request
+// log.
+// This wraps fetch: a request for a clip is passed on only if its file name belongs to a default-list word or sentence
+// (or
 // the voice sample). Any other clip request is answered with a local 404, so the voice falls back to the device voice
 // exactly as it does for a real 404, and nothing leaves the device.
 const CLIP_URL = /\/clips\/[^/]+\/([^/?#]+)\.mp3(?:[?#]|$)/;

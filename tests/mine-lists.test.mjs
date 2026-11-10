@@ -27,11 +27,11 @@ class FakeStorage {
 }
 const DEFAULT_HISTORY = JSON.stringify({ attempts: { 1: { correct: 2, missed: 0 } }, missed: {}, rounds: 3 });
 const DEFAULT_STARS = JSON.stringify([1, 2, 3]);
-const seeded = () => new FakeStorage({ 'bee-ready-history-v2': DEFAULT_HISTORY, 'bee-ready-starred-v1': DEFAULT_STARS, voice: 'x' });
+const seeded = () => new FakeStorage({ 'bee-ready-history-v2': DEFAULT_HISTORY, 'bee-ready-starred-v1': DEFAULT_STARS, voice: 'x' }); // preflight: ok
 
 test('ids: new words get ids from 1,000,000 up, and a default-list word keeps its default id', () => {
   const { store, list } = addList(emptyStore(), 'Week 1', [
-    { word: 'apple', src: 'library', definition: 'A fruit.' }, { id: 7, word: 'abide', src: 'default' }, { word: 'pear' },
+    { word: 'apple', src: 'library', definition: 'A fruit.' }, { id: 7, word: 'abide', src: 'default' }, { word: 'pear' }, // preflight: ok
   ]);
   assert.deepEqual(list.entries.map(e => e.id), [FIRST_CUSTOM_ID, 7, FIRST_CUSTOM_ID + 1]);
   assert.equal(store.nextId, FIRST_CUSTOM_ID + 2);
@@ -48,7 +48,7 @@ test('a mine-mode session never writes or removes the default keys', () => {
   const stars = starsStorage(s);
   const set = loadStars(stars);
   toggleStar(set, FIRST_CUSTOM_ID); saveStars(stars, set);
-  s.setItem(HISTORY_KEY, JSON.stringify({ attempts: { [FIRST_CUSTOM_ID]: { correct: 1, missed: 0 } }, missed: {}, rounds: 1 }));
+  s.setItem(HISTORY_KEY, JSON.stringify({ attempts: { [FIRST_CUSTOM_ID]: { correct: 1, missed: 0 } }, missed: {}, rounds: 1 })); // preflight: ok
   saveSettings(s, { liveLookup: false });
   writeBackup(s, '{"corrupt":1');
   store = updateList(store, 'l-1', () => ({ name: 'Renamed' }));
@@ -125,7 +125,7 @@ test('deleting a list removes its stars, history, cached lookups and every backu
     attempts: { [ids.apple]: { correct: 1, missed: 0 }, [ids.plum]: { correct: 1, missed: 0 } },
     missed: { [ids.apple]: true, [ids.plum]: true }, rounds: 2,
   }));
-  s.setItem(LOOKUP_KEY, JSON.stringify({ apple: { definition: 'x' }, shared: { definition: 'y' }, plum: { definition: 'z' } }));
+  s.setItem(LOOKUP_KEY, JSON.stringify({ apple: { definition: 'x' }, shared: { definition: 'y' }, plum: { definition: 'z' } })); // preflight: ok
   const only = { version: 1, nextId: store.nextId, active: 'l-2', lists: [two] };
   s.setItem(`${BAK_PREFIX}1`, JSON.stringify(store));
   s.setItem(`${BAK_PREFIX}2`, '{"unreadable"');
@@ -137,7 +137,7 @@ test('deleting a list removes its stars, history, cached lookups and every backu
   const history = JSON.parse(s.getItem(HISTORY_KEY));
   assert.deepEqual(Object.keys(history.attempts), [String(ids.plum)]);
   assert.deepEqual(Object.keys(history.missed), [String(ids.plum)]);
-  assert.deepEqual(Object.keys(JSON.parse(s.getItem(LOOKUP_KEY))).sort(), ['plum', 'shared'], 'only the unshared word leaves the cache');
+  assert.deepEqual(Object.keys(JSON.parse(s.getItem(LOOKUP_KEY))).sort(), ['plum', 'shared'], 'only the unshared word leaves the cache'); // preflight: ok
   assert.deepEqual(backupKeys(s), [`${BAK_PREFIX}3`], 'backups that hold the list, or cannot be read, are dropped');
   assert.deepEqual(JSON.parse(s.getItem(KEY)).lists.map(l => l.key), ['l-2']);
   assert.equal(s.getItem('bee-ready-starred-v1'), DEFAULT_STARS);
@@ -146,7 +146,7 @@ test('deleting a list removes its stars, history, cached lookups and every backu
 test('"Delete all my words" removes every key this feature owns, including every backup', () => {
   const s = seeded();
   saveStore(s, addList(emptyStore(), 'One', [{ word: 'apple' }]).store);
-  for (const k of [HISTORY_KEY, STARS_KEY, LOOKUP_KEY, 'bee-ready-mine-settings-v1', `${BAK_PREFIX}1`, `${BAK_PREFIX}2`, `${BAK_PREFIX}9`]) {
+  for (const k of [HISTORY_KEY, STARS_KEY, LOOKUP_KEY, 'bee-ready-mine-settings-v1', `${BAK_PREFIX}1`, `${BAK_PREFIX}2`, `${BAK_PREFIX}9`]) { // preflight: ok
     s.setItem(k, '1');
   }
   deleteAll(s);
@@ -157,7 +157,7 @@ test('adding words: duplicates are skipped and a list stops at 200 words', () =>
   let store = addList(emptyStore(), 'A', [{ word: 'apple' }]).store;
   store = addEntries(store, 'l-1', [{ word: 'Apple' }, { word: 'pear' }]);
   assert.deepEqual(store.lists[0].entries.map(e => e.word), ['apple', 'pear']);
-  const many = Array.from({ length: 300 }, (_, i) => ({ word: `${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}zz` }));
+  const many = Array.from({ length: 300 }, (_, i) => ({ word: `${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}zz` })); // preflight: ok
   store = addEntries(store, 'l-1', many);
   assert.equal(store.lists[0].entries.length, LIMITS.words);
   let full = emptyStore();
@@ -174,7 +174,7 @@ test('settings default to live lookup on and persist', () => {
 
 test('backup file: export then import round-trips, default words return to their default ids', () => {
   const { store } = addList(emptyStore(), 'Week 1', [
-    { word: 'apple', src: 'library', definition: 'A round fruit.', part: 'n', group: 'Old English', sentence: 'An apple fell.' },
+    { word: 'apple', src: 'library', definition: 'A round fruit.', part: 'n', group: 'Old English', sentence: 'An apple fell.' }, // preflight: ok
     { id: 3, word: 'academy', src: 'default' },
   ]);
   const text = exportJson(store);
@@ -194,7 +194,7 @@ test('backup file: hostile or oversized files are refused', () => {
   assert.ok(parseExport('{"kind":"bee-ready-my-words","version":1,"lists":[],"__proto__":{"a":1}}').error);
   const hostile = parseExport(JSON.stringify({
     kind: 'bee-ready-my-words', version: 1,
-    lists: [{ name: '<b>x</b>', words: [{ word: 'cat', definition: 'see https://evil.example', sentence: '<img src=x>' }] }],
+    lists: [{ name: '<b>x</b>', words: [{ word: 'cat', definition: 'see https://evil.example', sentence: '<img src=x>' }] }], // preflight: ok
   }));
   assert.equal(hostile.lists[0].name, 'My words');
   assert.deepEqual(hostile.lists[0].entries, [{ word: 'cat', src: 'manual' }], 'unsafe fields are dropped, not shown');

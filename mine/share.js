@@ -1,7 +1,10 @@
 // Share links: ?mode=mine&l=<id>#w=<packed words>
-// The id is the first 128 bits of SHA-256(salt + the unique, lowercased, code-point-sorted words), written as 22 base64url
-// characters. The same words always give the same id. The words travel in the URL fragment, which browsers do not send to the
-// server. A hash cannot be turned back into words; a link that has only an id needs a saved list or a lists/<id>.json file.
+// The id is the first 128 bits of SHA-256(salt + the unique, lowercased, code-point-sorted words), written as 22
+// base64url
+// characters. The same words always give the same id. The words travel in the URL fragment, which browsers do not send
+// to the
+// server. A hash cannot be turned back into words; a link that has only an id needs a saved list or a lists/<id>.json
+// file.
 import { SALT } from './salt.js';
 import { sha256Bytes } from './sha256.js';
 import { LIMITS, LIST_ID_RE, parseWords } from './validate.js';
@@ -14,12 +17,12 @@ const compareCodePoints = (a, b) => {
   }
   return x.length - y.length;
 };
-export const canonicalWords = words => [...new Set(words.map(w => String(w).normalize('NFC').toLocaleLowerCase('en-US')))].sort(compareCodePoints);
+export const canonicalWords = words => [...new Set(words.map(w => String(w).normalize('NFC').toLocaleLowerCase('en-US')))].sort(compareCodePoints); // preflight: ok
 
 export function toBase64Url(bytes) {
   let s = '';
   for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/={1,2}$/, '');
 }
 export function fromBase64Url(text) {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) throw new Error('bad characters');
@@ -60,7 +63,7 @@ export async function packWords(words) {
   const bytes = new TextEncoder().encode(canonicalWords(words).join('\n'));
   let best = 'p' + toBase64Url(bytes);
   if (typeof CompressionStream === 'function') {
-    try { const z = 'z' + toBase64Url(await deflate(bytes)); if (z.length < best.length) best = z; } catch { /* keep plain */ }
+    try { const z = 'z' + toBase64Url(await deflate(bytes)); if (z.length < best.length) best = z; } catch { /* keep plain */ } // preflight: ok
   }
   return best;
 }

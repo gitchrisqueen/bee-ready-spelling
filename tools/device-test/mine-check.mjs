@@ -9,7 +9,7 @@ import { chromium, devices, webkit } from 'playwright';
 
 const BASE = process.env.BASE || 'http://localhost:8080/';
 const ALLOWED = new Set(['simple.wiktionary.org', 'en.wiktionary.org']);
-const fixtures = JSON.parse(readFileSync(new URL('../../tests/fixtures/wiktionary-extracts.json', import.meta.url), 'utf8'));
+const fixtures = JSON.parse(readFileSync(new URL('../../tests/fixtures/wiktionary-extracts.json', import.meta.url), 'utf8')); // preflight: ok
 const failures = [];
 const check = (name, ok, detail = '') => {
   if (!ok) failures.push(`${name} ${detail}`);
@@ -28,7 +28,7 @@ const { browser, engine } = await launch();
 const contextFor = (preset, extra = {}) => {
   const d = devices[preset];
   return engine === 'WebKit' ? browser.newContext({ ...d, ...extra }) : browser.newContext({
-    viewport: d.viewport, userAgent: d.userAgent, deviceScaleFactor: d.deviceScaleFactor, isMobile: true, hasTouch: true, ...extra,
+    viewport: d.viewport, userAgent: d.userAgent, deviceScaleFactor: d.deviceScaleFactor, isMobile: true, hasTouch: true, ...extra, // preflight: ok
   });
 };
 const wikiAnswer = (host, url) => {
@@ -82,14 +82,14 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   external.length = 0;
   await page.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
   check('mine: panel is shown', await page.evaluate(() => !document.getElementById('mineRoot').hidden));
-  check('mine: Study and Challenge are gone', await page.evaluate(() => !document.querySelector('#pool option[value="study"]')));
+  check('mine: Study and Challenge are gone', await page.evaluate(() => !document.querySelector('#pool option[value="study"]'))); // preflight: ok
   await page.fill('#mineText', 'abdicate, abide, habit, quay\nzzzxq, qqqzz');
   await page.tap('#mineCheck');
   await page.waitForSelector('#mineChips li');
   const chipText = () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#mineChips li')]
     .map(li => [li.querySelector('input').value, li.querySelector('.mine-chip-status').textContent])));
   const text = await chipText();
-  check('mine: default-list words are recognised', /Bee Ready list/.test(text.abdicate) && /Bee Ready list/.test(text.abide));
+  check('mine: default-list words are recognised', /Bee Ready list/.test(text.abdicate) && /Bee Ready list/.test(text.abide)); // preflight: ok
   check('mine: a library word is found', /library/.test(text.habit), text.habit);
   check('mine: other words are not found yet', /Not found/.test(text.quay) && /Not found/.test(text.zzzxq));
   check('mine: each word has its own accessible name',
@@ -111,11 +111,11 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   answer = 'dismiss';
   await page.tap('#mineLookup');
   await page.waitForTimeout(250);
-  check('mine: a dialog asked first, and "no" sent nothing', dialogs >= 1 && external.length === 0, `${dialogs} ${external.join()}`);
+  check('mine: a dialog asked first, and "no" sent nothing', dialogs >= 1 && external.length === 0, `${dialogs} ${external.join()}`); // preflight: ok
   answer = 'accept';
   await page.tap('#mineLookup');
-  await page.waitForFunction(() => /looked up/i.test(document.getElementById('mineStatus').textContent), null, { timeout: 15000 });
-  check('mine: lookup goes only to the two Wiktionary hosts', external.length > 0 && external.every(h => ALLOWED.has(h)),
+  await page.waitForFunction(() => /looked up/i.test(document.getElementById('mineStatus').textContent), null, { timeout: 15000 }); // preflight: ok
+  check('mine: lookup goes only to the two Wiktionary hosts', external.length > 0 && external.every(h => ALLOWED.has(h)), // preflight: ok
     [...new Set(external)].join());
   const t2 = await chipText();
   check('mine: a looked-up word is marked with its source', /Looked up/.test(t2.quay)
@@ -125,7 +125,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await page.waitForFunction(() => document.querySelectorAll('#mineWordList li').length === 5);
   const k0 = await keys();
   check('mine: only My words keys are written',
-    k0.includes('bee-ready-mine-v1') && !k0.some(k => ['bee-ready-history-v2', 'bee-ready-starred-v1'].includes(k)), k0.join());
+    k0.includes('bee-ready-mine-v1') && !k0.some(k => ['bee-ready-history-v2', 'bee-ready-starred-v1'].includes(k)), k0.join()); // preflight: ok
 
   // practice by touch with the custom list; custom words are never requested from this site's host as clips
   own.length = 0;
@@ -138,7 +138,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     if (i === 0) {
       await tap(page, '[data-clue="origin"]');
       const clue = await page.evaluate(() => document.getElementById('clueResult').innerText);
-      check('mine: the origin clue says Origin, not the booklet', /^Origin/i.test(clue) && !/booklet/i.test(clue), clue.slice(0, 60));
+      check('mine: the origin clue says Origin, not the booklet', /^Origin/i.test(clue) && !/booklet/i.test(clue), clue.slice(0, 60)); // preflight: ok
       await tap(page, '#starWord');
     }
     await page.locator('#answerInput').pressSequentially('wrong');
@@ -148,23 +148,23 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   }
   await page.waitForTimeout(500);
   const clipAsks = own.filter(p => /\/clips\//.test(p));
-  check('mine: no clip request carries a custom word', !clipAsks.some(p => /(habit|quay|zzzxq)/.test(p)), clipAsks.join());
+  check('mine: no clip request carries a custom word', !clipAsks.some(p => /(habit|quay|zzzxq)/.test(p)), clipAsks.join()); // preflight: ok
   check('mine: the library is asked for letters only, never a whole word',
     own.filter(p => /\/library\//.test(p)).every(p => /\/library\/[a-z]\.json$/.test(p)));
   const k = await keys();
   check('mine: history and stars use their own keys', k.includes('bee-ready-mine-history-v1')
-    && k.includes('bee-ready-mine-starred-v1') && !k.includes('bee-ready-history-v2') && !k.includes('bee-ready-starred-v1'), k.join());
+    && k.includes('bee-ready-mine-starred-v1') && !k.includes('bee-ready-history-v2') && !k.includes('bee-ready-starred-v1'), k.join()); // preflight: ok
 
   // layout of the My words panel
   await page.evaluate(() => { location.hash = 'practice'; });
   const layout = await page.evaluate(() => {
     const root = document.getElementById('mineRoot');
     const small = [...root.querySelectorAll('button,a,select,summary,.file-btn')]
-      .filter(e => e.offsetParent && !e.closest('p') && e.getBoundingClientRect().height < 43.5).map(e => e.id || e.textContent.slice(0, 20));
+      .filter(e => e.offsetParent && !e.closest('p') && e.getBoundingClientRect().height < 43.5).map(e => e.id || e.textContent.slice(0, 20)); // preflight: ok
     const fields = [...root.querySelectorAll('input:not([type=file]),textarea,select')]
       .filter(e => e.offsetParent && parseFloat(getComputedStyle(e).fontSize) < 16).map(e => e.id);
     const tiny = [...root.querySelectorAll('*')]
-      .filter(e => e.children.length === 0 && e.textContent.trim() && parseFloat(getComputedStyle(e).fontSize) < 12).map(e => e.tagName);
+      .filter(e => e.children.length === 0 && e.textContent.trim() && parseFloat(getComputedStyle(e).fontSize) < 12).map(e => e.tagName); // preflight: ok
     return { small, fields, tiny, overflow: document.scrollingElement.scrollWidth - innerWidth };
   });
   check('mine: every control is at least 44px tall', layout.small.length === 0, layout.small.join());
@@ -188,7 +188,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p2.waitForSelector('#mineChips li');
   check('share: the list opens for review', (await p2.locator('#mineChips li').count()) === 5);
   check('share: nothing is saved until Save', await p2.evaluate(() => !localStorage.getItem('bee-ready-mine-v1')));
-  check('share: the words are taken out of the address bar', !/w=/.test(p2.url()) && !/w=/.test(await p2.evaluate(() => location.hash)), p2.url());
+  check('share: the words are taken out of the address bar', !/w=/.test(p2.url()) && !/w=/.test(await p2.evaluate(() => location.hash)), p2.url()); // preflight: ok
   await p2.goto('about:blank');
   await p2.goto(local.replace(/#w=./, '#w=x'), { waitUntil: 'networkidle' });
   check('share: a damaged link is refused with a message', /looks damaged/.test(await statusOf(p2)));
@@ -196,7 +196,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
 
   // the safety list fails to load: nothing is read or written, and the saved lists survive
   const locked = await contextFor(preset);
-  await locked.addInitScript(seed => { if (!localStorage.getItem('bee-ready-mine-v1')) localStorage.setItem('bee-ready-mine-v1', seed); },
+  await locked.addInitScript(seed => { if (!localStorage.getItem('bee-ready-mine-v1')) localStorage.setItem('bee-ready-mine-v1', seed); }, // preflight: ok
     JSON.stringify({ version: 1, nextId: 1000001, active: 'l-1',
       lists: [{ key: 'l-1', name: 'Week 1', entries: [{ id: 1000000, word: 'apple', src: 'manual' }] }] }));
   await locked.route('**/mine/filter.sha256', route => route.abort());
@@ -214,7 +214,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   // a poisoned lookup cache cannot plant a link or break the screen
   const poisoned = await contextFor(preset);
   await poisoned.addInitScript(seed => localStorage.setItem('bee-ready-mine-lookup-v1', seed), JSON.stringify({
-    zzzxq: { definition: 'A made-up word.', credit: ['evil.example', 'simple.wiktionary.org'] }, qqqzz: { credit: { length: 1 } },
+    zzzxq: { definition: 'A made-up word.', credit: ['evil.example', 'simple.wiktionary.org'] }, qqqzz: { credit: { length: 1 } }, // preflight: ok
   }));
   await routeWiki(poisoned);
   const p4 = await poisoned.newPage();
@@ -226,9 +226,9 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p4.tap('#mineCheck');
   await p4.waitForSelector('#mineChips li');
   await p4.tap('#mineLookup');
-  await p4.waitForFunction(() => /looked up/i.test(document.getElementById('mineStatus').textContent), null, { timeout: 15000 });
+  await p4.waitForFunction(() => /looked up/i.test(document.getElementById('mineStatus').textContent), null, { timeout: 15000 }); // preflight: ok
   check('cache: no link to a host outside the two allowed ones',
-    !(await p4.$('#mineChips a[href*="evil.example"]')) && (await p4.$$eval('#mineChips a', as => as.every(a => /^https:\/\/(simple|en)\.wiktionary\.org\//.test(a.href)))));
+    !(await p4.$('#mineChips a[href*="evil.example"]')) && (await p4.$$eval('#mineChips a', as => as.every(a => /^https:\/\/(simple|en)\.wiktionary\.org\//.test(a.href))))); // preflight: ok
   check('cache: the screen did not break', errors4.length === 0, errors4.join());
   await poisoned.close();
 
@@ -239,7 +239,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p5.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
   check('failed load: a visible message says this is the main list', await p5.evaluate(() =>
     /My words could not load/.test(document.getElementById('roundBuilder').textContent)));
-  check('failed load: the My words panel stays hidden', await p5.evaluate(() => document.getElementById('mineRoot').hidden));
+  check('failed load: the My words panel stays hidden', await p5.evaluate(() => document.getElementById('mineRoot').hidden)); // preflight: ok
   await broken.close();
 
   // delete everything
@@ -252,5 +252,5 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await ctx.close();
 }
 await browser.close();
-console.log(`\n${engine} emulation, not a physical device. ${failures.length ? `${failures.length} check(s) failed.` : 'All checks passed.'}`);
+console.log(`\n${engine} emulation, not a physical device. ${failures.length ? `${failures.length} check(s) failed.` : 'All checks passed.'}`); // preflight: ok
 process.exit(failures.length ? 1 : 0);

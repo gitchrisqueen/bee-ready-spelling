@@ -79,9 +79,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   document.documentElement.classList.add('mine-mode');
   for (const v of ['study', 'challenge']) $('pool').querySelector(`option[value="${v}"]`)?.remove();
   $('levelFilter').closest('label')?.setAttribute('hidden', '');
-  document.querySelectorAll('#roundBuilder .helper').forEach(p => { if (/booklet/i.test(p.textContent)) p.hidden = true; });
+  document.querySelectorAll('#roundBuilder .helper').forEach(p => { if (/booklet/i.test(p.textContent)) p.hidden = true; }); // preflight: ok
   const bankIntro = document.querySelector('#tab-words .section-intro p');
-  if (bankIntro) bankIntro.textContent = 'Your own words, with their definitions, origins and sentences. Press Details on a card.';
+  if (bankIntro) bankIntro.textContent = 'Your own words, with their definitions, origins and sentences. Press Details on a card.'; // preflight: ok
 
   // The safety list must load first. Without it every word looks blocked, and saving would wipe the saved lists, so the
   // screen stays read-only: nothing is read, nothing is written.
@@ -89,8 +89,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   if (!filterReady()) {
     state.readOnly = true;
     state.store = loadStore(store0).store;
-    status('The safety list could not load, so My words is turned off for now. Your lists are safe. Please refresh the page.');
-    document.querySelectorAll('#mineRoot button, #mineRoot input, #mineRoot textarea, #mineRoot select, #mineSettingsBlock button, #mineSettingsBlock input')
+    status('The safety list could not load, so My words is turned off for now. Your lists are safe. Please refresh the page.'); // preflight: ok
+    document.querySelectorAll('#mineRoot button, #mineRoot input, #mineRoot textarea, #mineRoot select, #mineSettingsBlock button, #mineSettingsBlock input') // preflight: ok
       .forEach(c => { c.disabled = true; });
     setWords([]);
     return;
@@ -99,9 +99,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   const loaded = loadStore(store0);
   state.store = loaded.store;
   if (loaded.status === 'corrupt') {
-    status('Your saved words could not be read, so we started a fresh list. The old data was kept as a backup if there was room.');
+    status('Your saved words could not be read, so we started a fresh list. The old data was kept as a backup if there was room.'); // preflight: ok
     if (loaded.backup === 'full'
-      && confirm('Your saved words could not be read and the backups are full. Drop the oldest backup to keep this one?')) {
+      && confirm('Your saved words could not be read and the backups are full. Drop the oldest backup to keep this one?')) { // preflight: ok
       dropOldestBackup(store0);
       writeBackup(store0, loaded.raw);
     }
@@ -118,7 +118,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   function renderLists() {
     const sel = $('mineList');
     sel.replaceChildren();
-    for (const l of state.store.lists) sel.append(el('option', { value: l.key, text: `${l.name} (${l.entries.length})` }));
+    for (const l of state.store.lists) sel.append(el('option', { value: l.key, text: `${l.name} (${l.entries.length})` })); // preflight: ok
     if (!state.store.lists.length) sel.append(el('option', { value: '', text: 'No lists yet' }));
     sel.value = state.store.active ?? '';
     const a = active();
@@ -133,8 +133,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       const id = `mine-w-${e.id}`;
       ul.append(el('li', {},
         el('span', { id, class: 'mine-word', text: e.word }),
-        el('span', { class: 'mine-word-def', text: ` ${e.definition ?? (e.src === 'default' ? 'In the Bee Ready list' : '')}` }),
-        el('button', { type: 'button', class: 'text-btn', 'data-remove': e.id, 'aria-label': `Remove ${e.word}`, text: 'Remove' })));
+        el('span', { class: 'mine-word-def', text: ` ${e.definition ?? (e.src === 'default' ? 'In the Bee Ready list' : '')}` }), // preflight: ok
+        el('button', { type: 'button', class: 'text-btn', 'data-remove': e.id, 'aria-label': `Remove ${e.word}`, text: 'Remove' }))); // preflight: ok
     }
     $('mineWordsHead').textContent = a ? `Words in ${a.name}` : 'Words in your list';
     $('mineEmpty').hidden = Boolean(a?.entries.length);
@@ -150,13 +150,13 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const inputId = `mine-chip-${chip.uid}`, statusId = `mine-chip-status-${chip.uid}`;
     const li = el('li', { class: 'mine-chip', 'data-uid': chip.uid });
     const input = el('input', {
-      id: inputId, type: 'text', value: chip.word, maxlength: LIMITS.wordChars, autocomplete: 'off', autocapitalize: 'off',
+      id: inputId, type: 'text', value: chip.word, maxlength: LIMITS.wordChars, autocomplete: 'off', autocapitalize: 'off', // preflight: ok
       spellcheck: 'false', 'aria-label': `Word ${index + 1} of ${total}`, 'aria-describedby': statusId,
       'aria-invalid': chip.invalid ? 'true' : null,
     });
     input.addEventListener('change', () => editChip(chip, input.value));
     li.append(el('div', { class: 'mine-chip-row' }, input,
-      el('button', { type: 'button', class: 'text-btn', 'data-chip-remove': chip.uid, 'aria-label': `Remove ${chip.word}`, text: 'Remove' })));
+      el('button', { type: 'button', class: 'text-btn', 'data-chip-remove': chip.uid, 'aria-label': `Remove ${chip.word}`, text: 'Remove' }))); // preflight: ok
     li.append(el('p', { id: statusId, class: 'mine-chip-status', text: chip.invalid ?? STATUS_TEXT[chip.status] }));
     if (chip.suggestion) {
       li.append(el('button', { type: 'button', class: 'soft-btn', 'data-chip-use': chip.uid,
@@ -174,9 +174,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       li.append(p);
     }
     if (chip.status !== 'default' && !chip.invalid) {
-      const details = el('details', { class: 'mine-chip-edit' }, el('summary', { text: 'Edit definition and sentence' }));
+      const details = el('details', { class: 'mine-chip-edit' }, el('summary', { text: 'Edit definition and sentence' })); // preflight: ok
       details.open = openUids.has(chip.uid);
-      details.addEventListener('toggle', () => { if (details.open) openUids.add(chip.uid); else openUids.delete(chip.uid); });
+      details.addEventListener('toggle', () => { if (details.open) openUids.add(chip.uid); else openUids.delete(chip.uid); }); // preflight: ok
       const defId = `mine-def-${chip.uid}`, senId = `mine-sen-${chip.uid}`;
       const def = el('textarea', { id: defId, rows: 2, maxlength: LIMITS.definition, autocomplete: 'off' });
       def.value = typeof chip.entry?.definition === 'string' ? chip.entry.definition : '';
@@ -195,14 +195,14 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const a = document.activeElement;
     const li = a?.closest?.('#mineChips li');
     if (!li) return null;
-    const kind = a.matches('input') && a.closest('.mine-chip-row') ? 'input' : a.matches('[data-chip-remove]') ? 'remove'
+    const kind = a.matches('input') && a.closest('.mine-chip-row') ? 'input' : a.matches('[data-chip-remove]') ? 'remove' // preflight: ok
       : a.matches('[data-chip-use]') ? 'use' : null;
     return kind ? { uid: li.dataset.uid, kind } : null;
   }
   function restoreFocus(spot) {
     if (!spot) return;
     const li = document.querySelector(`#mineChips li[data-uid="${spot.uid}"]`);
-    const target = li?.querySelector({ input: '.mine-chip-row input', remove: '[data-chip-remove]', use: '[data-chip-use]' }[spot.kind]);
+    const target = li?.querySelector({ input: '.mine-chip-row input', remove: '[data-chip-remove]', use: '[data-chip-use]' }[spot.kind]); // preflight: ok
     focusSoon(target);
   }
   function renderReview() {
@@ -211,7 +211,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     $('mineChips').replaceChildren(...chips.map((c, i) => chipNode(c, i, chips.length)));
     const missing = chips.filter(c => c.status === 'missing' && !c.invalid).length;
     $('mineReviewSummary').textContent = `${chips.length} ${chips.length === 1 ? 'word' : 'words'}. ${missing
-      ? `${missing} ${missing === 1 ? 'is' : 'are'} not found yet.` : 'Every word has what it needs.'}${sharedNote ? ` ${sharedNote}` : ''}`;
+      ? `${missing} ${missing === 1 ? 'is' : 'are'} not found yet.` : 'Every word has what it needs.'}${sharedNote ? ` ${sharedNote}` : ''}`; // preflight: ok
     $('mineLookup').hidden = !(LIVE_LOOKUP_ENABLED && state.settings.liveLookup) || !missing;
     $('mineLookupBlock').hidden = $('mineLookup').hidden;
     $('mineSave').disabled = !chips.some(c => !c.invalid);
@@ -232,7 +232,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const at = chips.indexOf(chip);
     if (at < 0) return;
     if (words.length !== 1) {
-      chips[at] = { ...chip, word: normalizeWord(value), invalid: 'Use one word, with letters, hyphens or apostrophes.' };
+      chips[at] = { ...chip, word: normalizeWord(value), invalid: 'Use one word, with letters, hyphens or apostrophes.' }; // preflight: ok
     } else {
       const [fresh] = await resolveInto(words);
       chips[at] = fresh;
@@ -249,7 +249,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     renderReview();
     status(`Removed ${gone.word}.`);
     const next = chips[at] ?? chips[at - 1];
-    focusSoon(next ? document.querySelector(`#mineChips li[data-uid="${next.uid}"] .mine-chip-row input`) : $('mineText'));
+    focusSoon(next ? document.querySelector(`#mineChips li[data-uid="${next.uid}"] .mine-chip-row input`) : $('mineText')); // preflight: ok
   }
 
   async function onCheck() {
@@ -257,9 +257,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const notes = [];
     if (rejected.length) {
       const shown = rejected.slice(0, 5).join(', ');
-      notes.push(`Left out: ${shown}${rejected.length > 5 ? ` and ${rejected.length - 5} more` : ''}. Use letters, hyphens and apostrophes only.`);
+      notes.push(`Left out: ${shown}${rejected.length > 5 ? ` and ${rejected.length - 5} more` : ''}. Use letters, hyphens and apostrophes only.`); // preflight: ok
     }
-    if (blocked.length) notes.push(`${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here.`);
+    if (blocked.length) notes.push(`${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here.`); // preflight: ok
     if (truncated) notes.push(`Only the first ${LIMITS.words} words were kept.`);
     if (!words.length) { status(`No words found. ${notes.join(' ')}`.trim()); return; }
     status(notes.join(' '));
@@ -284,7 +284,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       ? { ...c, status: 'live', entry: results[c.word] } : c));
     const found = chips.filter(c => c.status === 'live' && missing.includes(c.word)).length;
     renderReview();
-    status(`${found} of ${missing.length} looked up.${stopped ? ` ${STOP_TEXT[stopped] ?? ''} You can type the rest yourself.` : ''}`);
+    status(`${found} of ${missing.length} looked up.${stopped ? ` ${STOP_TEXT[stopped] ?? ''} You can type the rest yourself.` : ''}`); // preflight: ok
     focusSoon($('mineSave'));
   }
 
@@ -315,13 +315,13 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   $('mineCancelLookup').addEventListener('click', () => lookupAbort?.abort());
   $('mineSave').addEventListener('click', onSave);
   $('mineCancel').addEventListener('click', () => {
-    chips = []; sharedNote = ''; openUids.clear(); renderReview(); status('Nothing was saved.'); focusSoon($('mineText'));
+    chips = []; sharedNote = ''; openUids.clear(); renderReview(); status('Nothing was saved.'); focusSoon($('mineText')); // preflight: ok
   });
   $('mineChips').addEventListener('click', async e => {
     const rm = e.target.closest('[data-chip-remove]');
     if (rm) { removeChip(Number(rm.dataset.chipRemove)); return; }
     const use = e.target.closest('[data-chip-use]');
-    if (use) { const c = chips.find(x => x.uid === Number(use.dataset.chipUse)); if (c) await editChip(c, c.suggestion); }
+    if (use) { const c = chips.find(x => x.uid === Number(use.dataset.chipUse)); if (c) await editChip(c, c.suggestion); } // preflight: ok
   });
   $('mineList').addEventListener('change', () => {
     state.store = { ...state.store, active: $('mineList').value || null };
@@ -352,7 +352,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     if (!rm || !a) return;
     const gone = a.entries.find(x => x.id === Number(rm.dataset.remove));
     const at = a.entries.indexOf(gone);
-    state.store = updateList(state.store, a.key, l => ({ entries: l.entries.filter(x => x.id !== Number(rm.dataset.remove)) }));
+    state.store = updateList(state.store, a.key, l => ({ entries: l.entries.filter(x => x.id !== Number(rm.dataset.remove)) })); // preflight: ok
     persist(); activate();
     status(`Removed ${gone?.word ?? 'the word'}.`);
     const buttons = [...$('mineWordList').querySelectorAll('[data-remove]')];
@@ -394,7 +394,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     saveSettings(store0, state.settings); renderReview();
   });
   $('mineDeleteAll').addEventListener('click', () => {
-    if (!confirm('Delete all your words, history and stars for My words from this device? This cannot be undone.')) return;
+    if (!confirm('Delete all your words, history and stars for My words from this device? This cannot be undone.')) return; // preflight: ok
     state.store = deleteAll(store0); chips = []; cache = {}; openUids.clear();
     $('mineShareUrl').value = ''; $('mineShareUrl').hidden = true;
     renderReview(); activate(); status('All of your words were deleted from this device.');
@@ -409,7 +409,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       status('This link looks damaged. Ask the person who sent it for a new link.');
     } else {
       const same = findListByWords(state.store, unpacked.words);
-      if (same) { state.store = { ...state.store, active: same.key }; persist(); activate(); status('You already have this list.'); }
+      if (same) { state.store = { ...state.store, active: same.key }; persist(); activate(); status('You already have this list.'); } // preflight: ok
       else await showReview(unpacked.words, 'This list came from a link. Nothing is saved until you press Save.');
     }
   } else if (share?.id) {

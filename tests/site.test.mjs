@@ -362,6 +362,6 @@ test('the build stages the My words code and library, so a missing folder cannot
   assert.ok(nonEmpty('library'), '_site/library must exist and not be empty');
   assert.ok(existsSync(join(root, '_site/mine/filter.sha256')), 'the safety list ships with the page code');
   assert.ok(existsSync(join(root, '_site/library/a.json')));
-  assert.ok(!existsSync(join(root, '_site/mine/FILTER-NOTICE.md')), 'only page code and the safety list are copied from mine/');
-  assert.equal(existsSync(join(root, '_site/lists')), existsSync(join(root, 'lists')), '_site/lists exists only when lists/ does');
+  assert.ok(!existsSync(join(root, '_site/mine/FILTER-NOTICE.md')), 'only page code and the safety list are copied from mine/'); // preflight: ok
+  assert.equal(existsSync(join(root, '_site/lists')), existsSync(join(root, 'lists')), '_site/lists exists only when lists/ does'); // preflight: ok
 });

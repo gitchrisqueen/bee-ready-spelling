@@ -13,7 +13,8 @@ export const HOSTS = Object.freeze(['simple.wiktionary.org', 'en.wiktionary.org'
 export const LIST_ID_RE = /^[A-Za-z0-9_-]{22}$/;
 export const PARTS = new Set(['n', 'v', 'adj', 'adv', 'interj']);
 export const SOURCES = new Set(['default', 'library', 'live', 'manual']);
-// Custom word ids are integers above every default id, so the existing practice code (which expects numbers) works unchanged.
+// Custom word ids are integers above every default id, so the existing practice code (which expects numbers) works
+// unchanged.
 export const FIRST_CUSTOM_ID = 1000000;
 const FORBIDDEN_KEYS = ['__proto__', 'constructor', 'prototype'];
 
@@ -28,13 +29,14 @@ export function hasForbiddenKeys(value, depth = 0) {
 
 // Lowercase, NFC, and strip anything that is not a letter from both ends ("1." and "word," become "word").
 export function normalizeWord(s) {
-  return String(s ?? '').normalize('NFC').trim().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '').replace(/’/g, "'").toLocaleLowerCase('en-US');
+  return String(s ?? '').normalize('NFC').trim().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '').replace(/’/g, "'").toLocaleLowerCase('en-US'); // preflight: ok
 }
 export function isValidWord(w) {
-  return typeof w === 'string' && w.length > 0 && Array.from(w).length <= LIMITS.wordChars && /^\p{L}[\p{L}'-]*$/u.test(w);
+  return typeof w === 'string' && w.length > 0 && Array.from(w).length <= LIMITS.wordChars && /^\p{L}[\p{L}'-]*$/u.test(w); // preflight: ok
 }
 
-// Splits text on spaces, commas, semicolons and new lines. Returns the unique valid words (in order), and what was left out.
+// Splits text on spaces, commas, semicolons and new lines. Returns the unique valid words (in order), and what was left
+// out.
 export function parseWords(text) {
   const words = [], rejected = [], blocked = [];
   const seen = new Set();
@@ -51,7 +53,8 @@ export function parseWords(text) {
   return { words, rejected, blocked, truncated };
 }
 
-// A display field (definition, origin, sentence, list name). Returns the cleaned string, or null if it must not be shown:
+// A display field (definition, origin, sentence, list name). Returns the cleaned string, or null if it must not be
+// shown:
 // wrong type, empty, over its cap, markup, a link, or a filter hit. Fails closed.
 export function cleanField(value, max) {
   if (typeof value !== 'string') return null;
@@ -99,7 +102,7 @@ export function validateEntry(e) {
 }
 
 export function validateList(l) {
-  if (!isPlainObject(l) || hasForbiddenKeys(l) || !/^l-\d{1,9}$/.test(String(l.key)) || !Array.isArray(l.entries)) return null;
+  if (!isPlainObject(l) || hasForbiddenKeys(l) || !/^l-\d{1,9}$/.test(String(l.key)) || !Array.isArray(l.entries)) return null; // preflight: ok
   const seen = new Set(), entries = [];
   for (const raw of l.entries) {
     const e = validateEntry(raw);

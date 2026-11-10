@@ -21,7 +21,7 @@ const reply = (body, { status = 200, headers = {} } = {}) => ({
 const page = extract => ({ query: { pages: [{ title: 't', extract }] } });
 const MISSING = { query: { pages: [{ title: 't', missing: true }] } };
 const SIMPLE = '\n== Noun ==\n\nA cat is a small animal.\nThe cat sat on the mat.';
-const ENGLISH = '\n== English ==\n\n=== Etymology ===\nFrom Old English catt, from Latin cattus.\n\n=== Noun ===\ncat (plural cats)\n\nA small animal.';
+const ENGLISH = '\n== English ==\n\n=== Etymology ===\nFrom Old English catt, from Latin cattus.\n\n=== Noun ===\ncat (plural cats)\n\nA small animal.'; // preflight: ok
 const wordOf = url => new URL(url).searchParams.get('titles');
 const hostOf = url => new URL(url).host;
 
@@ -40,7 +40,7 @@ test('lookupUrl only builds URLs for the two allowed hosts and encodes the title
 
 test('a word found on both hosts gives one entry with both credits', async () => {
   const calls = [];
-  const fetchFn = async (url, init) => { calls.push({ url, init }); return reply(page(hostOf(url).startsWith('simple') ? SIMPLE : ENGLISH)); };
+  const fetchFn = async (url, init) => { calls.push({ url, init }); return reply(page(hostOf(url).startsWith('simple') ? SIMPLE : ENGLISH)); }; // preflight: ok
   const r = await lookupOne(fetchFn, 'cat');
   assert.equal(r.status, 'found');
   assert.deepEqual(r.entry, {
@@ -106,7 +106,7 @@ for (const [name, make, reason] of failures) {
 test('a 429 with Retry-After 0 is retried once, then works', async () => {
   let n = 0;
   const fetchFn = async url => (hostOf(url).startsWith('simple') && n++ === 0
-    ? reply({}, { status: 429, headers: { 'retry-after': '0' } }) : reply(page(hostOf(url).startsWith('simple') ? SIMPLE : ENGLISH)));
+    ? reply({}, { status: 429, headers: { 'retry-after': '0' } }) : reply(page(hostOf(url).startsWith('simple') ? SIMPLE : ENGLISH))); // preflight: ok
   const { results, stopped } = await lookupMissing(['cat'], { fetchFn });
   assert.equal(stopped, null);
   assert.equal(results.cat.definition, 'A cat is a small animal.');
@@ -121,7 +121,7 @@ test('a second 429 after the one retry stops the lookup', async () => {
 });
 
 test('a request that takes too long is a timeout, and a cancel is a cancel', async () => {
-  const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+  const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')))); // preflight: ok
   assert.equal((await lookupMissing(['cat'], { fetchFn: hang, timeoutMs: 20 })).stopped, 'timeout');
   const controller = new AbortController();
   const run = lookupMissing(['cat'], { fetchFn: hang, timeoutMs: 5000, signal: controller.signal });
@@ -157,7 +157,7 @@ test('the library: one shard download per letter, fields validated, bad or unkno
   };
   const fetchFn = async url => { downloads++; assert.equal(url, './library/a.json'); return reply(shard); };
   assert.deepEqual(await libraryEntry(fetchFn, 'Apple'), {
-    word: 'apple', src: 'library', definition: 'A round fruit.', part: 'n', group: 'Old English', sentence: 'An apple fell.',
+    word: 'apple', src: 'library', definition: 'A round fruit.', part: 'n', group: 'Old English', sentence: 'An apple fell.', // preflight: ok
   });
   assert.deepEqual(await libraryEntry(fetchFn, 'ant'), { word: 'ant', src: 'library', definition: 'A tiny insect.' });
   assert.equal(await libraryEntry(fetchFn, 'arrow'), null);
@@ -198,8 +198,8 @@ test('the cached lookups are validated on read: bad entries, hosts and shapes ar
     cow: 'a string', pig: 5, hen: [1, 2],
   };
   const clean = cleanLookupCache(raw);
-  assert.deepEqual(clean.cat, { word: 'cat', src: 'live', part: 'n', definition: 'A small animal.', credit: ['simple.wiktionary.org'] });
-  assert.deepEqual(clean.dog, { word: 'dog', src: 'live', definition: 'x' }, 'a credit that is not an array is dropped');
+  assert.deepEqual(clean.cat, { word: 'cat', src: 'live', part: 'n', definition: 'A small animal.', credit: ['simple.wiktionary.org'] }); // preflight: ok
+  assert.deepEqual(clean.dog, { word: 'dog', src: 'live', definition: 'x' }, 'a credit that is not an array is dropped'); // preflight: ok
   assert.equal('fish' in clean, false);
   assert.equal(clean.bird, null, 'a "not found" is kept');
   for (const k of ['not a word', 'cow', 'pig', 'hen']) assert.equal(k in clean, false, k);
