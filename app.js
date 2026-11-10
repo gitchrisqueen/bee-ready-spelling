@@ -35,7 +35,10 @@ function hideWord(sentence,word,reveal=false){
 }
 function comparison(s){return String(s).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US').replace(/[^\p{L}]/gu,'');}
 function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{attempts:{},missed:{},rounds:0};}catch{return {attempts:{},missed:{},rounds:0};}}
-function writeHistory(){try{if(!mineFailed)localStorage.setItem(historyKey,JSON.stringify(history));}catch{} updateStats();}
+function writeHistory(){
+  try{if(!mineFailed)localStorage.setItem(historyKey,JSON.stringify(history));}catch{}
+  updateStats();
+}
 // Stars live in their own key (see stars.js). Reading `localStorage` can itself throw when storage is blocked, so go through store().
 function store(){try{return mineFailed?NO_SAVE:mine?mine.starsStorage(localStorage):localStorage;}catch{return null;}}
 let history=getHistory();let stars=loadStars(store());let openCards=new Set();let words=[];let currentRound=null;let displayLimit=44;let selectedCount=5;
