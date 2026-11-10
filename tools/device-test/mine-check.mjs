@@ -214,7 +214,8 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p2.tap('#mineLinkGrownups summary');
   await p2.waitForSelector('#mineChips li');
   check('share: a grown-up can open the words to check them', (await p2.locator('#mineChips li').count()) === 5);
-  check('share: nothing is saved until Start or Save', await p2.evaluate(() => !localStorage.getItem('bee-ready-mine-v1')));
+  check('share: nothing is saved until Start or Save',
+    await p2.evaluate(() => !localStorage.getItem('bee-ready-mine-v1')));
   check('share: the words are taken out of the address bar', !/w=/.test(p2.url()) && !/w=/.test(await p2.evaluate(() => location.hash)), p2.url()); // preflight: ok
   await p2.tap('#mineLinkStart');
   await p2.waitForSelector('#roundArea:not(.hidden)');
