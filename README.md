@@ -235,11 +235,11 @@ GitHub emails only the person who triggered a run, and a run that a bot starts m
 
 ### My words (operating it)
 
-- **Fast mitigation.** Open a pull request that sets `MINE_ENABLED` (hides the entry link and turns `?mode=mine` off) or `LIVE_LOOKUP_ENABLED` (turns Wiktionary lookups off for everyone) to `false` in `mine/config.js`. It takes effect after the pull request merges and **Test and deploy** finishes, and browsers pick it up when they revalidate the files. If the deploy needs a nudge, start **Test and deploy** by hand on `main`.
+- **Fast mitigation.** Open a pull request that sets `MINE_ENABLED` (hides the entry link and turns `?mode=mine` off) or `LIVE_LOOKUP_ENABLED` (turns Wiktionary lookups off for everyone) to `false` in `mine/config.js`. It takes effect after the pull request merges and **Test and deploy** finishes, and browsers pick it up when they revalidate the files. If the deploy needs a nudge, start **Test and deploy** by hand on `main`. To confirm it took effect, request `<site>/mine/config.js` and look for `= false`.
 - **Full rollback.** Revert the pull request (see Roll back above). Prefer the flag when browsers may hold a fresh `app.js`: it imports `mine/config.js`, so a revert that deletes that file can break the default page for as long as a browser keeps the new `app.js`.
 - **Check after every deploy.** The deploy's smoke check does not cover My words. Open `<site>/?mode=mine` and see the My words panel; request `<site>/mine/ui.js` and `<site>/library/a.json` (both must answer 200); and in the browser's Network tab confirm that nothing goes to another host until you press **Look up the missing words** and confirm.
 - **Wikimedia blocks the site, or answers `429` to everyone:** set `LIVE_LOOKUP_ENABLED` to `false` (above). The page then offers manual entry and the Dictionary link.
-- **If `mine/ui.js` fails to load** under `?mode=mine`, the page says "My words could not load, so this is the main Bee Ready list" and works as the default page, with the default practice data.
+- **If `mine/ui.js` fails to load** under `?mode=mine`, the page logs the cause, says "My words could not load, so this is the main Bee Ready list" and works as the default page, but saves nothing while that message shows (no practice history, no stars), so a failed My words load never writes to the default keys.
 - **A bad definition or sentence in `library/`:** edit the shard by pull request (regenerate with `tools/library/README.md`). More in `docs/my-words-plan.md`, "Ownership and incidents".
 
 ### Data format

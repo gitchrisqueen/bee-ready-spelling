@@ -14,6 +14,7 @@ The default experience must not change.
 - `app.js` gets one small seam (an estimate of about 20 lines; Phase 1 reports the real count): the word source is `words.json` by default, or the active custom list in `mine` mode. `initAnswerBox`, `shouldBlockInsert`, `isBigJump` and `BLOCKED_INPUT_TYPES` stay as written, because `tests/a11y.test.mjs` reads them as text.
 - New code lives in `mine/`: `config.js` (the kill switches), `lists.js` (storage and list id), `validate.js` (the one validator every entry path uses), `lookup.js` (enrichment behind a small interface), `import.js` (parsing and the review screen), `ocr.js` (photo), `ui.js`. Pure logic is tested without a browser, like `stars.js`.
 - `words.json`, `sentences.js`, `voice-service.js` and `tools/clips/` are not modified, because a push that changes any of them starts the clip-recording workflow (`.github/workflows/generate-clips.yml`) and nothing here needs that. `clips/` is not modified either.
+- If `mine/ui.js` fails to load under `?mode=mine` (a bad deploy, a blocked request), the page logs the cause, shows "My words could not load, so this is the main Bee Ready list" and saves nothing while that message shows (no practice history, no stars), so a failed My words load can never write to the default keys.
 - `mine/` code never builds markup from untrusted text with `innerHTML` or `insertAdjacentHTML`; it uses `textContent` and DOM calls. `tests/mine-privacy.test.mjs` scans `mine/` for those two names and fails if it finds either.
 
 ## Storage and rollback of data
@@ -105,7 +106,7 @@ Looked-up definitions and examples are shown on the review screen, and the grown
 ## Library generator (ships with the library in Phase 1)
 
 - Lives in `tools/library/` (not deployed). It runs by hand, offline from the site. It writes `library/<letter>.json` and `library/NOTICE.md` (the sources and licence of each field).
-- **Inputs.** Pinned in `tools/library/sources.json`, which Phase 1's first commit creates, before any generator code, with these values:
+- **Inputs.** Pinned in `tools/library/sources.json`, which Phase 1 adds, with these values:
 
 | Input | URL | Size (bytes) | SHA-256 |
 |---|---|---|---|

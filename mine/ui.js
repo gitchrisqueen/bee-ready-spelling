@@ -154,7 +154,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       spellcheck: 'false', 'aria-label': `Word ${index + 1} of ${total}`, 'aria-describedby': statusId,
       'aria-invalid': chip.invalid ? 'true' : null,
     });
-    input.addEventListener('change', () => editChip(chip, input.value));
+    // "change" fires while focus is still moving to the next control; wait a tick so the list is rebuilt after it settles.
+    input.addEventListener('change', () => { const value = input.value; setTimeout(() => editChip(chip, value), 0); });
     li.append(el('div', { class: 'mine-chip-row' }, input,
       el('button', { type: 'button', class: 'text-btn', 'data-chip-remove': chip.uid, 'aria-label': `Remove ${chip.word}`, text: 'Remove' }))); // preflight: ok
     li.append(el('p', { id: statusId, class: 'mine-chip-status', text: chip.invalid ?? STATUS_TEXT[chip.status] }));
@@ -227,7 +228,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     renderReview();
     $('mineReviewTitle').focus({ preventScroll: false });
   }
-  async function editChip(chip, value) {
+  async function editChip(chip, value, { focusInput = false } = {}) {
     const { words } = parseWords(value);
     const at = chips.indexOf(chip);
     if (at < 0) return;
@@ -235,12 +236,12 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       chips[at] = { ...chip, word: normalizeWord(value), invalid: 'Use one word, with letters, hyphens or apostrophes.' }; // preflight: ok
     } else {
       const [fresh] = await resolveInto(words);
-      chips[at] = fresh;
-      openUids.delete(chip.uid);
+      chips[at] = { ...fresh, uid: chip.uid };
     }
-    const spot = focusSpot();
     renderReview();
-    if (!spot) focusSoon(document.querySelector(`#mineChips li[data-uid="${chips[at].uid}"] .mine-chip-row input`));
+    // Focus is restored by renderReview to the control the user moved to; only "Use it" moves it into the word box.
+    if (focusInput) focusSoon(document.querySelector(`#mineChips li[data-uid="${chip.uid}"] .mine-chip-row input`));
+    status(`${chips[at].word}: ${chips[at].invalid ?? STATUS_TEXT[chips[at].status]}`);
   }
   function removeChip(uid) {
     const at = chips.findIndex(c => c.uid === uid);
@@ -256,10 +257,12 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const { words, rejected, blocked, truncated } = parseWords($('mineText').value);
     const notes = [];
     if (rejected.length) {
-      const shown = rejected.slice(0, 5).join(', ');
+      const shown = rejected.slice(0, 5).map(w => (w.length > 12 ? `${w.slice(0, 12)}…` : w)).join(', ');
       notes.push(`Left out: ${shown}${rejected.length > 5 ? ` and ${rejected.length - 5} more` : ''}. Use letters, hyphens and apostrophes only.`); // preflight: ok
     }
-    if (blocked.length) notes.push(`${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here.`); // preflight: ok
+    if (blocked.length) {
+      notes.push(`${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here (not on our safe list).`);
+    } // preflight: ok
     if (truncated) notes.push(`Only the first ${LIMITS.words} words were kept.`);
     if (!words.length) { status(`No words found. ${notes.join(' ')}`.trim()); return; }
     status(notes.join(' '));
@@ -274,6 +277,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     lookupAbort = new AbortController();
     $('mineCancelLookup').hidden = false;
     $('mineLookup').disabled = true;
+    $('mineCancelLookup').focus();
     status(`Looking up ${missing.length} ${missing.length === 1 ? 'word' : 'words'}. This can take a moment.`);
     const { results, stopped } = await lookupMissing(missing, { fetchFn, cache, signal: lookupAbort.signal });
     lookupAbort = null;
@@ -321,11 +325,15 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const rm = e.target.closest('[data-chip-remove]');
     if (rm) { removeChip(Number(rm.dataset.chipRemove)); return; }
     const use = e.target.closest('[data-chip-use]');
-    if (use) { const c = chips.find(x => x.uid === Number(use.dataset.chipUse)); if (c) await editChip(c, c.suggestion); } // preflight: ok
+    if (use) {
+      const c = chips.find(x => x.uid === Number(use.dataset.chipUse));
+      if (c) await editChip(c, c.suggestion, { focusInput: true });
+    } // preflight: ok
   });
   $('mineList').addEventListener('change', () => {
     state.store = { ...state.store, active: $('mineList').value || null };
     persist(); activate();
+    status(`Showing ${active()?.name ?? 'no list'}.`);
   });
   $('mineName').addEventListener('change', () => {
     const a = active();
@@ -364,6 +372,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const url = await buildShareUrl(location.href, a.entries.map(e => e.word));
     $('mineShareUrl').hidden = false;
     $('mineShareUrl').value = url;
+    $('mineShareUrl').focus();
     $('mineShareUrl').select();
     try { await navigator.clipboard.writeText(url); status('Link copied. Anyone with it can open this list.'); }
     catch { status('Copy the link in the Share link box.'); $('mineShareUrl').focus(); }

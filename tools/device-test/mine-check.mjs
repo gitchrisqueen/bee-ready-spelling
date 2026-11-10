@@ -100,12 +100,20 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     document.getElementById('mineLookup').getAttribute('aria-describedby') === 'mineDisclosure'
     && /Ask a grown-up/.test(document.getElementById('mineDisclosure').textContent)));
 
-  // removing a chip keeps keyboard focus somewhere useful
+  // editing a word and pressing Tab keeps focus on that chip; Remove keeps it somewhere useful
+  const lastInput = '#mineChips li:last-child .mine-chip-row input';
+  await page.focus(lastInput);
+  await page.fill(lastInput, 'qqqzy');
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(500);
+  check('mine: after editing a word and pressing Tab, focus is on that word\'s Remove button',
+    await page.evaluate(() => document.activeElement.matches('#mineChips li:last-child [data-chip-remove]')));
+  check('mine: the edit is announced', /^qqqzy: /.test(await statusOf(page)), await statusOf(page));
   await page.focus('#mineChips li:last-child [data-chip-remove]');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(150);
   check('mine: after Remove, focus is not lost', await tabbable(page));
-  check('mine: Remove is announced', /^Removed qqqzz/.test(await statusOf(page)), await statusOf(page));
+  check('mine: Remove is announced', /^Removed qqqzy/.test(await statusOf(page)), await statusOf(page));
 
   // a grown-up who says no sends nothing
   answer = 'dismiss';
@@ -233,13 +241,26 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await poisoned.close();
 
   // My words fails to load: the page says so and stays the main list
+  const HISTORY = JSON.stringify({ attempts: { 1: { correct: 2, missed: 0 } }, missed: {}, rounds: 3 });
   const broken = await contextFor(preset);
+  await broken.addInitScript(seed => { if (!localStorage.getItem('bee-ready-history-v2')) localStorage.setItem('bee-ready-history-v2', seed); }, HISTORY);
   await broken.route('**/mine/ui.js', route => route.abort());
   const p5 = await broken.newPage();
+  const errors5 = [];
+  p5.on('console', m => { if (m.type() === 'error') errors5.push(m.text()); });
   await p5.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
   check('failed load: a visible message says this is the main list', await p5.evaluate(() =>
     /My words could not load/.test(document.getElementById('roundBuilder').textContent)));
-  check('failed load: the My words panel stays hidden', await p5.evaluate(() => document.getElementById('mineRoot').hidden)); // preflight: ok
+  check('failed load: the cause is logged', errors5.some(e => /My words could not load/.test(e)), errors5.join(' | ').slice(0, 120));
+  check('failed load: the My words panel stays hidden', await p5.evaluate(() => document.getElementById('mineRoot').hidden));
+  await p5.tap('#startRound');
+  await p5.waitForSelector('#answerInput:visible');
+  await p5.locator('#answerInput').pressSequentially('wrong');
+  await p5.tap('#answerForm button[type=submit]');
+  await p5.waitForSelector('#nextWord:visible');
+  await p5.tap('#starWord');
+  check('failed load: the default history and stars are not written',
+    await p5.evaluate(h => localStorage.getItem('bee-ready-history-v2') === h && localStorage.getItem('bee-ready-starred-v1') === null, HISTORY));
   await broken.close();
 
   // delete everything

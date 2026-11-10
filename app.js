@@ -13,6 +13,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 // mine/ code.
 const initialHash=location.hash;
 let mine=null;let mineFailed=false;
+const NO_SAVE={getItem:()=>null,setItem(){},removeItem(){}};
 // A share link's words are read once (initialHash) and then taken out of the address bar. (`history` is the practice
 // history further down, so the window's is named in full.)
 if(MINE_ENABLED&&/^#w=/.test(initialHash)&&new URLSearchParams(location.search).get('mode')==='mine')window.history.replaceState(null,'',location.pathname+location.search); // preflight: ok
@@ -34,9 +35,9 @@ function hideWord(sentence,word,reveal=false){
 }
 function comparison(s){return String(s).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US').replace(/[^\p{L}]/gu,'');}
 function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{attempts:{},missed:{},rounds:0};}catch{return {attempts:{},missed:{},rounds:0};}}
-function writeHistory(){try{localStorage.setItem(historyKey,JSON.stringify(history));}catch{} updateStats();}
+function writeHistory(){try{if(!mineFailed)localStorage.setItem(historyKey,JSON.stringify(history));}catch{} updateStats();}
 // Stars live in their own key (see stars.js). Reading `localStorage` can itself throw when storage is blocked, so go through store().
-function store(){try{return mine?mine.starsStorage(localStorage):localStorage;}catch{return null;}}
+function store(){try{return mineFailed?NO_SAVE:mine?mine.starsStorage(localStorage):localStorage;}catch{return null;}}
 let history=getHistory();let stars=loadStars(store());let openCards=new Set();let words=[];let currentRound=null;let displayLimit=44;let selectedCount=5;
 let noticeTimer=0;let voiceService=new BeeVoiceService({onStatus:updateVoiceStatus});
 const appState={activeTab:'practice'};

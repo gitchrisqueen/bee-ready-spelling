@@ -60,7 +60,7 @@ test('mine/ never touches the default history or stars keys, except to map the s
     if (file !== 'mine/lists.js') assert.equal(text.includes('bee-ready-starred-v1'), false, `${file} names the default stars key`); // preflight: ok
   }
   assert.equal(read('app.js').includes("mine?'bee-ready-mine-history-v1':'bee-ready-history-v2'"), true);
-  assert.match(read('app.js'), /return mine\?mine\.starsStorage\(localStorage\):localStorage/);
+  assert.match(read('app.js'), /mine\?mine\.starsStorage\(localStorage\):localStorage/);
 });
 
 test('a dictionary request starts only from the "Look up the missing words" button, and only if the switches are on', () => { // preflight: ok
