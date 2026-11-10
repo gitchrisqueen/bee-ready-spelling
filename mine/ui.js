@@ -45,7 +45,20 @@ const STOP_TEXT = {
   'rate-limit': 'Wiktionary asked us to slow down.', blocked: 'Wiktionary did not allow the request.',
   server: 'Wiktionary had a problem.', shape: 'Wiktionary sent something unexpected.', cancelled: 'Lookup stopped.',
 };
-const SAME_LIST_TEXT = 'You already have this list. It is ready: press Start my spelling bee.';
+const SHARED_NAME = 'Shared list';
+const ROUND_MAX = 20;      // the largest round the count buttons offer
+const LINK_FULL_TEXT = 'You already have the most lists you can keep. A grown-up needs to delete one first: open '
+  + '"Grown-ups: check the words first", press Cancel, delete a list, then open the link again.';
+// A link's list never takes the name of a list already saved: "Shared list" becomes "Shared list (2)".
+function uniqueName(store, name) {
+  const taken = new Set(store.lists.map(l => l.name));
+  if (!taken.has(name)) return name;
+  for (let i = 2; ; i++) {
+    const next = `${name.slice(0, LIMITS.listName - 6)} (${i})`;
+    if (!taken.has(next)) return next;
+  }
+}
+const SAME_LIST_TEXT ='You already have this list. It is ready: press Start my spelling bee.';
 const CONFIRM_LOOKUP = 'This sends the words that were not found, and this device\'s IP address, to Wiktionary '
   + '(Wikimedia). Only a grown-up should say yes. Send them?';
 
@@ -88,11 +101,11 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   document.querySelectorAll('#roundBuilder .helper').forEach(p => { if (/booklet/i.test(p.textContent)) p.hidden = true; }); // preflight: ok
   const bankIntro = document.querySelector('#tab-words .section-intro p');
   if (bankIntro) {
-    bankIntro.textContent = 'Your words are hidden so a speller can practise without peeking. '
+    bankIntro.textContent = 'Your words are hidden so a speller can practice without peeking. '
       + 'A grown-up can open the list below to see each word with its definition, origin and sentence.';
   }
   const bankNote = document.querySelector('#tab-words .results-head span');
-  if (bankNote) bankNote.textContent = 'Tap the star (☆) on a word you want to practise again.';
+  if (bankNote) bankNote.textContent = 'Tap the star (☆) on a word you want to practice again.';
   const bankPanel = document.querySelector('#tab-words > .panel');
   if (bankPanel) {
     const gate = el('details', { id: 'mineBankGate', class: 'mine-bank-gate' },
@@ -272,23 +285,29 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   function updateLinkCard(missing) {
     const n = chips.filter(c => !c.invalid).length;
     const noDefinition = missing
-      ? ` ${missing} ${missing === 1 ? 'word has' : 'words have'} no definition yet, so its clues will be short.`
+      ? ` ${missing} ${missing === 1 ? 'word has' : 'words have'} no definition yet, so the clues will be short.`
         + ' A grown-up can fix that first.'
       : '';
-    $('mineLinkText').textContent = `"${linkName}" has ${n} ${n === 1 ? 'word' : 'words'}. `
-      + `The words stay hidden so you can practise without peeking.${noDefinition}`;
+    const label = linkName === SHARED_NAME ? 'This list' : `"${linkName}"`;
+    const roundNote = n > ROUND_MAX ? ` Each round uses ${ROUND_MAX} of them.` : '';
+    $('mineLinkText').textContent = `${label} has ${n} ${n === 1 ? 'word' : 'words'}. `
+      + `The words stay hidden so you can practice without peeking.${roundNote}${noDefinition}`;
     $('mineLinkStart').disabled = n === 0;
   }
+  // While the start card shows, the list editor, the photo controls and the round builder are out of sight, so
+  // there is one start button and none of the words.
   function setLinkOpen(open) {
     $('mineRoot').classList.toggle('mine-link-open', open);
     $('mineLinkCard').hidden = !open;
+    $('roundBuilder').hidden = open;
     $('mineLinkGrownups').open = false;
     if (!open) linkName = null;
   }
   // `name` is the list's name; `words` stay hidden until a grown-up opens the check.
   async function showLink(words, name) {
-    linkName = cleanField(name, LIMITS.listName) || 'Shared list';
-    chips = await resolveInto(words);
+    const resolved = await resolveInto(words);
+    linkName = cleanField(name, LIMITS.listName) || SHARED_NAME;
+    chips = resolved;
     sharedNote = '';
     setLinkOpen(true);
     renderReview();
@@ -377,9 +396,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const entries = chipsToEntries(chips.filter(c => !c.invalid));
     let { store } = state;
     if (linkName !== null) {
-      // A list from a link becomes its own list, named after the link, and is the one practised next.
-      const made = addList(store, linkName, entries);
-      if (!made.list) { status('You already have the most lists you can keep. Delete one first.'); return; }
+      // A list from a link becomes its own list, named after the link, and is the one practiced next.
+      const made = addList(store, uniqueName(store, linkName), entries);
+      if (!made.list) { status(LINK_FULL_TEXT); return; }
       const name = made.list.name, count = made.list.entries.length;
       state.store = made.store;
       persist();
@@ -388,7 +407,12 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       renderReview();
       activate();
       status(`${name} is ready: ${count} ${count === 1 ? 'word' : 'words'}.`);
-      if (start) $('startRound').click(); else focusSoon($('mineWordsHead'));
+      if (start) {
+        // The round uses the whole list, up to ROUND_MAX words; the count buttons follow the number.
+        $('wordCount').value = String(Math.min(count, ROUND_MAX));
+        $('wordCount').dispatchEvent(new Event('input'));
+        $('startRound').click();
+      } else focusSoon($('mineWordsHead'));
       return;
     }
     if (!active()) {
@@ -568,7 +592,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       if (same) {
         state.store = { ...state.store, active: same.key }; persist(); activate(); // preflight: ok
         status(SAME_LIST_TEXT);
-      } else await showLink(unpacked.words, 'Shared list');
+      } else await showLink(unpacked.words, SHARED_NAME);
     }
   } else if (share?.id) {
     const same = state.store.lists.find(l => listId(l.entries.map(e => e.word)) === share.id);

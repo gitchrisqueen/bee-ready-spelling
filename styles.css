@@ -55,6 +55,10 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .mine-link-open [data-editor]{display:none}
 .mine-reveal{margin:12px 0}
 .mine-reveal>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800;color:#6551a6}
+.mine-reveal>summary::before,.mine-bank-gate>summary::before{content:"▸";margin-right:8px;flex:none}
+.mine-reveal>summary::before,.mine-bank-gate>summary::before{content:"▸" / ""}
+.mine-reveal[open]>summary::before,.mine-bank-gate[open]>summary::before{content:"▾";transform:none}
+.mine-reveal[open]>summary::before,.mine-bank-gate[open]>summary::before{content:"▾" / ""}
 .mine-bank-gate{margin:12px 0}
 .mine-bank-gate>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800;color:#6551a6;font-size:16px}
 .mine-photo[aria-busy=true] .file-btn{opacity:.5}

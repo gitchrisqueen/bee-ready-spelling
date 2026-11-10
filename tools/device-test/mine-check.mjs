@@ -225,7 +225,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     listShown: document.getElementById('mineWordList').checkVisibility(),
     count: document.getElementById('roundNumber').textContent,
   }));
-  check('share: Start practising saves the list under its own name and starts a round',
+  check('share: Start my spelling bee saves the list under its own name and starts a round',
     after2.lists.join() === 'Shared list:5' && /OF 5/.test(after2.count), JSON.stringify(after2));
   check('share: the saved words stay hidden until a grown-up opens them', !after2.boxOpen && !after2.listShown);
   await p2.tap('[data-tab=words]');
@@ -346,9 +346,48 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('published: the file came from this site and nothing from a third party',
     own7.some(p => p.endsWith(`/lists/${sampleId}.json`)) && external7.length === 0, external7.join());
   check('published: nothing is saved until Save', await p7.evaluate(() => localStorage.getItem('bee-ready-mine-v1') === null)); // preflight: ok
+  // while the card is open there is one start button, and no editor, photo controls or round builder
+  const ids7 = ['mineText', 'minePhotoBlock', 'roundBuilder', 'mineLinkStart'];
+  const shown7 = () => p7.evaluate(ids => Object.fromEntries(
+    ids.map(id => [id, document.getElementById(id).checkVisibility()])), ids7);
+  const open7 = await shown7();
+  check('published: the card hides the editor, the photo controls and the round builder',
+    !open7.mineText && !open7.minePhotoBlock && !open7.roundBuilder && open7.mineLinkStart, JSON.stringify(open7));
+  await p7.tap('#mineCancel');
+  const closed7 = await shown7();
+  check('published: Cancel brings the editor, photo controls and round builder back, and focus on Add words',
+    closed7.mineText && closed7.minePhotoBlock && closed7.roundBuilder && !closed7.mineLinkStart
+    && await p7.evaluate(() => document.activeElement.id === 'mineText'), JSON.stringify(closed7));
+  await p7.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
+  await p7.waitForSelector('#mineLinkCard:not([hidden])');
+  await p7.tap('#mineLinkStart');
+  await p7.waitForSelector('#roundArea:not(.hidden)');
+  check('published: a round uses the whole 3-word list, and focus is on the question',
+    /OF 3$/.test(await p7.locator('#roundNumber').innerText())
+    && await p7.evaluate(() => document.activeElement.id === 'questionHeading'));
+  check('published: the list is saved under its published name',
+    await p7.evaluate(() => (
+      JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists[0].name === 'Sample list: animals')));
   await p7.goto(`${BASE}?mode=mine&l=AAAAAAAAAAAAAAAAAAAAAA`, { waitUntil: 'networkidle' });
   check('published: an unknown id says the link has no words', /does not include the words/.test(await statusOf(p7)), await statusOf(p7)); // preflight: ok
   await published.close();
+
+  // 20 lists are already saved: Start says what to do, and the card stays usable
+  const full = await contextFor(preset);
+  await full.addInitScript(seed => {
+    if (!localStorage.getItem('bee-ready-mine-v1')) localStorage.setItem('bee-ready-mine-v1', seed);
+  },
+    JSON.stringify({ version: 1, nextId: 1000020, active: 'l-1', lists: Array.from({ length: 20 }, (_, i) => (
+      { key: `l-${i + 1}`, name: `List ${i + 1}`, entries: [{ id: 1000000 + i, word: 'apple', src: 'manual' }] })) }));
+  const p8 = await full.newPage();
+  await p8.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
+  await p8.waitForSelector('#mineLinkCard:not([hidden])');
+  await p8.tap('#mineLinkStart');
+  await p8.waitForTimeout(300);
+  check('full: Start says a grown-up must delete a list first, and the card stays',
+    /delete one first/.test(await statusOf(p8))
+    && await p8.evaluate(() => document.getElementById('mineLinkCard').checkVisibility()), await statusOf(p8));
+  await full.close();
 
   // delete everything
   await page.evaluate(() => { location.hash = 'grownups'; });

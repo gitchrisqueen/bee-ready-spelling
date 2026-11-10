@@ -1,7 +1,7 @@
 import { BeeVoiceService, VOICES, SPEEDS } from './voice-service.js';
 import { sentenceFor } from './sentences.js';
 import { loadStars, saveStars, toggleStar, clearStars } from './stars.js';
-import { wordCardHtml, UNKNOWN_ORIGIN, NOT_KNOWN_YET } from './wordcard.js';
+import { wordCardHtml, UNKNOWN_ORIGIN, NOT_KNOWN_YET, NO_DEFINITION } from './wordcard.js';
 import { MINE_ENABLED } from './mine/config.js';
 const $ = id => document.getElementById(id);
 const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -150,7 +150,9 @@ function showClue(type,{speak=true}={}){
   const w=currentWord();if(!w)return;
   // One-off slow playback, like hearFromCard: the saved speed (Voices tab) is never changed.
   if(type==='repeat'){voiceService.speak(w.word,{kind:'word',instant:true,speedId:'slow'});return;}
-  const clueText = type==='definition'?`<strong>Definition</strong>${escapeHtml(w.definition)}`:
+  const definitionHtml=w.custom&&w.definition===NO_DEFINITION
+    ?'No definition yet. Ask a grown-up to help.':escapeHtml(w.definition);
+  const clueText = type==='definition'?`<strong>Definition</strong>${definitionHtml}`:
     type==='origin'?(w.custom?`<strong>Origin</strong>${escapeHtml(w.group===UNKNOWN_ORIGIN?NOT_KNOWN_YET:w.group)}`:`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`): // preflight: ok
     type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||(w.custom?NOT_KNOWN_YET:'Word'))}`:
     `<strong>In a sentence</strong>${hideWord(sentenceFor(w),w.word,Boolean(currentRound.answered))}`;
@@ -388,7 +390,7 @@ function initGrownups(){
 function setActiveWords(list){
   words=list;$('wordCount').max=String(Math.max(1,words.length));$('pool').options[0].textContent=`All ${words.length.toLocaleString()} words`; // preflight: ok
   const g=$('groupFilter');while(g.options.length>1)g.remove(1);
-  [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(x=>g.add(new Option(x,x)));
+  [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(x=>g.add(new Option(x===UNKNOWN_ORIGIN?NOT_KNOWN_YET:x,x))); // preflight: ok
   $('startRound').disabled=!words.length;displayLimit=44;updateStats();renderWordBank();
   if(!words.length){$('wordGrid').textContent='';$('resultCount').textContent='No words yet.';$('loadMore').classList.add('hidden');} // preflight: ok
 }
@@ -402,7 +404,7 @@ async function main(){
     words=await response.json();
     // The word list is the source of truth: counts shown on the page follow whatever words.json holds.
     $('wordCount').max=String(words.length);$('pool').options[0].textContent=`All ${words.length.toLocaleString()} words`;
-    [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(g=>{$('groupFilter').add(new Option(g,g));});
+    [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(g=>{$('groupFilter').add(new Option(g===UNKNOWN_ORIGIN?NOT_KNOWN_YET:g,g));}); // preflight: ok
     updateStats();renderWordBank();
     if(mine)try{await mine.start({defaultWords:words,setWords:setActiveWords,shareHash:initialHash});}
     catch{$('roundBuilder').insertAdjacentHTML('beforeend','<p class="toast" role="alert">My words could not start. Please refresh the page.</p>');} // preflight: ok

@@ -144,7 +144,7 @@ The entry checks above were run in the Phase 1 pull request. The parser figures 
 
 The first live use showed two problems. A link opened the full review editor, so a speller saw every word and could not hide them, and the list was not started. Word cards also printed labels a child cannot read ("Mine", and a placeholder "word" where the part of speech was not known).
 
-- A link now opens a card with the list name and word count, a **Start practising** button, and a closed **Grown-ups: check the words first** control. Start saves the list under its own name and begins a round. The saved word list and the Word bank in My words are closed by default behind "Show the words in this list (for grown-ups)".
+- A link now opens a card with the list name and word count, a **Start my spelling bee** button, and a closed **Grown-ups: check the words first** control. Start saves the list under its own name and begins a round. The saved word list and the Word bank in My words are closed by default behind "Show the words in this list (for grown-ups)".
 - Word cards show only what is known (origin and part of speech), or "My word". An unknown part or origin reads "Not known yet" instead of repeating the label. The default list's cards are unchanged.
 - "Filter by group" is now "Filter by origin".
 - Checks: `tools/device-test/mine-check.mjs` (links, Start, hidden saved words, gated Word bank, card tags) and `tests/wordcard.test.mjs`. Emulation only; not tested on a real device or with a screen reader.

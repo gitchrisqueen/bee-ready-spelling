@@ -38,10 +38,10 @@
           <div id="mineLinkCard" class="mine-link-card" hidden>
             <h3 id="mineLinkTitle" tabindex="-1">Your spelling list is ready</h3>
             <p id="mineLinkText" class="helper"></p>
-            <div class="mine-actions"><button type="button" id="mineLinkStart" class="primary-btn">Start practising</button></div>
+            <div class="mine-actions"><button type="button" id="mineLinkStart" class="primary-btn">Start my spelling bee</button></div>
             <details id="mineLinkGrownups" class="mine-reveal">
               <summary>Grown-ups: check the words first</summary>
-              <p class="helper">The words stay hidden from the speller until you open this. You can look up missing words, fix a word, or press Save to keep the list without starting.</p>
+              <p class="helper">The words stay hidden from the speller until you open this. You can look up missing words, fix a word, or press Save these words to keep the list without starting.</p>
             </details>
           </div>
           <p class="helper" data-editor>Type or paste this week's words. Words already in Bee Ready come right in. For new words we look for a definition, part of speech, origin and sentence. Your lists stay in this browser.</p>
@@ -52,7 +52,7 @@
           <div class="mine-actions" data-editor><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
           <label class="field" data-editor for="mineText">Add words<textarea id="mineText" rows="4" placeholder="apple, banana, cherry, or one word on each line" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
           <button type="button" id="mineCheck" class="primary-btn" data-editor>Check my words</button>
-          <div id="minePhotoBlock" class="mine-photo" hidden>
+          <div id="minePhotoBlock" class="mine-photo" data-editor hidden>
             <p class="helper">Or use a picture of the list:</p>
             <div class="mine-actions">
               <label class="soft-btn file-btn">Take a photo of the list<input id="minePhotoCamera" type="file" accept="image/*" capture="environment"></label>

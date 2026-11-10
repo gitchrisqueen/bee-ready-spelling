@@ -21,7 +21,10 @@ const metaLine = (w,part) => {
   const known = [w.group===UNKNOWN_ORIGIN ? '' : String(w.group??'').trim(), part].filter(Boolean);
   return escapeHtml(known.length ? known.join(' · ') : 'My word');
 };
-export const ORIGIN_NOTE = "This group is only a hint. It is not the whole story of where the word came from.";
+export const ORIGIN_NOTE = "This is only a hint. It is not the whole story of where the word came from.";
+// What a My words entry holds when nobody has written a definition. The round's Definition clue shows a different
+// line for it, because a speller has no Dictionary link there.
+export const NO_DEFINITION = 'No definition yet. Use the Dictionary link to look it up.';
 export const BOOKLET_NOTE = "These are the original booklet's fixed groups. To save your own words, press the Star button (☆) on a word.";
 const idKey = id => String(id).replace(/[^A-Za-z0-9_-]/g,'_');
 // Unique per word, so aria-controls always points at exactly one panel on the page.
@@ -51,7 +54,7 @@ export function wordCardHtml(w,POS,sentenceFor,{starred=false,open=false,starLab
     + `<div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${id}" aria-label="Listen to ${word}"><span aria-hidden="true">🔊</span> Listen</button><button class="star-btn" data-star-id="${id}" aria-pressed="${starred}" aria-label="${escapeHtml(starLabel(w,starred))}"><span class="star-glyph" aria-hidden="true">${starred?'★':'☆'}</span></button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer" aria-label="Dictionary entry for ${word} (opens in a new tab)">Dictionary <span aria-hidden="true">↗</span></a></div>`
     + `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w))}">Details <span class="chev" aria-hidden="true">▸</span></button>`
     + `<div class="word-details" id="${panel}"${open?'':' hidden'}><dl class="details-list">`
-    + row('Part of speech',d.part) + row('Origin',d.origin,ORIGIN_NOTE)
+    + row('Part of speech',d.part) + row('Origin',d.origin,d.origin===NOT_KNOWN_YET?'':ORIGIN_NOTE)
     + (w.custom ? '' : row('Booklet list',d.booklet,BOOKLET_NOTE)) + row('In a sentence',d.sentence)
     + `</dl>${creditHtml(w)}<div class="details-audio" role="group" aria-label="Listen to ${word}">`
     + `<button type="button" class="mini-btn" data-hear="word" data-hear-id="${id}" aria-label="Hear the word: ${word}"><span aria-hidden="true">🔊</span> Hear the word</button>`

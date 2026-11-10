@@ -19,7 +19,7 @@ test('the card shows every label, the three audio buttons and the old buttons', 
   assert.ok(html.includes('<dd>verb</dd>'));
   assert.ok(html.includes(`<dd>Latin<small class="details-note">${esc(ORIGIN_NOTE)}</small></dd>`));
   assert.ok(html.includes(`<dd>Study<small class="details-note">${esc(BOOKLET_NOTE)}</small></dd>`));
-  assert.equal(ORIGIN_NOTE, 'This group is only a hint. It is not the whole story of where the word came from.');
+  assert.equal(ORIGIN_NOTE, 'This is only a hint. It is not the whole story of where the word came from.');
   assert.match(BOOKLET_NOTE, /fixed groups/);
   assert.match(BOOKLET_NOTE, /Star button/);
   assert.ok(html.includes('<dd>The king chose to abdicate.</dd>'), 'the full sentence shows, with the word visible');
@@ -185,6 +185,7 @@ test('a My words card says "Not known yet" for an unknown part or origin, not a 
   assert.ok(html.includes(`<dt>Part of speech</dt><dd>${NOT_KNOWN_YET}</dd>`));
   assert.ok(html.includes(`<dt>Origin</dt><dd>${NOT_KNOWN_YET}`));
   assert.equal(html.includes('Origin not available'), false);
+  assert.equal(html.includes('details-note'), false, 'no hint under an origin that is not known');
   assert.equal(detailsData({ ...base, part: '' }, POS, sentenceFor).part, 'Not listed', 'a default card is unchanged');
 });
 
@@ -195,7 +196,7 @@ test('the page ships the My words speller screens closed: words are behind "for 
   assert.equal(/<details id="mineWordsBox"[^>]*\bopen\b/.test(html), false);
   assert.equal(/<details id="mineLinkGrownups"[^>]*\bopen\b/.test(html), false);
   assert.match(html, /Grown-ups: check the words first/);
-  assert.match(html, /Start practising/);
+  assert.match(html, /id="mineLinkStart"[^>]*>Start my spelling bee</);
   const card = /<div id="mineLinkCard"[\s\S]*?<\/details>\s*<\/div>/.exec(html)[0];
   assert.equal(/mineChips|mineWordList/.test(card), false, 'the link card holds no word list');
 });
