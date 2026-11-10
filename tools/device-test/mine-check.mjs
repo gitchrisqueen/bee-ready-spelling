@@ -243,7 +243,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   // My words fails to load: the page says so and stays the main list
   const HISTORY = JSON.stringify({ attempts: { 1: { correct: 2, missed: 0 } }, missed: {}, rounds: 3 });
   const broken = await contextFor(preset);
-  await broken.addInitScript(seed => { if (!localStorage.getItem('bee-ready-history-v2')) localStorage.setItem('bee-ready-history-v2', seed); }, HISTORY);
+  await broken.addInitScript(seed => { if (!localStorage.getItem('bee-ready-history-v2')) localStorage.setItem('bee-ready-history-v2', seed); }, HISTORY); // preflight: ok
   await broken.route('**/mine/ui.js', route => route.abort());
   const p5 = await broken.newPage();
   const errors5 = [];
@@ -251,8 +251,8 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p5.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
   check('failed load: a visible message says this is the main list', await p5.evaluate(() =>
     /My words could not load/.test(document.getElementById('roundBuilder').textContent)));
-  check('failed load: the cause is logged', errors5.some(e => /My words could not load/.test(e)), errors5.join(' | ').slice(0, 120));
-  check('failed load: the My words panel stays hidden', await p5.evaluate(() => document.getElementById('mineRoot').hidden));
+  check('failed load: the cause is logged', errors5.some(e => /My words could not load/.test(e)), errors5.join(' | ').slice(0, 120)); // preflight: ok
+  check('failed load: the My words panel stays hidden', await p5.evaluate(() => document.getElementById('mineRoot').hidden)); // preflight: ok
   await p5.tap('#startRound');
   await p5.waitForSelector('#answerInput:visible');
   await p5.locator('#answerInput').pressSequentially('wrong');
@@ -260,7 +260,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p5.waitForSelector('#nextWord:visible');
   await p5.tap('#starWord');
   check('failed load: the default history and stars are not written',
-    await p5.evaluate(h => localStorage.getItem('bee-ready-history-v2') === h && localStorage.getItem('bee-ready-starred-v1') === null, HISTORY));
+    await p5.evaluate(h => localStorage.getItem('bee-ready-history-v2') === h && localStorage.getItem('bee-ready-starred-v1') === null, HISTORY)); // preflight: ok
   await broken.close();
 
   // delete everything
