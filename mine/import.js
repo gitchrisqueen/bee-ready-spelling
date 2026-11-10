@@ -3,6 +3,7 @@
 // grown-up asks for. Nothing here touches the network except the library files from this site, and nothing saves
 // anything.
 import { libraryEntry, loadShard } from './lookup.js';
+import { NO_DEFINITION } from '../wordcard.js';
 import { HOSTS, normalizeWord } from './validate.js';
 
 // A chip is { word, status: 'default' | 'library' | 'live' | 'missing', entry?, suggestion? }.
@@ -70,7 +71,7 @@ export function toPracticeWord(entry, defaultById) {
   return {
     id: entry.id, word: entry.word, part: entry.part ?? '', custom: true, level: 'Mine',
     ...(entry.credit?.length ? { credit: entry.credit.filter(h => HOSTS.includes(h)) } : {}),
-    definition: entry.definition ?? 'No definition yet. Use the Dictionary link to look it up.',
+    definition: entry.definition ?? NO_DEFINITION,
     group: entry.group ?? 'Origin not available', ...(entry.sentence ? { sentence: entry.sentence } : {}),
   };
 }

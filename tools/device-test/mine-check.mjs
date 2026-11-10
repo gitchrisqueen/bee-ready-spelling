@@ -201,10 +201,50 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   p2.on('request', r => { const u = new URL(r.url()); if (u.origin === new URL(BASE).origin) own2.push(u.pathname); });
   const local = url.replace(/^https?:\/\/[^/]+\//, BASE);
   await p2.goto(local, { waitUntil: 'networkidle' });
+  await p2.waitForSelector('#mineLinkCard:not([hidden])');
+  const seen2 = await p2.evaluate(() => ({
+    start: !!document.getElementById('mineLinkStart')?.offsetParent,
+    chips: !!document.getElementById('mineChips').offsetParent,
+    editor: !!document.getElementById('mineText').offsetParent,
+    text: document.body.innerText,
+  }));
+  check('share: the speller sees a start button and none of the words',
+    seen2.start && !seen2.chips && !seen2.editor && !/\b(habit|quay|abide|abdicate)\b/.test(seen2.text),
+    JSON.stringify({ ...seen2, text: '' }));
+  await p2.tap('#mineLinkGrownups summary');
   await p2.waitForSelector('#mineChips li');
-  check('share: the list opens for review', (await p2.locator('#mineChips li').count()) === 5);
-  check('share: nothing is saved until Save', await p2.evaluate(() => !localStorage.getItem('bee-ready-mine-v1')));
+  check('share: a grown-up can open the words to check them', (await p2.locator('#mineChips li').count()) === 5);
+  check('share: nothing is saved until Start or Save',
+    await p2.evaluate(() => !localStorage.getItem('bee-ready-mine-v1')));
   check('share: the words are taken out of the address bar', !/w=/.test(p2.url()) && !/w=/.test(await p2.evaluate(() => location.hash)), p2.url()); // preflight: ok
+  await p2.tap('#mineLinkStart');
+  await p2.waitForSelector('#roundArea:not(.hidden)');
+  const after2 = await p2.evaluate(() => ({
+    lists: JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists.map(l => l.name + ':' + l.entries.length),
+    boxOpen: document.getElementById('mineWordsBox').open,
+    listShown: document.getElementById('mineWordList').checkVisibility(),
+    count: document.getElementById('roundNumber').textContent,
+  }));
+  check('share: Start my spelling bee saves the list under its own name and starts a round',
+    after2.lists.join() === 'Shared list:5' && /OF 5/.test(after2.count), JSON.stringify(after2));
+  check('share: the saved words stay hidden until a grown-up opens them', !after2.boxOpen && !after2.listShown);
+  await p2.tap('[data-clue=definition]');
+  const clue2 = await p2.locator('#clueResult').innerText();
+  check('share: the Definition clue does not show the word itself',
+    clue2.length > 12 && !/\b(habit|quay|abide|abdicate|zzzxq)\b/i.test(clue2), clue2);
+  await p2.tap('[data-tab=words]');
+  const bank2 = await p2.evaluate(() => ({
+    gate: !!document.getElementById('mineBankGate'), open: document.getElementById('mineBankGate')?.open,
+    grid: document.getElementById('wordGrid').checkVisibility(), text: document.getElementById('tab-words').innerText,
+  }));
+  check('share: the Word bank keeps the words hidden until a grown-up opens them',
+    bank2.gate && !bank2.open && !bank2.grid && !/\b(habit|quay|abide)\b/.test(bank2.text),
+    JSON.stringify({ ...bank2, text: '' }));
+  await p2.tap('#mineBankGate summary');
+  await p2.waitForSelector('#wordGrid .word-card');
+  const meta2 = await p2.$$eval('#wordGrid .word-meta', els => els.map(e => e.textContent));
+  check('share: word cards show no "Mine" or "word" tag',
+    meta2.length > 0 && meta2.every(t => !/\bMine\b|(^|· )word$/.test(t)), meta2.join(' | '));
   await p2.goto('about:blank');
   await p2.goto(local.replace(/#w=./, '#w=x'), { waitUntil: 'networkidle' });
   check('share: a damaged link is refused with a message', /looks damaged/.test(await statusOf(p2)));
@@ -300,17 +340,58 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   });
   const sampleId = readdirSync(new URL('../../lists/', import.meta.url))[0].replace(/\.json$/, '');
   await p7.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
+  await p7.waitForSelector('#mineLinkCard:not([hidden])');
+  const card7 = await p7.evaluate(() => document.getElementById('mineLinkCard').innerText);
+  check('published: the card names the list and says how many words, without showing them',
+    /"Sample list: animals" has 3 words/.test(card7) && !/elephant|giraffe|penguin/.test(card7), card7.slice(0, 100));
+  await p7.tap('#mineLinkGrownups summary');
   await p7.waitForSelector('#mineChips li');
-  const summary7 = await p7.evaluate(() => document.getElementById('mineReviewSummary').textContent);
-  check('published: the list is shown for review with its name',
-    /published list "Sample list: animals"\. Nothing is saved until you press Save/.test(summary7), summary7);
-  check('published: its three words are listed', (await p7.$$('#mineChips li')).length === 3);
+  check('published: a grown-up can open its three words', (await p7.$$('#mineChips li')).length === 3);
   check('published: the file came from this site and nothing from a third party',
     own7.some(p => p.endsWith(`/lists/${sampleId}.json`)) && external7.length === 0, external7.join());
   check('published: nothing is saved until Save', await p7.evaluate(() => localStorage.getItem('bee-ready-mine-v1') === null)); // preflight: ok
+  // while the card is open there is one start button, and no editor, photo controls or round builder
+  const ids7 = ['mineText', 'minePhotoBlock', 'roundBuilder', 'mineLinkStart'];
+  const shown7 = () => p7.evaluate(ids => Object.fromEntries(
+    ids.map(id => [id, document.getElementById(id).checkVisibility()])), ids7);
+  const open7 = await shown7();
+  check('published: the card hides the editor, the photo controls and the round builder',
+    !open7.mineText && !open7.minePhotoBlock && !open7.roundBuilder && open7.mineLinkStart, JSON.stringify(open7));
+  await p7.tap('#mineCancel');
+  const closed7 = await shown7();
+  check('published: Cancel brings the editor, photo controls and round builder back, and focus on Add words',
+    closed7.mineText && closed7.minePhotoBlock && closed7.roundBuilder && !closed7.mineLinkStart
+    && await p7.evaluate(() => document.activeElement.id === 'mineText'), JSON.stringify(closed7));
+  await p7.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
+  await p7.waitForSelector('#mineLinkCard:not([hidden])');
+  await p7.tap('#mineLinkStart');
+  await p7.waitForSelector('#roundArea:not(.hidden)');
+  check('published: a round uses the whole 3-word list, and focus is on the question',
+    /OF 3$/.test(await p7.locator('#roundNumber').innerText())
+    && await p7.evaluate(() => document.activeElement.id === 'questionHeading'));
+  check('published: the list is saved under its published name',
+    await p7.evaluate(() => (
+      JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists[0].name === 'Sample list: animals')));
   await p7.goto(`${BASE}?mode=mine&l=AAAAAAAAAAAAAAAAAAAAAA`, { waitUntil: 'networkidle' });
   check('published: an unknown id says the link has no words', /does not include the words/.test(await statusOf(p7)), await statusOf(p7)); // preflight: ok
   await published.close();
+
+  // 20 lists are already saved: Start says what to do, and the card stays usable
+  const full = await contextFor(preset);
+  await full.addInitScript(seed => {
+    if (!localStorage.getItem('bee-ready-mine-v1')) localStorage.setItem('bee-ready-mine-v1', seed);
+  },
+    JSON.stringify({ version: 1, nextId: 1000020, active: 'l-1', lists: Array.from({ length: 20 }, (_, i) => (
+      { key: `l-${i + 1}`, name: `List ${i + 1}`, entries: [{ id: 1000000 + i, word: 'apple', src: 'manual' }] })) }));
+  const p8 = await full.newPage();
+  await p8.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
+  await p8.waitForSelector('#mineLinkCard:not([hidden])');
+  await p8.tap('#mineLinkStart');
+  await p8.waitForTimeout(300);
+  check('full: Start says a grown-up must delete a list first, and the card stays',
+    /delete one first/.test(await statusOf(p8))
+    && await p8.evaluate(() => document.getElementById('mineLinkCard').checkVisibility()), await statusOf(p8));
+  await full.close();
 
   // delete everything
   await page.evaluate(() => { location.hash = 'grownups'; });

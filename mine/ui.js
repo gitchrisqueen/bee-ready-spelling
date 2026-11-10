@@ -45,6 +45,20 @@ const STOP_TEXT = {
   'rate-limit': 'Wiktionary asked us to slow down.', blocked: 'Wiktionary did not allow the request.',
   server: 'Wiktionary had a problem.', shape: 'Wiktionary sent something unexpected.', cancelled: 'Lookup stopped.',
 };
+const SHARED_NAME = 'Shared list';
+const ROUND_MAX = 20;      // the largest round the count buttons offer
+const LINK_FULL_TEXT = 'You already have the most lists you can keep. A grown-up needs to delete one first: open '
+  + '"Grown-ups: check the words first", press Cancel, delete a list, then open the link again.';
+// A link's list never takes the name of a list already saved: "Shared list" becomes "Shared list (2)".
+function uniqueName(store, name) {
+  const taken = new Set(store.lists.map(l => l.name));
+  if (!taken.has(name)) return name;
+  for (let i = 2; ; i++) {
+    const next = `${name.slice(0, LIMITS.listName - 6)} (${i})`;
+    if (!taken.has(next)) return next;
+  }
+}
+const SAME_LIST_TEXT = 'You already have this list. It is ready: press Start my spelling bee.';
 const CONFIRM_LOOKUP = 'This sends the words that were not found, and this device\'s IP address, to Wiktionary '
   + '(Wikimedia). Only a grown-up should say yes. Send them?';
 
@@ -56,6 +70,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   const state = { store: null, settings: loadSettings(store0), readOnly: false };
   let chips = [];            // the review list, not yet saved
   let sharedNote = '';       // set when the review came from a share link
+  let linkName = null;       // set while a list from a link waits to be started; its words stay hidden
   let lookupAbort = null;
   let nextChip = 1;
   let pendingEdits = 0;      // word edits still being looked up; Save waits for them
@@ -85,7 +100,26 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   $('levelFilter').closest('label')?.setAttribute('hidden', '');
   document.querySelectorAll('#roundBuilder .helper').forEach(p => { if (/booklet/i.test(p.textContent)) p.hidden = true; }); // preflight: ok
   const bankIntro = document.querySelector('#tab-words .section-intro p');
-  if (bankIntro) bankIntro.textContent = 'Your own words, with their definitions, origins and sentences. Press Details on a card.'; // preflight: ok
+  if (bankIntro) {
+    bankIntro.textContent = 'Your words are hidden so a speller can practice without peeking. '
+      + 'A grown-up can open the list below to see each word with its definition, origin and sentence.';
+  }
+  const bankNote = document.querySelector('#tab-words .results-head span');
+  if (bankNote) bankNote.textContent = 'Tap the star (☆) on a word you want to practice again.';
+  const bankPanel = document.querySelector('#tab-words > .panel');
+  if (bankPanel) {
+    const gate = el('details', { id: 'mineBankGate', class: 'mine-bank-gate' },
+      el('summary', { text: 'Show the words in this list (for grown-ups)' }));
+    bankPanel.replaceWith(gate);
+    gate.append(bankPanel);
+  }
+  const aboutClues = document.querySelector('.foot-note p');
+  if (aboutClues) {
+    aboutClues.textContent = '“Origin” is the language a word came from, taken from the Bee Ready library or '
+      + 'Wiktionary. Some words travelled through several languages, so it is not the whole story. '
+      + 'Definitions are simplified study explanations, not official competition definitions. '
+      + 'Spelling bee rules vary by organizer.';
+  }
 
   // The safety list must load first. Without it every word looks blocked, and saving would wipe the saved lists, so the
   // screen stays read-only: nothing is read, nothing is written.
@@ -140,7 +174,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
         el('span', { class: 'mine-word-def', text: ` ${e.definition ?? (e.src === 'default' ? 'In the Bee Ready list' : '')}` }), // preflight: ok
         el('button', { type: 'button', class: 'text-btn', 'data-remove': e.id, 'aria-label': `Remove ${e.word}`, text: 'Remove' }))); // preflight: ok
     }
-    $('mineWordsHead').textContent = a ? `Words in ${a.name}` : 'Words in your list';
+    const count = a?.entries.length ?? 0;
+    $('mineWordsHead').textContent = a ? `${a.name}: ${count} ${count === 1 ? 'word' : 'words'}` : 'Your list';
     $('mineEmpty').hidden = Boolean(a?.entries.length);
   }
   function activate() {
@@ -228,10 +263,11 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     $('mineLookup').hidden = !(LIVE_LOOKUP_ENABLED && state.settings.liveLookup) || !missing;
     $('mineLookupBlock').hidden = $('mineLookup').hidden;
     $('mineSave').disabled = !chips.some(c => !c.invalid);
+    if (linkName !== null) updateLinkCard(missing);
   }
   function renderReview() {
     const spot = focusSpot();
-    $('mineReview').hidden = !chips.length;
+    $('mineReview').hidden = !chips.length || (linkName !== null && !$('mineLinkGrownups').open);
     $('mineChips').replaceChildren(...chips.map((c, i) => chipNode(c, i, chips.length)));
     updateReviewControls();
     restoreFocus(spot);
@@ -244,6 +280,38 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     old.replaceWith(chipNode(chips[at], at, chips.length));
     updateReviewControls();
     if (spot && spot.uid === String(chips[at].uid)) restoreFocus(spot);
+  }
+  // ---- a list that came from a link: the speller sees a start button, not the words ------------------------------
+  function updateLinkCard(missing) {
+    const n = chips.filter(c => !c.invalid).length;
+    const noDefinition = missing
+      ? ` ${missing} ${missing === 1 ? 'word has' : 'words have'} no definition yet, so the clues will be short.`
+        + ' A grown-up can fix that first.'
+      : '';
+    const label = linkName === SHARED_NAME ? 'This list' : `"${linkName}"`;
+    const roundNote = n > ROUND_MAX ? ` Each round uses ${ROUND_MAX} of them.` : '';
+    $('mineLinkText').textContent = `${label} has ${n} ${n === 1 ? 'word' : 'words'}. `
+      + `The words stay hidden so you can practice without peeking.${roundNote}${noDefinition}`;
+    $('mineLinkStart').disabled = n === 0;
+  }
+  // While the start card shows, the list editor, the photo controls and the round builder are out of sight, so
+  // there is one start button and none of the words.
+  function setLinkOpen(open) {
+    $('mineRoot').classList.toggle('mine-link-open', open);
+    $('mineLinkCard').hidden = !open;
+    $('roundBuilder').hidden = open;
+    $('mineLinkGrownups').open = false;
+    if (!open) linkName = null;
+  }
+  // `name` is the list's name; `words` stay hidden until a grown-up opens the check.
+  async function showLink(words, name) {
+    const resolved = await resolveInto(words);
+    linkName = cleanField(name, LIMITS.listName) || SHARED_NAME;
+    chips = resolved;
+    sharedNote = '';
+    setLinkOpen(true);
+    renderReview();
+    $('mineLinkTitle').focus({ preventScroll: false });
   }
   async function resolveInto(words) {
     const resolved = await resolveWords(words, { defaultByWord, fetchFn });
@@ -323,10 +391,30 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     focusSoon($('mineSave'));
   }
 
-  async function onSave() {
+  async function onSave({ start = false } = {}) {
     while (pendingEdits > 0) await new Promise(r => setTimeout(r, 20));
     const entries = chipsToEntries(chips.filter(c => !c.invalid));
     let { store } = state;
+    if (linkName !== null) {
+      // A list from a link becomes its own list, named after the link, and is the one practiced next.
+      const made = addList(store, uniqueName(store, linkName), entries);
+      if (!made.list) { status(LINK_FULL_TEXT); return; }
+      const name = made.list.name, count = made.list.entries.length;
+      state.store = made.store;
+      persist();
+      chips = []; sharedNote = ''; openUids.clear();
+      setLinkOpen(false);
+      renderReview();
+      activate();
+      status(`${name} is ready: ${count} ${count === 1 ? 'word' : 'words'}.`);
+      if (start) {
+        // The round uses the whole list, up to ROUND_MAX words; the count buttons follow the number.
+        $('wordCount').value = String(Math.min(count, ROUND_MAX));
+        $('wordCount').dispatchEvent(new Event('input'));
+        $('startRound').click();
+      } else focusSoon($('mineWordsHead'));
+      return;
+    }
     if (!active()) {
       const made = addList(store, 'My words', []);
       if (!made.list) { status('You already have the most lists you can keep. Delete one first.'); return; }
@@ -394,9 +482,15 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   $('mineCheck').addEventListener('click', onCheck);
   $('mineLookup').addEventListener('click', onLookup);
   $('mineCancelLookup').addEventListener('click', () => lookupAbort?.abort());
-  $('mineSave').addEventListener('click', onSave);
+  $('mineSave').addEventListener('click', () => onSave());
+  $('mineLinkStart').addEventListener('click', () => onSave({ start: true }));
+  $('mineLinkGrownups').addEventListener('toggle', () => {
+    if (linkName !== null) $('mineReview').hidden = !chips.length || !$('mineLinkGrownups').open;
+  });
   $('mineCancel').addEventListener('click', () => {
-    chips = []; sharedNote = ''; openUids.clear(); renderReview(); status('Nothing was saved.'); focusSoon($('mineText')); // preflight: ok
+    chips = []; sharedNote = ''; openUids.clear();
+    if (linkName !== null) setLinkOpen(false);
+    renderReview(); status('Nothing was saved.'); focusSoon($('mineText')); // preflight: ok
   });
   $('mineChips').addEventListener('click', async e => {
     const rm = e.target.closest('[data-chip-remove]');
@@ -495,21 +589,23 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       status('This link looks damaged. Ask the person who sent it for a new link.');
     } else {
       const same = findListByWords(state.store, unpacked.words);
-      if (same) { state.store = { ...state.store, active: same.key }; persist(); activate(); status('You already have this list.'); } // preflight: ok
-      else await showReview(unpacked.words, 'This list came from a link. Nothing is saved until you press Save.');
+      if (same) {
+        state.store = { ...state.store, active: same.key }; persist(); activate(); // preflight: ok
+        status(SAME_LIST_TEXT);
+      } else await showLink(unpacked.words, SHARED_NAME);
     }
   } else if (share?.id) {
     const same = state.store.lists.find(l => listId(l.entries.map(e => e.word)) === share.id);
-    if (same) { state.store = { ...state.store, active: same.key }; persist(); activate(); }
-    else {
+    if (same) {
+      state.store = { ...state.store, active: same.key }; persist(); activate(); status(SAME_LIST_TEXT);
+    } else {
       // A list the owner published: lists/<id>.json on this site. Same files, no third party. It is checked like
       // any other input and must hash back to the id in the link.
       status('Looking for this list.');
       const published = await loadRegistryList(fetch, share.id);
       if (published) {
         status('');
-        await showReview(published.words,
-          `This is the published list "${published.name}". Nothing is saved until you press Save.`);
+        await showLink(published.words, published.name);
       } else status('This link does not include the words. Ask the person who sent it for a new link.');
     }
   }
