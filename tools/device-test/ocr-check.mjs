@@ -86,20 +86,20 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   // a picture that cannot be read, and one with no words in it: a kind message, the cause in the console, focus kept
   const warnings = [];
   page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });
-  await page.setInputFiles('#minePhotoPick', { name: 'private-name.png', mimeType: 'image/png', buffer: Buffer.from('not a picture') });
-  await page.waitForFunction(() => /could not read the picture/.test(document.getElementById('mineStatus').textContent), null, { timeout: 30000 });
+  await page.setInputFiles('#minePhotoPick', { name: 'private-name.png', mimeType: 'image/png', buffer: Buffer.from('not a picture') }); // preflight: ok
+  await page.waitForFunction(() => /could not read the picture/.test(document.getElementById('mineStatus').textContent), null, { timeout: 30000 }); // preflight: ok
   await page.waitForTimeout(300);
   check('an unreadable picture gives a kind message and focus returns to the picture button',
     await page.evaluate(() => document.activeElement.id === 'minePhotoPick'));
   check('the cause is logged without the file name',
-    warnings.some(w => /My words photo import failed/.test(w)) && !warnings.some(w => /private-name/.test(w)), warnings.join(' | '));
+    warnings.some(w => /My words photo import failed/.test(w)) && !warnings.some(w => /private-name/.test(w)), warnings.join(' | ')); // preflight: ok
   const blank = await page.evaluate(() => {
     const c = document.createElement('canvas'); c.width = 400; c.height = 300;
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 400, 300);
     return c.toDataURL('image/png');
   });
-  await page.setInputFiles('#minePhotoCamera', { name: 'blank.png', mimeType: 'image/png', buffer: Buffer.from(blank.split(',')[1], 'base64') });
-  await page.waitForFunction(() => /No words were found/.test(document.getElementById('mineStatus').textContent), null, { timeout: 60000 });
+  await page.setInputFiles('#minePhotoCamera', { name: 'blank.png', mimeType: 'image/png', buffer: Buffer.from(blank.split(',')[1], 'base64') }); // preflight: ok
+  await page.waitForFunction(() => /No words were found/.test(document.getElementById('mineStatus').textContent), null, { timeout: 60000 }); // preflight: ok
   await page.waitForTimeout(300);
   check('a picture with no words gives a message and focus returns to the picture button',
     await page.evaluate(() => document.activeElement.id === 'minePhotoCamera'));

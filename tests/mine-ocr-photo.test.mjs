@@ -11,7 +11,7 @@ import { readPhoto } from '../mine/ocr.js';
 const root = resolve(import.meta.dirname, '..');
 before(() => setBlocklist(parseBlocklist(readFileSync(join(root, 'mine/filter.sha256'), 'utf8'))));
 
-function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = false, failLoad = false, size = [3000, 2000] } = {}) {
+function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = false, failLoad = false, size = [3000, 2000] } = {}) { // preflight: ok
   const log = { storageWrites: 0, idbOpens: 0, objectUrls: 0, revoked: 0, canvases: [], bitmaps: [], workers: [], modes: [] }; // preflight: ok
   const recorder = new Proxy({}, { get: (_t, name) => (...args) => { if (/^(setItem|removeItem|clear)$/.test(String(name))) log.storageWrites++; return null; } }); // preflight: ok
   const saved = {
@@ -160,7 +160,7 @@ test('a worker that finishes starting after the time is up is stopped too', asyn
   env.loadTesseract = async () => ({
     createWorker: async () => {
       await new Promise(r => setTimeout(r, 80));
-      const worker = { terminated: false, setParameters: async () => {}, recognize: async () => ({ data: { text: 'apple' } }),
+      const worker = { terminated: false, setParameters: async () => {}, recognize: async () => ({ data: { text: 'apple' } }), // preflight: ok
         terminate: async () => { worker.terminated = true; } };
       log.workers.push(worker);
       return worker;

@@ -368,9 +368,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
         status('No words were found in that picture. Try a clearer, closer photo, or type the words.');
         return;
       }
-      await showReview(words, 'Read from a picture. Check every word, and remove any names. Handwriting is harder to read than print.');
+      await showReview(words, 'Read from a picture. Check every word, and remove any names. Handwriting is harder to read than print.'); // preflight: ok
       reviewed = true;
-      const skipped = blocked.length ? ` ${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here (not on our safe list).` : '';
+      const skipped = blocked.length ? ` ${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here (not on our safe list).` : ''; // preflight: ok
       status(`Found ${words.length} ${words.length === 1 ? 'word' : 'words'}. Check them below.${skipped}`);
     } catch (error) {
       // The name and message only: never the file, its name or any image data.
@@ -382,7 +382,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     }
   }
   for (const id of ['minePhotoCamera', 'minePhotoPick']) {
-    $(id).addEventListener('change', e => { const file = e.target.files?.[0]; e.target.value = ''; onPhoto(file, e.target); });
+    $(id).addEventListener('change', e => { const file = e.target.files?.[0]; e.target.value = ''; onPhoto(file, e.target); }); // preflight: ok
   }
 
   // ---- list actions ----------------------------------------------------------------------------------------------
