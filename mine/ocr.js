@@ -7,6 +7,8 @@ import { parseWords } from './validate.js';
 export const OCR_DIR = './voice-assets/ocr/';
 export const MAX_SIDE = 2000;
 export const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
+export const MAX_PIXELS = 80000000;
+export const READ_TIMEOUT_MS = 120000;
 
 // Every Tesseract.js path is set to this site (all three default to a CDN), no blob: worker is needed, and the library
 // keeps nothing in IndexedDB.
@@ -105,41 +107,59 @@ export function wordsFromOcrText(text) {
 
 // Reads a photo. `env` supplies the browser pieces (so tests can fake them): createImageBitmap, makeCanvas,
 // loadTesseract and the Tesseract options. The bitmap is closed, the canvas is set to 0 by 0, and the worker is
-// stopped whether the read works or not.
-export async function readPhoto(file, env, { onStage = () => {} } = {}) {
-  let bitmap = null, canvas = null, worker = null;
+// stopped whether the read works, fails or runs out of time (READ_TIMEOUT_MS).
+export async function readPhoto(file, env, { onStage = () => {}, timeoutMs = READ_TIMEOUT_MS } = {}) {
+  const state = { bitmap: null, canvas: null, worker: null, finished: false };
+  let timer = null;
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('The picture took too long to read.')), timeoutMs);
+  });
+  const work = run(file, env, onStage, state);
+  work.catch(() => {}); // a read that is still running when the time is up is stopped below; its error is not needed
   try {
-    onStage('opening');
-    bitmap = await env.createImageBitmap(file);
-    const { width, height } = fitSize(bitmap.width, bitmap.height);
-    canvas = env.makeCanvas();
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    const image = ctx.getImageData(0, 0, width, height);
-    const flat = flattenIllumination(toGray(image.data, width, height), width, height);
-    for (let i = 0; i < flat.length; i++) {
-      image.data[i * 4] = image.data[i * 4 + 1] = image.data[i * 4 + 2] = flat[i];
-      image.data[i * 4 + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-    onStage('loading');
-    const tesseract = await env.loadTesseract();
-    worker = await tesseract.createWorker('eng', 1, env.options);
-    onStage('reading');
-    // A single block first (lists are usually one block); automatic layout only if that finds nothing.
-    let result = null;
-    for (const mode of ['6', '3']) {
-      await worker.setParameters({ tessedit_pageseg_mode: mode });
-      const { data } = await worker.recognize(canvas);
-      result = wordsFromOcrText(data.text);
-      if (result.words.length) break;
-    }
-    return result;
+    return await Promise.race([work, timeout]);
   } finally {
-    bitmap?.close?.();
-    if (canvas) { canvas.width = 0; canvas.height = 0; }
-    try { await worker?.terminate(); } catch { /* already stopped */ }
+    clearTimeout(timer);
+    state.finished = true;
+    state.bitmap?.close?.();
+    if (state.canvas) { state.canvas.width = 0; state.canvas.height = 0; }
+    try { await state.worker?.terminate(); } catch { /* already stopped */ }
   }
+}
+
+async function run(file, env, onStage, state) {
+  onStage('opening');
+  const bitmap = await env.createImageBitmap(file);
+  state.bitmap = bitmap;
+  if (bitmap.width * bitmap.height > MAX_PIXELS) throw new Error('The picture is too large.');
+  const { width, height } = fitSize(bitmap.width, bitmap.height);
+  const canvas = env.makeCanvas();
+  state.canvas = canvas;
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  const image = ctx.getImageData(0, 0, width, height);
+  const flat = flattenIllumination(toGray(image.data, width, height), width, height);
+  for (let i = 0; i < flat.length; i++) {
+    image.data[i * 4] = image.data[i * 4 + 1] = image.data[i * 4 + 2] = flat[i];
+    image.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+  onStage('loading');
+  const tesseract = await env.loadTesseract();
+  const worker = await tesseract.createWorker('eng', 1, env.options);
+  state.worker = worker;
+  // A worker that finished starting after the time was up is stopped here, because the caller has already cleaned up.
+  if (state.finished) { await worker.terminate(); throw new Error('The read was stopped.'); }
+  onStage('reading');
+  // A single block first (lists are usually one block); automatic layout only if that finds nothing.
+  let result = null;
+  for (const mode of ['6', '3']) {
+    await worker.setParameters({ tessedit_pageseg_mode: mode });
+    const { data } = await worker.recognize(canvas);
+    result = wordsFromOcrText(data.text);
+    if (result.words.length) break;
+  }
+  return result;
 }

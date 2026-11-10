@@ -83,6 +83,26 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('nothing was saved by the import', (await page.evaluate(() => Object.keys(localStorage).sort().join())) === keysBefore); // preflight: ok
   check('no IndexedDB database was created', await page.evaluate(async () => (await indexedDB.databases()).length === 0)); // preflight: ok
   check('the picture buttons work again after the read', await page.evaluate(() => !document.getElementById('minePhotoPick').disabled)); // preflight: ok
+  // a picture that cannot be read, and one with no words in it: a kind message, the cause in the console, focus kept
+  const warnings = [];
+  page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });
+  await page.setInputFiles('#minePhotoPick', { name: 'private-name.png', mimeType: 'image/png', buffer: Buffer.from('not a picture') });
+  await page.waitForFunction(() => /could not read the picture/.test(document.getElementById('mineStatus').textContent), null, { timeout: 30000 });
+  await page.waitForTimeout(300);
+  check('an unreadable picture gives a kind message and focus returns to the picture button',
+    await page.evaluate(() => document.activeElement.id === 'minePhotoPick'));
+  check('the cause is logged without the file name',
+    warnings.some(w => /My words photo import failed/.test(w)) && !warnings.some(w => /private-name/.test(w)), warnings.join(' | '));
+  const blank = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 400; c.height = 300;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 400, 300);
+    return c.toDataURL('image/png');
+  });
+  await page.setInputFiles('#minePhotoCamera', { name: 'blank.png', mimeType: 'image/png', buffer: Buffer.from(blank.split(',')[1], 'base64') });
+  await page.waitForFunction(() => /No words were found/.test(document.getElementById('mineStatus').textContent), null, { timeout: 60000 });
+  await page.waitForTimeout(300);
+  check('a picture with no words gives a message and focus returns to the picture button',
+    await page.evaluate(() => document.activeElement.id === 'minePhotoCamera'));
   check('no page errors', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }

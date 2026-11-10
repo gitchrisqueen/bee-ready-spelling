@@ -349,7 +349,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     $('minePhotoBlock').setAttribute('aria-busy', String(busy));
     for (const id of ['minePhotoCamera', 'minePhotoPick']) $(id).disabled = busy;
   }
-  async function onPhoto(file) {
+  async function onPhoto(file, input) {
     if (!file) return;
     if (file.size > MAX_PHOTO_BYTES) { status('That picture is too big. Try a smaller one.'); return; }
     const base = new URL(OCR_DIR, document.baseURI).href;
@@ -359,20 +359,30 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     };
     setPhotoBusy(true);
     status('Reading your picture on this device. The first one downloads about 7 MB from this site. Nothing is uploaded.'); // preflight: ok
+    let reviewed = false;
     try {
-      const { words } = await readPhoto(file, env);
+      const { words, blocked } = await readPhoto(file, env, {
+        onStage: stage => { if (stage === 'reading') status('Reading the words now.'); },
+      });
       if (!words.length) {
         status('No words were found in that picture. Try a clearer, closer photo, or type the words.');
         return;
       }
-      await showReview(words, 'Read from a picture. Check every word: handwriting is harder to read than print.');
-      status(`Found ${words.length} ${words.length === 1 ? 'word' : 'words'}. Check them below.`);
-    } catch {
+      await showReview(words, 'Read from a picture. Check every word, and remove any names. Handwriting is harder to read than print.');
+      reviewed = true;
+      const skipped = blocked.length ? ` ${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here (not on our safe list).` : '';
+      status(`Found ${words.length} ${words.length === 1 ? 'word' : 'words'}. Check them below.${skipped}`);
+    } catch (error) {
+      // The name and message only: never the file, its name or any image data.
+      console.warn('My words photo import failed:', error?.name, error?.message);
       status('This browser could not read the picture. You can type the words instead.');
-    } finally { setPhotoBusy(false); }
+    } finally {
+      setPhotoBusy(false);
+      if (!reviewed) focusSoon(input);
+    }
   }
   for (const id of ['minePhotoCamera', 'minePhotoPick']) {
-    $(id).addEventListener('change', e => { const file = e.target.files?.[0]; e.target.value = ''; onPhoto(file); });
+    $(id).addEventListener('change', e => { const file = e.target.files?.[0]; e.target.value = ''; onPhoto(file, e.target); });
   }
 
   // ---- list actions ----------------------------------------------------------------------------------------------

@@ -11,7 +11,7 @@ import { readPhoto } from '../mine/ocr.js';
 const root = resolve(import.meta.dirname, '..');
 before(() => setBlocklist(parseBlocklist(readFileSync(join(root, 'mine/filter.sha256'), 'utf8'))));
 
-function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = false, failLoad = false } = {}) {
+function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = false, failLoad = false, size = [3000, 2000] } = {}) {
   const log = { storageWrites: 0, idbOpens: 0, objectUrls: 0, revoked: 0, canvases: [], bitmaps: [], workers: [], modes: [] }; // preflight: ok
   const recorder = new Proxy({}, { get: (_t, name) => (...args) => { if (/^(setItem|removeItem|clear)$/.test(String(name))) log.storageWrites++; return null; } }); // preflight: ok
   const saved = {
@@ -23,7 +23,7 @@ function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = 
   URL.createObjectURL = () => { log.objectUrls++; return 'blob:x'; };
   URL.revokeObjectURL = () => { log.revoked++; };
   const env = {
-    createImageBitmap: async () => { const b = { width: 3000, height: 2000, closed: false, close() { this.closed = true; } }; log.bitmaps.push(b); return b; }, // preflight: ok
+    createImageBitmap: async () => { const b = { width: size[0], height: size[1], closed: false, close() { this.closed = true; } }; log.bitmaps.push(b); return b; }, // preflight: ok
     makeCanvas: () => {
       const canvas = {
         width: 0, height: 0,
@@ -135,4 +135,47 @@ test('stages are reported in order', async () => {
   const stages = [];
   try { await readPhoto({}, env, { onStage: s => stages.push(s) }); } finally { restore(); }
   assert.deepEqual(stages, ['opening', 'loading', 'reading']);
+});
+
+test('a read that never finishes is stopped at the time limit and everything is released', async () => {
+  const { env, log, restore } = makeWorld();
+  env.loadTesseract = async () => ({
+    createWorker: async () => {
+      const worker = { terminated: false, setParameters: async () => {}, recognize: () => new Promise(() => {}),
+        terminate: async () => { worker.terminated = true; } };
+      log.workers.push(worker);
+      return worker;
+    },
+  });
+  try { await assert.rejects(readPhoto({}, env, { timeoutMs: 30 }), /too long/); } finally { restore(); }
+  assert.equal(log.workers[0].terminated, true);
+  assert.equal(log.canvases[0].width, 0);
+  assert.equal(log.canvases[0].height, 0);
+  assert.equal(log.bitmaps[0].closed, true);
+  assert.equal(log.storageWrites + log.idbOpens, 0);
+});
+
+test('a worker that finishes starting after the time is up is stopped too', async () => {
+  const { env, log, restore } = makeWorld();
+  env.loadTesseract = async () => ({
+    createWorker: async () => {
+      await new Promise(r => setTimeout(r, 80));
+      const worker = { terminated: false, setParameters: async () => {}, recognize: async () => ({ data: { text: 'apple' } }),
+        terminate: async () => { worker.terminated = true; } };
+      log.workers.push(worker);
+      return worker;
+    },
+  });
+  try { await assert.rejects(readPhoto({}, env, { timeoutMs: 20 }), /too long/); } finally { restore(); }
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(log.workers.length, 1);
+  assert.equal(log.workers[0].terminated, true, 'the late worker was stopped');
+});
+
+test('a picture with too many pixels is refused before it is drawn', async () => {
+  const { env, log, restore } = makeWorld({ size: [10000, 9000] });
+  try { await assert.rejects(readPhoto({}, env), /too large/); } finally { restore(); }
+  assert.equal(log.canvases.length, 0, 'no canvas was made');
+  assert.equal(log.bitmaps[0].closed, true);
+  assert.equal(log.workers.length, 0);
 });

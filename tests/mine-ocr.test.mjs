@@ -145,3 +145,12 @@ test('the deploy notice credits Tesseract.js and its Apache-2.0 licence', () => 
   assert.match(script, /@tesseract\.js-data\/eng 1\.0\.0/);
   assert.match(script, /Licensed under the Apache License 2\.0/);
 });
+
+test('README lists exactly the OCR files the script fetches, and says how a failed read is diagnosed', () => {
+  const readme = read('README.md');
+  const line = readme.match(/for f in ([^;]+); do curl/)?.[1].split(' ') ?? [];
+  assert.deepEqual(line, ROWS.map(r => r.path));
+  assert.match(readme, /My words photo import failed:/);
+  assert.match(readme, /does not stop the deploy from fetching the OCR files/);
+  assert.match(read('docs/my-words-plan.md'), /does not stop the deploy from fetching the OCR files/);
+});

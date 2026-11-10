@@ -119,9 +119,13 @@ test('photo import reads on the device from this site only, and keeps nothing', 
   assert.match(code, /cacheMethod: 'none'/);
   assert.match(code, /workerPath: at\('worker\.min\.js'\), corePath: at\('core\/'\), langPath: at\('lang\/'\)/);
   assert.match(code, /new URL\(path, base\)\.href/);
-  assert.match(code, /canvas\.width = 0; canvas\.height = 0;/);
+  assert.match(code, /state\.canvas\.width = 0; state\.canvas\.height = 0;/);
   const ui = read('mine/ui.js');
   assert.match(ui, /\$\('minePhotoBlock'\)\.hidden = !OCR_ENABLED/);
   assert.match(ui, /new URL\(OCR_DIR, document\.baseURI\)\.href/);
-  assert.match(read('index.html'), /The picture is never sent anywhere or saved\. The first picture downloads about 7 MB from this site/); // preflight: ok
+  assert.match(read('index.html'), /This page never sends or saves the picture\./);
+  assert.match(read('index.html'), /may stay in your phone's own photo gallery/);
+  assert.match(read('index.html'), /The first picture downloads about 7 MB from this site\./);
+  assert.match(ui, /console\.warn\('My words photo import failed:', error\?\.name, error\?\.message\)/);
+  assert.equal(/console\.[a-z]+\([^)]*file/.test(ui.slice(ui.indexOf('async function onPhoto'), ui.indexOf('// ---- list actions'))), false, 'the log never names the file'); // preflight: ok
 });
