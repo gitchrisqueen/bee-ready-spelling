@@ -345,7 +345,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   }
 
   // ---- photo import ----------------------------------------------------------------------------------------------
-  // The picture buttons stay enabled while a read runs (so keyboard focus is never dropped); a second picture is ignored.
+  // The picture buttons stay enabled while a read runs (so keyboard focus is never dropped); a second picture is
+  // ignored.
   let photoBusy = false;
   function setPhotoBusy(busy) {
     photoBusy = busy;
