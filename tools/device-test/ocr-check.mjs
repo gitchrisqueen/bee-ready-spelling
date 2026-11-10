@@ -1,6 +1,7 @@
 // "My words" photo import in a real browser engine: a synthetic photo of a word list (drawn on a canvas with uneven
 // light, a slight tilt and noise; no real person's list) goes through the page's file input, and the real Tesseract.js
-// reads it from this site's own files. Checks the words found, that every request stays on this site, and that nothing is
+// reads it from this site's own files. Checks the words found, that every request stays on this site, and that nothing
+// is
 // saved. Emulation, not a physical device.
 //   npm run build && npm run fetch-ocr-assets     (stage the site and the OCR files)
 //   BASE=http://localhost:8080/ node ocr-check.mjs   (serve _site first; ENGINE=chromium if WebKit cannot start)
@@ -25,7 +26,8 @@ async function launch() {
 }
 const { browser, engine } = await launch();
 
-// The synthetic photo: grey paper that is bright on the left and dim on the right, the list in a dark font, tilted 2 degrees.
+// The synthetic photo: grey paper that is bright on the left and dim on the right, the list in a dark font, tilted 2
+// degrees.
 function drawPhoto(words) {
   const canvas = document.createElement('canvas');
   canvas.width = 1400; canvas.height = 1100;
@@ -50,14 +52,14 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   console.log(`\n== ${preset} (${engine} emulation)`);
   const d = devices[preset];
   const ctx = engine === 'WebKit' ? await browser.newContext({ ...d }) : await browser.newContext({
-    viewport: d.viewport, userAgent: d.userAgent, deviceScaleFactor: d.deviceScaleFactor, isMobile: true, hasTouch: true,
+    viewport: d.viewport, userAgent: d.userAgent, deviceScaleFactor: d.deviceScaleFactor, isMobile: true, hasTouch: true, // preflight: ok
   });
   const page = await ctx.newPage();
   const own = [], external = [], errors = [];
   page.on('pageerror', e => errors.push(String(e).slice(0, 140)));
   page.on('request', r => {
     const u = new URL(r.url());
-    if (u.origin === new URL(BASE).origin) own.push(u.pathname); else if (!['blob:', 'data:'].includes(u.protocol)) external.push(u.host);
+    if (u.origin === new URL(BASE).origin) own.push(u.pathname); else if (!['blob:', 'data:'].includes(u.protocol)) external.push(u.host); // preflight: ok
   });
   await page.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
   check('photo buttons are shown', await page.evaluate(() => !document.getElementById('minePhotoBlock').hidden));
@@ -66,24 +68,24 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   const keysBefore = await page.evaluate(() => Object.keys(localStorage).sort().join());
   const dataUrl = await page.evaluate(drawPhoto, WORDS);
   const started = Date.now();
-  await page.setInputFiles('#minePhotoPick', { name: 'list.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await page.setInputFiles('#minePhotoPick', { name: 'list.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') }); // preflight: ok
   await page.waitForSelector('#mineChips li', { timeout: 120000 });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  const found = await page.evaluate(() => [...document.querySelectorAll('#mineChips .mine-chip-row input')].map(i => i.value));
+  const found = await page.evaluate(() => [...document.querySelectorAll('#mineChips .mine-chip-row input')].map(i => i.value)); // preflight: ok
   const hits = WORDS.filter(w => found.includes(w));
   console.log(`read in ${seconds}s: found ${found.length} tokens, ${hits.length} of ${WORDS.length} expected words`);
   check('at least 10 of the 12 words were read', hits.length >= 10, `found: ${found.join(' ')}`);
   check('the review screen says the words came from a picture', await page.evaluate(() =>
     /Read from a picture\. Check every word/.test(document.getElementById('mineReviewSummary').textContent)));
-  check('the OCR files came from this site', ['worker.min.js', 'tesseract.min.js', 'eng.traineddata.gz'].every(f => own.some(p => p.endsWith(f))),
+  check('the OCR files came from this site', ['worker.min.js', 'tesseract.min.js', 'eng.traineddata.gz'].every(f => own.some(p => p.endsWith(f))), // preflight: ok
     own.filter(p => /ocr/.test(p)).join());
   check('no request went to another host', external.length === 0, [...new Set(external)].join());
-  check('nothing was saved by the import', (await page.evaluate(() => Object.keys(localStorage).sort().join())) === keysBefore);
-  check('no IndexedDB database was created', await page.evaluate(async () => (await indexedDB.databases()).length === 0));
-  check('the picture buttons work again after the read', await page.evaluate(() => !document.getElementById('minePhotoPick').disabled));
+  check('nothing was saved by the import', (await page.evaluate(() => Object.keys(localStorage).sort().join())) === keysBefore); // preflight: ok
+  check('no IndexedDB database was created', await page.evaluate(async () => (await indexedDB.databases()).length === 0)); // preflight: ok
+  check('the picture buttons work again after the read', await page.evaluate(() => !document.getElementById('minePhotoPick').disabled)); // preflight: ok
   check('no page errors', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }
 await browser.close();
-console.log(`\n${engine} emulation, not a physical device. ${failures.length ? `${failures.length} check(s) failed.` : 'All checks passed.'}`);
+console.log(`\n${engine} emulation, not a physical device. ${failures.length ? `${failures.length} check(s) failed.` : 'All checks passed.'}`); // preflight: ok
 process.exit(failures.length ? 1 : 0);

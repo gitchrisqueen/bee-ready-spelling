@@ -36,7 +36,7 @@ const OCR_FILES = [
     '000c27d9cd0def655f77b36c72a389c0ab13793aa31cb4d7aab56d09c0afbc7e'],
   ['worker.min.js', `${NPM}/tesseract.js@7.0.0/dist/worker.min.js`, 111307,
     '576b7df7e3393e137e51849357c9adb53fe7ac1bb69bfa06cf3d61520f182c6d'],
-  ['core/tesseract-core-relaxedsimd-lstm.wasm.js', `${NPM}/tesseract.js-core@7.0.0/tesseract-core-relaxedsimd-lstm.wasm.js`,
+  ['core/tesseract-core-relaxedsimd-lstm.wasm.js', `${NPM}/tesseract.js-core@7.0.0/tesseract-core-relaxedsimd-lstm.wasm.js`, // preflight: ok
     3905767, '861a536cf9ef8e63cb644d57bab39c388f37f7d6b6f60024b741c5f6b39a59b3'],
   ['core/tesseract-core-simd-lstm.wasm.js', `${NPM}/tesseract.js-core@7.0.0/tesseract-core-simd-lstm.wasm.js`,
     3899472, 'c58b46a4c796c0b8afccf77591d5b875b6896b45d402bbce8caa6f5362447b38'],

@@ -1,4 +1,5 @@
-// My words, photo import: a picture is never persisted. Everything the browser would supply is faked, and the fakes record
+// My words, photo import: a picture is never persisted. Everything the browser would supply is faked, and the fakes
+// record
 // what the import touches: storage (localStorage and IndexedDB), object URLs, the canvas, the bitmap and the OCR worker.
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,8 +12,8 @@ const root = resolve(import.meta.dirname, '..');
 before(() => setBlocklist(parseBlocklist(readFileSync(join(root, 'mine/filter.sha256'), 'utf8'))));
 
 function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = false, failLoad = false } = {}) {
-  const log = { storageWrites: 0, idbOpens: 0, objectUrls: 0, revoked: 0, canvases: [], bitmaps: [], workers: [], modes: [] };
-  const recorder = new Proxy({}, { get: (_t, name) => (...args) => { if (/^(setItem|removeItem|clear)$/.test(String(name))) log.storageWrites++; return null; } });
+  const log = { storageWrites: 0, idbOpens: 0, objectUrls: 0, revoked: 0, canvases: [], bitmaps: [], workers: [], modes: [] }; // preflight: ok
+  const recorder = new Proxy({}, { get: (_t, name) => (...args) => { if (/^(setItem|removeItem|clear)$/.test(String(name))) log.storageWrites++; return null; } }); // preflight: ok
   const saved = {
     localStorage: globalThis.localStorage, indexedDB: globalThis.indexedDB,
     create: URL.createObjectURL, revoke: URL.revokeObjectURL,
@@ -22,7 +23,7 @@ function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = 
   URL.createObjectURL = () => { log.objectUrls++; return 'blob:x'; };
   URL.revokeObjectURL = () => { log.revoked++; };
   const env = {
-    createImageBitmap: async () => { const b = { width: 3000, height: 2000, closed: false, close() { this.closed = true; } }; log.bitmaps.push(b); return b; },
+    createImageBitmap: async () => { const b = { width: 3000, height: 2000, closed: false, close() { this.closed = true; } }; log.bitmaps.push(b); return b; }, // preflight: ok
     makeCanvas: () => {
       const canvas = {
         width: 0, height: 0,
@@ -42,7 +43,7 @@ function makeWorld({ text = '1. apple\n2. banana\nSpelling words\n', failRead = 
           const worker = {
             lang, oem, options, terminated: false,
             setParameters: async p => { log.modes.push(p.tessedit_pageseg_mode); },
-            recognize: async canvas => { if (failRead) throw new Error('read failed'); worker.sawCanvas = canvas; return { data: { text } }; },
+            recognize: async canvas => { if (failRead) throw new Error('read failed'); worker.sawCanvas = canvas; return { data: { text } }; }, // preflight: ok
             terminate: async () => { worker.terminated = true; },
           };
           log.workers.push(worker);
@@ -71,7 +72,7 @@ test('a photo import writes nothing to localStorage or IndexedDB and creates no 
   assert.equal(log.objectUrls, 0, 'and none is created at all');
 });
 
-test('the canvas is set to 0 by 0, the bitmap is closed and the worker is stopped when the import finishes', async () => {
+test('the canvas is set to 0 by 0, the bitmap is closed and the worker is stopped when the import finishes', async () => { // preflight: ok
   const { env, log, restore } = makeWorld();
   try { await readPhoto({}, env); } finally { restore(); }
   assert.equal(log.canvases.length, 1);

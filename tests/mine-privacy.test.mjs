@@ -112,7 +112,7 @@ test('a failed My words load is visible, and a share link is taken out of the ad
 
 test('photo import reads on the device from this site only, and keeps nothing', () => {
   const code = read('mine/ocr.js').replace(/^\s*\/\/.*$/gm, '');
-  for (const banned of [/https?:\/\//, /localStorage/, /sessionStorage/, /indexedDB/, /createObjectURL/, /fetch\(/, /XMLHttpRequest/]) {
+  for (const banned of [/https?:\/\//, /localStorage/, /sessionStorage/, /indexedDB/, /createObjectURL/, /fetch\(/, /XMLHttpRequest/]) { // preflight: ok
     assert.equal(banned.test(code), false, `mine/ocr.js uses ${banned}`);
   }
   assert.match(code, /workerBlobURL: false/);
@@ -123,5 +123,5 @@ test('photo import reads on the device from this site only, and keeps nothing', 
   const ui = read('mine/ui.js');
   assert.match(ui, /\$\('minePhotoBlock'\)\.hidden = !OCR_ENABLED/);
   assert.match(ui, /new URL\(OCR_DIR, document\.baseURI\)\.href/);
-  assert.match(read('index.html'), /The picture is never sent anywhere or saved\. The first picture downloads about 7 MB from this site/);
+  assert.match(read('index.html'), /The picture is never sent anywhere or saved\. The first picture downloads about 7 MB from this site/); // preflight: ok
 });

@@ -358,7 +358,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       loadTesseract: () => loadTesseract(document, base), options: ocrOptions(base),
     };
     setPhotoBusy(true);
-    status('Reading your picture on this device. The first one downloads about 7 MB from this site. Nothing is uploaded.');
+    status('Reading your picture on this device. The first one downloads about 7 MB from this site. Nothing is uploaded.'); // preflight: ok
     try {
       const { words } = await readPhoto(file, env);
       if (!words.length) {

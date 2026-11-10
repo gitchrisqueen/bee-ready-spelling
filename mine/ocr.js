@@ -81,10 +81,10 @@ export function flattenIllumination(gray, width, height, block = 24) {
   }
   const out = new Uint8ClampedArray(gray.length);
   for (let y = 0; y < height; y++) {
-    const fy = Math.min(gy - 1, Math.max(0, (y + 0.5) / block - 0.5)), y0 = Math.floor(fy), y1 = Math.min(gy - 1, y0 + 1);
+    const fy = Math.min(gy - 1, Math.max(0, (y + 0.5) / block - 0.5)), y0 = Math.floor(fy), y1 = Math.min(gy - 1, y0 + 1); // preflight: ok
     const ty = fy - y0;
     for (let x = 0; x < width; x++) {
-      const fx = Math.min(gx - 1, Math.max(0, (x + 0.5) / block - 0.5)), x0 = Math.floor(fx), x1 = Math.min(gx - 1, x0 + 1);
+      const fx = Math.min(gx - 1, Math.max(0, (x + 0.5) / block - 0.5)), x0 = Math.floor(fx), x1 = Math.min(gx - 1, x0 + 1); // preflight: ok
       const tx = fx - x0;
       const top = grid[y0 * gx + x0] * (1 - tx) + grid[y0 * gx + x1] * tx;
       const bottom = grid[y1 * gx + x0] * (1 - tx) + grid[y1 * gx + x1] * tx;

@@ -1,10 +1,11 @@
-// My words, photo import: the image maths, the words read from OCR text, the same-origin options, and the pinned OCR files.
+// My words, photo import: the image maths, the words read from OCR text, the same-origin options, and the pinned OCR
+// files.
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseBlocklist, setBlocklist } from '../mine/filter.js';
-import { OCR_DIR, fitSize, flattenIllumination, loadTesseract, ocrOptions, toGray, wordsFromOcrText } from '../mine/ocr.js';
+import { OCR_DIR, fitSize, flattenIllumination, loadTesseract, ocrOptions, toGray, wordsFromOcrText } from '../mine/ocr.js'; // preflight: ok
 
 const root = resolve(import.meta.dirname, '..');
 const read = name => readFileSync(join(root, name), 'utf8');
@@ -23,7 +24,8 @@ test('toGray uses the usual luminance weights', () => {
   assert.deepEqual([...g], [76, 150, 29, 255]);
 });
 
-// A page photographed in uneven light: white paper that is bright on the left and dim on the right, with dark "text" bars.
+// A page photographed in uneven light: white paper that is bright on the left and dim on the right, with dark "text"
+// bars.
 function makePhoto(width, height) {
   const gray = new Uint8ClampedArray(width * height);
   const bar = (x, y) => y % 40 > 14 && y % 40 < 24 && x > 30 && x < width - 30 && (x % 9) < 6;
@@ -42,13 +44,13 @@ test('flattening evens out uneven light: the paper level is the same across the 
   const flat = flattenIllumination(gray, w, h);
   const paper = (data, x0, x1) => {
     let sum = 0, n = 0;
-    for (let y = 0; y < h; y++) for (let x = x0; x < x1; x++) if (!bar(x, y) && y % 40 < 12) { sum += data[y * w + x]; n++; }
+    for (let y = 0; y < h; y++) for (let x = x0; x < x1; x++) if (!bar(x, y) && y % 40 < 12) { sum += data[y * w + x]; n++; } // preflight: ok
     return sum / n;
   };
   const before = [paper(gray, 0, 60), paper(gray, w - 60, w)];
   const after = [paper(flat, 0, 60), paper(flat, w - 60, w)];
   assert.ok(before[0] - before[1] > 80, `the photo starts uneven: ${before}`);
-  assert.ok(Math.abs(after[0] - after[1]) < 16, `the paper levels end up close (they began 80 or more apart): ${after}`);
+  assert.ok(Math.abs(after[0] - after[1]) < 16, `the paper levels end up close (they began 80 or more apart): ${after}`); // preflight: ok
   assert.ok(after[0] > 235 && after[1] > 235, 'paper is near white everywhere');
 });
 
@@ -65,14 +67,14 @@ test('flattening keeps the text dark and handles tiny, blank and one-pixel image
   assert.equal(flattenIllumination(new Uint8ClampedArray(0), 0, 0).length, 0);
 });
 
-test('words from OCR text: list numbers and stray letters go, junk and unsafe words are left for review or removed', () => {
-  const r = wordsFromOcrText('Spelling Words\n1. abdicate\n2) benevolent\na. cemetery\n  3 - deficit\nx\n| |\n4. ab3d\n');
+test('words from OCR text: list numbers and stray letters go, junk and unsafe words are left for review or removed', () => { // preflight: ok
+  const r = wordsFromOcrText('Spelling Words\n1. abdicate\n2) benevolent\na. cemetery\n  3 - deficit\nx\n| |\n4. ab3d\n'); // preflight: ok
   assert.deepEqual(r.words, ['spelling', 'words', 'abdicate', 'benevolent', 'cemetery', 'deficit']);
   assert.equal(r.rejected.length >= 1, true, 'a token with a digit inside is rejected');
   assert.deepEqual(wordsFromOcrText('').words, []);
   assert.deepEqual(wordsFromOcrText(undefined).words, []);
   assert.deepEqual(wordsFromOcrText('apple, banana apple').words, ['apple', 'banana'], 'duplicates go');
-  const many = wordsFromOcrText(Array.from({ length: 300 }, (_, i) => `w${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}zz`).join('\n'));
+  const many = wordsFromOcrText(Array.from({ length: 300 }, (_, i) => `w${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}zz`).join('\n')); // preflight: ok
   assert.equal(many.words.length, 200);
   assert.equal(many.truncated, true);
 });
@@ -111,7 +113,7 @@ test('loadTesseract adds one same-origin script and reuses the library once it i
 
 // ---- the deploy-time fetch of the OCR files ----
 const script = read('scripts/fetch-voice-assets.mjs');
-const ROWS = [...script.matchAll(/\['((?:core\/|lang\/)?[\w.-]+)', `\$\{NPM\}\/([^`]+)`,\s*(\d+),\s*'([0-9a-f]{64})'\]/g)]
+const ROWS = [...script.matchAll(/\['((?:core\/|lang\/)?[\w.-]+)', `\$\{NPM\}\/([^`]+)`,\s*(\d+),\s*'([0-9a-f]{64})'\]/g)] // preflight: ok
   .map(m => ({ path: m[1], url: m[2], size: Number(m[3]), sha: m[4] }));
 
 test('the fetch script pins every OCR file by exact version, size and SHA-256', () => {
@@ -120,7 +122,7 @@ test('the fetch script pins every OCR file by exact version, size and SHA-256', 
     'core/tesseract-core-simd-lstm.wasm.js', 'core/tesseract-core-lstm.wasm.js', 'lang/eng.traineddata.gz',
   ]);
   for (const r of ROWS) {
-    assert.match(r.url, /^(?:tesseract\.js@7\.0\.0|tesseract\.js-core@7\.0\.0|@tesseract\.js-data\/eng@1\.0\.0)\//, r.url);
+    assert.match(r.url, /^(?:tesseract\.js@7\.0\.0|tesseract\.js-core@7\.0\.0|@tesseract\.js-data\/eng@1\.0\.0)\//, r.url); // preflight: ok
     assert.ok(Number.isInteger(r.size) && r.size > 0 && r.size < 5e6, r.path);
   }
   assert.match(script, /const NPM = 'https:\/\/cdn\.jsdelivr\.net\/npm';/);
