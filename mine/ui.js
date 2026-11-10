@@ -58,7 +58,7 @@ function uniqueName(store, name) {
     if (!taken.has(next)) return next;
   }
 }
-const SAME_LIST_TEXT ='You already have this list. It is ready: press Start my spelling bee.';
+const SAME_LIST_TEXT = 'You already have this list. It is ready: press Start my spelling bee.';
 const CONFIRM_LOOKUP = 'This sends the words that were not found, and this device\'s IP address, to Wiktionary '
   + '(Wikimedia). Only a grown-up should say yes. Send them?';
 

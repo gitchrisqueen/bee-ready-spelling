@@ -150,8 +150,10 @@ function showClue(type,{speak=true}={}){
   const w=currentWord();if(!w)return;
   // One-off slow playback, like hearFromCard: the saved speed (Voices tab) is never changed.
   if(type==='repeat'){voiceService.speak(w.word,{kind:'word',instant:true,speedId:'slow'});return;}
-  const definitionHtml=w.custom&&w.definition===NO_DEFINITION
-    ?'No definition yet. Ask a grown-up to help.':escapeHtml(w.definition);
+  // A My words definition can contain the word itself ("A tear is ..."), so it is blanked like the sentence clue.
+  const noDefinition=!String(w.definition??'').trim()||w.definition===NO_DEFINITION;
+  const definitionHtml=!w.custom?escapeHtml(w.definition):noDefinition
+    ?'No definition yet. Ask a grown-up to help.':hideWord(w.definition,w.word,Boolean(currentRound.answered));
   const clueText = type==='definition'?`<strong>Definition</strong>${definitionHtml}`:
     type==='origin'?(w.custom?`<strong>Origin</strong>${escapeHtml(w.group===UNKNOWN_ORIGIN?NOT_KNOWN_YET:w.group)}`:`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`): // preflight: ok
     type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||(w.custom?NOT_KNOWN_YET:'Word'))}`:

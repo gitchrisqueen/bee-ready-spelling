@@ -228,6 +228,10 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('share: Start my spelling bee saves the list under its own name and starts a round',
     after2.lists.join() === 'Shared list:5' && /OF 5/.test(after2.count), JSON.stringify(after2));
   check('share: the saved words stay hidden until a grown-up opens them', !after2.boxOpen && !after2.listShown);
+  await p2.tap('[data-clue=definition]');
+  const clue2 = await p2.locator('#clueResult').innerText();
+  check('share: the Definition clue does not show the word itself',
+    clue2.length > 12 && !/\b(habit|quay|abide|abdicate|zzzxq)\b/i.test(clue2), clue2);
   await p2.tap('[data-tab=words]');
   const bank2 = await p2.evaluate(() => ({
     gate: !!document.getElementById('mineBankGate'), open: document.getElementById('mineBankGate')?.open,
