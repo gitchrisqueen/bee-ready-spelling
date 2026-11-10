@@ -286,7 +286,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p6.tap('#mineSave');
   await p6.waitForFunction(() => document.querySelectorAll('#mineWordList li').length === 1, null, { timeout: 5000 });
   check('mine: Save right after an edit keeps the edited word, and focus is not lost', await p6.evaluate(() =>
-    document.querySelector('#mineWordList .mine-word').textContent === 'habits' && document.activeElement.tagName !== 'BODY'));
+    document.querySelector('#mineWordList .mine-word').textContent === 'habits' && document.activeElement.tagName !== 'BODY')); // preflight: ok
   await second.close();
 
   // delete everything
