@@ -56,6 +56,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   let sharedNote = '';       // set when the review came from a share link
   let lookupAbort = null;
   let nextChip = 1;
+  let pendingEdits = 0;      // word edits still being looked up; Save waits for them
   let flip = false;
   const openUids = new Set();
 
@@ -156,7 +157,11 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     });
     // "change" fires while focus is still moving to the next control;
     // wait a tick so the list is rebuilt after focus settles.
-    input.addEventListener('change', () => { const value = input.value; setTimeout(() => editChip(chip, value), 0); });
+    input.addEventListener('change', () => {
+      const value = input.value;
+      pendingEdits++;
+      setTimeout(() => { pendingEdits--; editChip(chip, value); }, 0);
+    });
     li.append(el('div', { class: 'mine-chip-row' }, input,
       el('button', { type: 'button', class: 'text-btn', 'data-chip-remove': chip.uid, 'aria-label': `Remove ${chip.word}`, text: 'Remove' }))); // preflight: ok
     li.append(el('p', { id: statusId, class: 'mine-chip-status', text: chip.invalid ?? STATUS_TEXT[chip.status] }));
@@ -192,32 +197,49 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     }
     return li;
   }
-  // Where keyboard focus is inside the review list, so it can be put back after the list is rebuilt.
+  // Where keyboard focus is inside the review list, so it can be put back after a chip is rebuilt. Every focusable control in
+  // a chip is covered: word box, Remove, Use it, the Edit summary, its two fields, and the source links.
+  const SPOTS = {
+    input: '.mine-chip-row input', remove: '[data-chip-remove]', use: '[data-chip-use]', summary: 'summary',
+    def: 'textarea[id^="mine-def-"]', sen: 'input[id^="mine-sen-"]', credit: '.mine-chip-credit a',
+  };
   function focusSpot() {
     const a = document.activeElement;
     const li = a?.closest?.('#mineChips li');
     if (!li) return null;
-    const kind = a.matches('input') && a.closest('.mine-chip-row') ? 'input' : a.matches('[data-chip-remove]') ? 'remove' // preflight: ok
-      : a.matches('[data-chip-use]') ? 'use' : null;
-    return kind ? { uid: li.dataset.uid, kind } : null;
+    const kind = Object.keys(SPOTS).find(k => a.matches(SPOTS[k]));
+    if (!kind) return null;
+    return { uid: li.dataset.uid, kind, index: [...li.querySelectorAll(SPOTS[kind])].indexOf(a) };
   }
   function restoreFocus(spot) {
     if (!spot) return;
     const li = document.querySelector(`#mineChips li[data-uid="${spot.uid}"]`);
-    const target = li?.querySelector({ input: '.mine-chip-row input', remove: '[data-chip-remove]', use: '[data-chip-use]' }[spot.kind]); // preflight: ok
-    focusSoon(target);
+    // If the same control no longer exists (the chip changed), the chip's word box is the next best place.
+    focusSoon(li?.querySelectorAll(SPOTS[spot.kind])[spot.index] ?? li?.querySelector(SPOTS.input));
   }
-  function renderReview() {
-    const spot = focusSpot();
-    $('mineReview').hidden = !chips.length;
-    $('mineChips').replaceChildren(...chips.map((c, i) => chipNode(c, i, chips.length)));
+  function updateReviewControls() {
     const missing = chips.filter(c => c.status === 'missing' && !c.invalid).length;
     $('mineReviewSummary').textContent = `${chips.length} ${chips.length === 1 ? 'word' : 'words'}. ${missing
       ? `${missing} ${missing === 1 ? 'is' : 'are'} not found yet.` : 'Every word has what it needs.'}${sharedNote ? ` ${sharedNote}` : ''}`; // preflight: ok
     $('mineLookup').hidden = !(LIVE_LOOKUP_ENABLED && state.settings.liveLookup) || !missing;
     $('mineLookupBlock').hidden = $('mineLookup').hidden;
     $('mineSave').disabled = !chips.some(c => !c.invalid);
+  }
+  function renderReview() {
+    const spot = focusSpot();
+    $('mineReview').hidden = !chips.length;
+    $('mineChips').replaceChildren(...chips.map((c, i) => chipNode(c, i, chips.length)));
+    updateReviewControls();
     restoreFocus(spot);
+  }
+  // Rebuilds one chip only, so the buttons of the other chips are not replaced under a child's finger.
+  function replaceChip(at) {
+    const spot = focusSpot();
+    const old = document.querySelector(`#mineChips li[data-uid="${chips[at].uid}"]`);
+    if (!old) { renderReview(); return; }
+    old.replaceWith(chipNode(chips[at], at, chips.length));
+    updateReviewControls();
+    if (spot && spot.uid === String(chips[at].uid)) restoreFocus(spot);
   }
   async function resolveInto(words) {
     const resolved = await resolveWords(words, { defaultByWord, fetchFn });
@@ -230,19 +252,22 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     $('mineReviewTitle').focus({ preventScroll: false });
   }
   async function editChip(chip, value, { focusInput = false } = {}) {
-    const { words } = parseWords(value);
-    const at = chips.indexOf(chip);
-    if (at < 0) return;
-    if (words.length !== 1) {
-      chips[at] = { ...chip, word: normalizeWord(value), invalid: 'Use one word, with letters, hyphens or apostrophes.' }; // preflight: ok
-    } else {
-      const [fresh] = await resolveInto(words);
-      chips[at] = { ...fresh, uid: chip.uid };
-    }
-    renderReview();
-    // Focus is restored by renderReview to the control the user moved to; only "Use it" moves it into the word box.
-    if (focusInput) focusSoon(document.querySelector(`#mineChips li[data-uid="${chip.uid}"] .mine-chip-row input`));
-    status(`${chips[at].word}: ${chips[at].invalid ?? STATUS_TEXT[chips[at].status]}`);
+    pendingEdits++;
+    try {
+      const { words } = parseWords(value);
+      const at = chips.indexOf(chip);
+      if (at < 0) return;
+      if (words.length !== 1) {
+        chips[at] = { ...chip, word: normalizeWord(value), invalid: 'Use one word, with letters, hyphens or apostrophes.' }; // preflight: ok
+      } else {
+        const [fresh] = await resolveInto(words);
+        chips[at] = { ...fresh, uid: chip.uid };
+      }
+      replaceChip(at);
+      // Focus is restored to the control the user moved to; only "Use it" moves it into the word box.
+      if (focusInput) focusSoon(document.querySelector(`#mineChips li[data-uid="${chip.uid}"] .mine-chip-row input`));
+      status(`${chips[at].word}: ${chips[at].invalid ?? STATUS_TEXT[chips[at].status]}`);
+    } finally { pendingEdits--; }
   }
   function removeChip(uid) {
     const at = chips.findIndex(c => c.uid === uid);
@@ -294,7 +319,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     focusSoon($('mineSave'));
   }
 
-  function onSave() {
+  async function onSave() {
+    while (pendingEdits > 0) await new Promise(r => setTimeout(r, 20));
     const entries = chipsToEntries(chips.filter(c => !c.invalid));
     let { store } = state;
     if (!active()) {

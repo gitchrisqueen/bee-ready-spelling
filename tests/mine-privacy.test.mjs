@@ -102,6 +102,8 @@ test('a grown-up must confirm before the first Wikimedia request, and custom wor
 test('a failed My words load is visible, and a share link is taken out of the address bar', () => {
   const app = read('app.js');
   assert.match(app, /console\.error\('My words could not load'/);
+  assert.match(app, /function writeHistory\(\)\{\s*try\{if\(!mineFailed\)localStorage\.setItem\(historyKey/);
+  assert.match(app, /return mineFailed\?NO_SAVE:mine\?mine\.starsStorage/);
   assert.match(app, /if\(mineFailed\)\$\('roundBuilder'\)\.insertAdjacentHTML\([^)]*My words could not load/);
   assert.match(app, /history\.replaceState\(null,'',location\.pathname\+location\.search\)/);
 });

@@ -100,6 +100,14 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     document.getElementById('mineLookup').getAttribute('aria-describedby') === 'mineDisclosure'
     && /Ask a grown-up/.test(document.getElementById('mineDisclosure').textContent)));
 
+  // leaving an edited word backwards lands on the previous chip's Edit summary and stays there
+  const lastWord = '#mineChips li:last-child .mine-chip-row input';
+  await page.focus(lastWord);
+  await page.fill(lastWord, 'qqqzx');
+  await page.keyboard.press('Shift+Tab');
+  await page.waitForTimeout(500);
+  check('mine: after editing a word and pressing Shift+Tab, focus stays on the previous chip\'s Edit summary',
+    await page.evaluate(() => document.activeElement.matches('#mineChips li:nth-last-child(2) summary')));
   // editing a word and pressing Tab keeps focus on that chip; Remove keeps it somewhere useful
   const lastInput = '#mineChips li:last-child .mine-chip-row input';
   await page.focus(lastInput);
@@ -262,6 +270,24 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('failed load: the default history and stars are not written',
     await p5.evaluate(h => localStorage.getItem('bee-ready-history-v2') === h && localStorage.getItem('bee-ready-starred-v1') === null, HISTORY)); // preflight: ok
   await broken.close();
+
+  // "Did you mean" puts focus in the corrected word box; Save right after an edit keeps the edited word
+  const second = await contextFor(preset);
+  const p6 = await second.newPage();
+  await p6.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
+  await p6.fill('#mineText', 'habbit');
+  await p6.tap('#mineCheck');
+  await p6.waitForSelector('[data-chip-use]');
+  await p6.tap('[data-chip-use]');
+  await p6.waitForTimeout(500);
+  check('mine: "Did you mean ... Use it" puts focus in that word box', await p6.evaluate(() =>
+    document.activeElement.matches('#mineChips li .mine-chip-row input') && document.activeElement.value === 'habit'));
+  await p6.fill('#mineChips li .mine-chip-row input', 'habits');
+  await p6.tap('#mineSave');
+  await p6.waitForFunction(() => document.querySelectorAll('#mineWordList li').length === 1, null, { timeout: 5000 });
+  check('mine: Save right after an edit keeps the edited word, and focus is not lost', await p6.evaluate(() =>
+    document.querySelector('#mineWordList .mine-word').textContent === 'habits' && document.activeElement.tagName !== 'BODY'));
+  await second.close();
 
   // delete everything
   await page.evaluate(() => { location.hash = 'grownups'; });
