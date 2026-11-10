@@ -32,21 +32,23 @@ const FILES = [
 // Pinned by exact package version, with size and SHA-256 checked like the model files. All Apache-2.0.
 // [path under voice-assets/ocr/, URL, size in bytes, SHA-256]
 const NPM = 'https://cdn.jsdelivr.net/npm';
+const JS = `${NPM}/tesseract.js@7.0.0/dist`;
+const CORE = `${NPM}/tesseract.js-core@7.0.0`;
+const LANG = `${NPM}/@tesseract.js-data/eng@1.0.0/4.0.0_best_int`;
 const OCR_FILES = [
-  ['tesseract.min.js', `${NPM}/tesseract.js@7.0.0/dist/tesseract.min.js`, 62961,
+  ['tesseract.min.js', `${JS}/tesseract.min.js`, 62961,
     '000c27d9cd0def655f77b36c72a389c0ab13793aa31cb4d7aab56d09c0afbc7e'],
-  ['worker.min.js', `${NPM}/tesseract.js@7.0.0/dist/worker.min.js`, 111307,
+  ['worker.min.js', `${JS}/worker.min.js`, 111307,
     '576b7df7e3393e137e51849357c9adb53fe7ac1bb69bfa06cf3d61520f182c6d'],
-  ['core/tesseract-core-relaxedsimd-lstm.wasm.js', `${NPM}/tesseract.js-core@7.0.0/tesseract-core-relaxedsimd-lstm.wasm.js`, // preflight: ok
-    3905767, '861a536cf9ef8e63cb644d57bab39c388f37f7d6b6f60024b741c5f6b39a59b3'],
-  ['core/tesseract-core-simd-lstm.wasm.js', `${NPM}/tesseract.js-core@7.0.0/tesseract-core-simd-lstm.wasm.js`,
-    3899472, 'c58b46a4c796c0b8afccf77591d5b875b6896b45d402bbce8caa6f5362447b38'],
-  ['core/tesseract-core-lstm.wasm.js', `${NPM}/tesseract.js-core@7.0.0/tesseract-core-lstm.wasm.js`,
-    3896484, 'eef5f8b2f8e20e150680b20adaec4a60babafee3adbe8a94583c81fee46e8680'],
-  ['lang/eng.traineddata.gz', `${NPM}/@tesseract.js-data/eng@1.0.0/4.0.0_best_int/eng.traineddata.gz`,
-    2952873, '45b4cb346724ac1774f1c36f42f182b887bcdb28ebe63e6fff90ac41f3fcff91'],
+  ['core/tesseract-core-relaxedsimd-lstm.wasm.js', `${CORE}/tesseract-core-relaxedsimd-lstm.wasm.js`, 3905767,
+    '861a536cf9ef8e63cb644d57bab39c388f37f7d6b6f60024b741c5f6b39a59b3'],
+  ['core/tesseract-core-simd-lstm.wasm.js', `${CORE}/tesseract-core-simd-lstm.wasm.js`, 3899472,
+    'c58b46a4c796c0b8afccf77591d5b875b6896b45d402bbce8caa6f5362447b38'],
+  ['core/tesseract-core-lstm.wasm.js', `${CORE}/tesseract-core-lstm.wasm.js`, 3896484,
+    'eef5f8b2f8e20e150680b20adaec4a60babafee3adbe8a94583c81fee46e8680'],
+  ['lang/eng.traineddata.gz', `${LANG}/eng.traineddata.gz`, 2952873,
+    '45b4cb346724ac1774f1c36f42f182b887bcdb28ebe63e6fff90ac41f3fcff91'],
 ];
-
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 2000;
 const BIG_FILE_BYTES = 10 * 1048576;

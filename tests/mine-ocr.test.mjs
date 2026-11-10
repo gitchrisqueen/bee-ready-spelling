@@ -113,8 +113,10 @@ test('loadTesseract adds one same-origin script and reuses the library once it i
 
 // ---- the deploy-time fetch of the OCR files ----
 const script = read('scripts/fetch-voice-assets.mjs');
-const ROWS = [...script.matchAll(/\['((?:core\/|lang\/)?[\w.-]+)', `\$\{NPM\}\/([^`]+)`,\s*(\d+),\s*'([0-9a-f]{64})'\]/g)] // preflight: ok
-  .map(m => ({ path: m[1], url: m[2], size: Number(m[3]), sha: m[4] }));
+const BASES = Object.fromEntries([...script.matchAll(/const (NPM|JS|CORE|LANG) = ([^;]+);/g)].map(m => [m[1], m[2]]));
+const expand = text => text.replace(/\$\{(\w+)\}/g, (_m, k) => expand(BASES[k].replace(/^[`']|[`']$/g, '')));
+const ROWS = [...script.matchAll(/\['((?:core\/|lang\/)?[\w.-]+)', `([^`]+)`,\s*(\d+),\s*'([0-9a-f]{64})'\]/g)]
+  .map(m => ({ path: m[1], url: expand(m[2]), size: Number(m[3]), sha: m[4] }));
 
 test('the fetch script pins every OCR file by exact version, size and SHA-256', () => {
   assert.deepEqual(ROWS.map(r => r.path), [
@@ -122,7 +124,7 @@ test('the fetch script pins every OCR file by exact version, size and SHA-256', 
     'core/tesseract-core-simd-lstm.wasm.js', 'core/tesseract-core-lstm.wasm.js', 'lang/eng.traineddata.gz',
   ]);
   for (const r of ROWS) {
-    assert.match(r.url, /^(?:tesseract\.js@7\.0\.0|tesseract\.js-core@7\.0\.0|@tesseract\.js-data\/eng@1\.0\.0)\//, r.url); // preflight: ok
+    assert.match(r.url, /^https:\/\/cdn\.jsdelivr\.net\/npm\/(?:tesseract\.js@7\.0\.0|tesseract\.js-core@7\.0\.0|@tesseract\.js-data\/eng@1\.0\.0)\//, r.url); // preflight: ok
     assert.ok(Number.isInteger(r.size) && r.size > 0 && r.size < 5e6, r.path);
   }
   assert.match(script, /const NPM = 'https:\/\/cdn\.jsdelivr\.net\/npm';/);
