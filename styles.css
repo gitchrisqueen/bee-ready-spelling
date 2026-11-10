@@ -21,3 +21,29 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .practice-voice{margin:10px 0 14px}.practice-voice-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 12px}.practice-voice-current{font-weight:800;color:var(--ink2);font-size:14px;overflow-wrap:anywhere}.voice-toggle{min-width:44px;min-height:44px;padding:0 16px;border:1px solid #cdbce6;background:#fff;border-radius:12px;color:var(--ink);font-weight:800;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px}.voice-toggle:hover{background:#faf6ff}.voice-toggle[aria-expanded=true]{background:var(--soft);border-color:#8a6bd9}.voice-toggle .chev{display:inline-block;transition:transform .15s}.voice-toggle[aria-expanded=true] .chev{transform:rotate(90deg)}.practice-voice-panel{max-width:460px;margin:10px auto 0;padding:12px;background:var(--soft);border:1px solid #e3d7f1;border-radius:17px;display:grid;gap:12px}.practice-voice-panel[hidden]{display:none}.practice-voice-label{display:block;margin-bottom:6px;font-weight:800;color:var(--ink2);font-size:14px}.practice-voice-panel .segmented{justify-content:center;gap:8px}.practice-voice-panel .speed-option{min-height:44px;padding:8px 14px}
 
 .blank{display:inline-block;width:5em;height:1em;border-bottom:3px solid currentColor;vertical-align:baseline;margin:0 .15em}
+
+/* My words (?mode=mine). Reuses the site's variables; every control is at least 44px tall and fields are 16px. */
+[hidden]{display:none!important}
+.mine-panel{margin-bottom:24px}
+.mine-panel textarea,.mine-panel input[type=text]{font:inherit;font-size:16px;width:100%;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--white);color:var(--ink)}
+.mine-panel textarea{resize:vertical;min-height:96px}
+.mine-panel select{font-size:16px;min-height:44px}
+.mine-panel button,.mine-panel .file-btn,.link-btn,.check-row{min-height:44px}
+.mine-panel .text-btn{padding:11px 8px;font-size:14px}
+.mine-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
+.mine-chips,.mine-word-list{list-style:none;margin:12px 0;padding:0;display:grid;gap:10px}
+.mine-chip{border:1px solid var(--line);border-radius:16px;padding:12px;background:var(--soft)}
+.mine-chip-row{display:flex;gap:8px;align-items:center}
+.mine-chip-status,.mine-chip-credit{margin:6px 0 0;font-size:14px;color:var(--ink2)}
+.mine-chip-edit summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800;color:#6551a6}
+.mine-chip-edit label{display:block;margin-top:8px;font-size:14px;font-weight:800;color:var(--ink2)}
+.mine-word-list li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+.mine-word{font-weight:800}
+.mine-word-def{color:var(--ink2);font-size:14px;flex:1;min-width:140px}
+.file-btn{display:inline-flex;align-items:center;position:relative;overflow:hidden;cursor:pointer}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:16px}
+.file-btn:focus-within{outline:3px solid #8a6bd9;outline-offset:3px}
+.link-btn{display:inline-flex;align-items:center;text-decoration:none;font-weight:800;padding:0 18px;border-radius:14px}
+.check-row{display:flex;gap:10px;align-items:center;font-weight:800}
+.check-row input{width:24px;height:24px}
+.source-credit{font-size:12px;color:var(--muted);margin:8px 0 0}

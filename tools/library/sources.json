@@ -1,0 +1,60 @@
+{
+  "note": "Pinned inputs for tools/library/build.mjs. A hash mismatch means the upstream file moved: update this file deliberately and review the regenerated shards. See tools/library/README.md.",
+  "inputs": [
+    {
+      "id": "ngsl",
+      "name": "New General Service List 1.2",
+      "role": "seed word list (which words the library covers, and their priority order)",
+      "file": "NGSL_12_stats.csv",
+      "url": "https://www.newgeneralservicelist.com/s/NGSL_12_stats.csv",
+      "pageUrl": "https://www.newgeneralservicelist.com/new-general-service-list",
+      "version": "1.2 (released April 2023, 2,809 words)",
+      "bytes": 62566,
+      "sha256": "2098bab8955a120a9766c6282a51d7d578c6cb0a7d946600d2ffb73ba25a0b44",
+      "licence": "CC BY-SA 4.0",
+      "licenceUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "New General Service List by Browne, C., Culligan, B., and Phillips, J. (https://www.newgeneralservicelist.com), licensed under CC BY-SA 4.0.",
+      "measured": "2026-11-10"
+    },
+    {
+      "id": "oewn",
+      "name": "Open English WordNet 2025",
+      "role": "definitions and example sentences (fallback to Simple English Wiktionary)",
+      "file": "english-wordnet-2025.xml.gz",
+      "url": "https://en-word.net/static/english-wordnet-2025.xml.gz",
+      "bytes": 11363503,
+      "sha256": "9ca6d1dcb75f822fdd66617f7d9da48142ace38dd544d6ad5e2feca1674ad3fe",
+      "licence": "CC BY 4.0 plus the Princeton WordNet notice",
+      "licenceUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Open English WordNet 2025 (https://en-word.net, https://github.com/globalwordnet/english-wordnet), derived from Princeton WordNet 3.1.",
+      "measured": "2026-11-10"
+    },
+    {
+      "id": "simple-wiktionary",
+      "name": "Simple English Wiktionary",
+      "role": "child-readable definitions and example sentences",
+      "file": "simple-extract.jsonl.gz",
+      "url": "https://kaikki.org/dictionary/downloads/simple/simple-extract.jsonl.gz",
+      "bytes": 4726754,
+      "sha256": "79afd871e342db3b87c3f2044ed21efa312e4c4ee006814b57c4cf4536ef70a1",
+      "licence": "CC BY-SA 4.0",
+      "licenceUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Text from Simple English Wiktionary (https://simple.wiktionary.org), extracted by Wiktextract (https://kaikki.org).",
+      "measured": "2026-11-10"
+    },
+    {
+      "id": "english-wiktionary",
+      "name": "English Wiktionary",
+      "role": "origin label only (the language named in the etymology)",
+      "file": "kaikki.org-dictionary-English.jsonl",
+      "url": "https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl",
+      "bytes": 3431211190,
+      "sha256": "ce2b80e5ad1132f14cedd2f531a606e1f0c6aeab422d50515e88db13a16a59a7",
+      "licence": "CC BY-SA 4.0",
+      "licenceUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Etymology data from English Wiktionary (https://en.wiktionary.org), extracted by Wiktextract (https://kaikki.org).",
+      "deprecatedUpstream": "kaikki.org marks this file DEPRECATED. If the URL returns 404, use https://kaikki.org/dictionary/raw-wiktextract-data.jsonl.gz filtered to entries whose lang is English, then update this entry and review the regenerated shards.",
+      "measured": "2026-11-10"
+    }
+  ]
+}

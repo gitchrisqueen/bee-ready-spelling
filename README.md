@@ -39,6 +39,7 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 | **Clues on request** | Ask for a definition, part of speech, language group or a sentence before you spell. The clue buttons stay available after you answer, and the sentence then shows the word in bold instead of a blank. |
 | **Review missed words** | Words you miss are saved so you can practice them again. |
 | **Star your own words** | Tap the ☆ on any word, in the word bank or during a round, to save it. Study and Challenge are the original booklet's fixed groups; the star is how you keep your own list. Filter the word bank to starred words only, or start a round from **My starred words**. |
+| **My words** | A different way in for any speller: type or paste this week's list (or open a share link) at `?mode=mine`, and practise it with the same screen. Words already in the Bee Ready list come in as they are, with their recorded voice. Other words get a definition, part of speech, origin and sentence from a built-in library, or, when a grown-up taps **Look up the missing words**, from Wiktionary. Lists stay in the browser, and several lists can be kept, shared by link and backed up as a file. The default practice screen is unchanged. Open it from **Grown-ups**. |
 | **Word details** | In the word bank, tap **Details** on any card to see its part of speech, language group, booklet list (Study or Challenge) and practice sentence. Buttons there let you hear the word, hear it slowly, or hear the sentence. Hearing it slowly does not change your saved talking speed. Cards start closed, and open cards close again if you reload the page. |
 | **Natural voices** | Choose from four American English voices, adjust the talking speed, or use your device's own voice. Every word plays instantly from a recording. During practice, a single line under **Hear my word** shows the current voice and speed (for example "Sunny · Normal"). The **Voice and speed** button next to it opens a small panel with the four voices and the three speeds (Normal, Clear, Slow). Picking one saves it, the same as the Voices tab, and plays the word again. The panel starts closed on every page load and every new word, and stays open while you try several choices. **Repeat slowly** plays the word slowly once without changing the saved speed. |
 | **Printable PDFs** | A practice workbook, an alphabetical list and a definitions reference. |
@@ -58,6 +59,8 @@ Open the site, pick how many words you want, and start. There is nothing to inst
 ### Your progress stays on your device
 
 Practice history, starred words and voice settings are saved in your browser's local storage. The site never sends your practice to a server. (GitHub hosts the site and can see a visitor's IP address. If a grown-up turns on the optional live voice, files also load from cdn.jsdelivr.net, esm.sh and huggingface.co, which can see it too.) They are separate for each browser and each web address. Starred words are kept apart from practice history, so clearing one does not clear the other. The **Grown-ups** tab has buttons to clear practice history and to clear starred words. Voice settings have no clear button; they reset if you clear the site's data in the browser.
+
+**My words** keeps its lists, history and stars in this browser under its own keys (`bee-ready-mine-*`), apart from the main practice data. The library of definitions is part of this site, so adding words from it sends nothing. **Only when a grown-up taps "Look up the missing words"** (and has not turned it off in **Grown-ups**) the page asks `simple.wiktionary.org` and `en.wiktionary.org` (Wikimedia) about the words still missing, and those two services see the words and the device's IP address. Looked-up text is credited to Wiktionary (CC BY-SA 4.0). A share link puts the words after the `#`, which browsers do not send to the server; the `l=` part of the link is a hash of the list and does reach GitHub's request logs, and because the label mixed into it is public, someone who can guess a list can match it. Any other page on the same `github.io` address can read what this site keeps in the browser. **Delete all my words** in **Grown-ups** removes everything My words saved; to clear everything the site saved, clear the site's data in the browser settings.
 
 ## Speech and voices
 
@@ -110,6 +113,9 @@ You can also use any static file server. Open `index.html` through a server, not
 | `wordcard.js` | Builds the HTML for a word-bank card and its Details panel (part of speech, origin, booklet list, sentence, audio buttons). Pure functions with no DOM access, so they are tested without a browser |
 | `stars.js` | Starred words: load, save, toggle and clear a set of word ids in `localStorage` (key `bee-ready-starred-v1`). Takes a storage object, so it is tested without a browser |
 | `voice-service.js` | Recorded-clip playback, speech engine selection, on-demand model download, progress events, cancellation and fallback |
+| `mine/` | My words: the kill switches (`config.js`), the one validator (`validate.js`), the child-safety filter (`filter.js`, its hashed list `filter.sha256` and `FILTER-NOTICE.md`) and sensitive-topic check (`sensitive.js`), saved lists (`lists.js`), share links (`share.js`), the library and Wiktionary lookup (`lookup.js`, `origin.js`), review chips (`import.js`) and the screen (`ui.js`). Loaded only for `?mode=mine`, except the tiny `config.js` |
+| `library/` | Static definitions, parts of speech, origins and sentences for about 2,700 common words, one shard per first letter, with `NOTICE.md` (sources and licences). Built by `tools/library/` |
+| `tools/library/` | Library and filter generator (by hand, offline from the site). Not part of the deployed site. See its README |
 | `tools/clips/` | Clip generator (Kokoro + ffmpeg). Not part of the deployed site |
 | `tools/pronunciation/` | Pronunciation audit: shortlists words likely to sound wrong. Not part of the deployed site |
 | `tools/device-test/` | Mobile browser checks with real WebKit and iPhone/iPad presets. Not part of the deployed site |
@@ -288,6 +294,9 @@ To roll back a `say`: remove the `say` field from `words.json` on a branch and m
 ├── wordcard.js                          Word-bank card and Details panel markup
 ├── voice-service.js                     Clips → Kokoro → Piper → device speech
 ├── sentences.js                         Sentence lookup and fallback templates (shared by the app and the clip generator)
+├── mine/                                My words (?mode=mine): lists, share links, lookup, filter, screen
+├── library/                             Static word library for My words (+ NOTICE.md)
+├── tools/library/                       Generator for library/ and mine/filter.sha256
 ├── clips/                               Pre-recorded word and sentence clips (4 voices)
 ├── fonts/                               DM Sans and Fredoka (web fonts) and their licenses
 ├── tools/clips/                         Clip generator and its dependencies
@@ -322,6 +331,7 @@ BASE=http://localhost:8080/ node speed-check.mjs      # plays a word at Normal, 
 BASE=http://localhost:8080/ node persist-check.mjs    # Repeat slowly, then the speed buttons in the voice menu: prints the rate of each play
 BASE=http://localhost:8080/ node after-answer-check.mjs  # clue buttons after an answer (exits 1 on a mismatch)
 BASE=http://localhost:8080/ node typed-only-check.mjs     # answer box rejects multi-character inserts, accepts typed letters (exits 1 on a mismatch)
+BASE=http://localhost:8080/ node mine-check.mjs           # My words: default mode untouched, ?mode=mine by touch, lookups only to the two Wiktionary hosts (exits 1 on a mismatch)
 ```
 
 It checks that the tab bar fits, that form fields are at least 16 px (iOS Safari zooms the page when you tap a smaller field), that tap targets are at least 44 px, that no text is under 12 px, that nothing overflows sideways, that the page makes no third-party requests, and that a practice round, the word-bank details and stars, and the speed buttons on the Voices tab work by touch. `device-test.mjs` also opens the practice screen's voice and speed menu, checks that it starts closed, opens, stays open after a choice and that Escape closes it and returns focus to the toggle, and runs the tap-target, text-size and overflow checks with the menu open. `persist-check.mjs` covers the menu and Repeat slowly end to end (it checks that the menu starts closed, opens, stays open while answering and closes at the next word, that each press plays exactly once at the right rate, and that the saved speed is right); it exits 1 on a mismatch. All of these scripts (`device-test.mjs`, `speed-check.mjs`, `persist-check.mjs`, `after-answer-check.mjs`, `typed-only-check.mjs`) are manual and are not run by CI, so no workflow guards these controls. `typed-only-check.mjs` checks that a multi-character insert is rejected and typed letters work, in iPhone 13 WebKit emulation only; it cannot tell the `beforeinput` block from the `input` fallback, so the unit tests in `tests/a11y.test.mjs` cover each rule separately. It is emulation on a desktop machine: it does not use iOS itself, a real speaker, the iOS audio rules, or a screen reader.
@@ -336,6 +346,8 @@ Other limits:
 - The language group is a label from the booklet. Many words passed through several languages.
 - Typed answers are compared simply; accents and punctuation are not graded strictly.
 - The words *learned* and *dogged* can be pronounced differently depending on meaning, so confirm with a grown-up.
+- My words: the library's definitions and sentences come from open sources (Open English WordNet, Wiktionary, the New General Service List) and pass an automated profanity filter and a sensitive-topic check, but nobody has read every entry. Words whose best definition touches a sensitive topic are left out of the library. Looked-up text goes through the same checks and a grown-up accepts it before it is saved. The device voice can mispronounce rare words, and only words in the Bee Ready list have recorded clips.
+- `tools/device-test/mine-check.mjs` was run in Chromium emulation with recorded Wiktionary responses (WebKit could not start on the machine that built it). It does not exercise a real cross-origin request to Wikimedia from a browser, a real phone or a screen reader. Photo import is not part of this release.
 
 ## Content and license
 

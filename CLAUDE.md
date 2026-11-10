@@ -8,6 +8,7 @@ Public repository. A static spelling-bee practice site for children, hosted on G
 - `words.json` is the word data: id, word, part, definition, group, level, scan_page, sentence, and an optional `say`.
 - Speech: recorded clips in `clips/` first, then live Kokoro, then Piper, then the device voice (`voice-service.js`).
 - Everything the child saves (history, stars, voice settings) stays in that browser's local storage and is never sent by the site. GitHub hosts the site and sees visitor IP addresses; the optional live voice also loads files from cdn.jsdelivr.net, esm.sh and huggingface.co.
+- "My words" (`?mode=mine`, `mine/`, `library/`, plan in `docs/my-words-plan.md`) lets a child practise their own list. Its lists, history and stars use `bee-ready-mine-*` keys and never the default keys. The one other third-party request in the site: only after a grown-up taps "Look up the missing words" the page asks `simple.wiktionary.org` and `en.wiktionary.org` about the missing words (a documented exception, switchable off in Grown-ups and by `LIVE_LOOKUP_ENABLED`). `tests/mine-privacy.test.mjs` guards this.
 - Read `README.md` first: it documents features, the clip pipeline, deployment, the failure runbook and testing.
 
 ## Commands
@@ -18,6 +19,8 @@ npm run build            # stages the deployable site into _site/
 npm run serve            # serves the repo on http://localhost:8080/
 node tools/clips/generate.mjs --dry-run       # what the clip generator would record (needs `npm ci` in tools/clips)
 node tools/device-test/device-test.mjs        # iPhone/iPad checks in WebKit (needs `npm install` in tools/device-test)
+node tools/device-test/mine-check.mjs         # My words checks (set BASE; ENGINE=chromium if WebKit cannot start)
+node tools/library/build.mjs --inputs <dir>   # regenerate library/ from pinned inputs (see tools/library/README.md)
 ```
 
 ## Public-repo rules (always)
@@ -77,5 +80,5 @@ Every open issue and PR carries exactly one state label:
 ## Do not
 
 - Do not commit generated output (`_site/`, `node_modules/`, device-test screenshots).
-- Do not add runtime dependencies or third-party requests (fonts, scripts, analytics). The page makes none on load; only the optional live voice loads libraries and model files from the three hosts above. A test guards the fonts.
+- Do not add runtime dependencies or third-party requests (fonts, scripts, analytics). The page makes none on load; only the optional live voice loads libraries and model files from the three hosts above. A test guards the fonts. The one exception is My words (above). Never put a Merriam-Webster or any other API key in the page or the repository, never bulk-query a dictionary API to build `library/` (its terms bar automated queries), and never add a plain offensive word to a file: the filter list is hashes only.
 - Do not delete branches, repositories or history without the owner's word.

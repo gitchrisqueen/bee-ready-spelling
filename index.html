@@ -33,6 +33,39 @@
           </div>
           <div class="hero-art" aria-hidden="true"><div class="bee-orbit">✦</div><div class="bee-friend">🐝</div><span class="star star-a">✧</span><span class="star star-b">✶</span><span class="star star-c">★</span><span class="hero-speech">You got this!</span></div>
         </div>
+        <section id="mineRoot" class="panel mine-panel" aria-labelledby="mineTitle" hidden>
+          <div class="section-title"><div><span class="mini-kicker">MY WORDS</span><h2 id="mineTitle" tabindex="-1">Practice your own list</h2></div></div>
+          <p class="helper">Type or paste this week's words. Words already in Bee Ready come right in. For new words we look for a definition, part of speech, origin and sentence. Your lists stay in this browser.</p>
+          <div class="form-row">
+            <label class="field">My list<select id="mineList"></select></label>
+            <label class="field">List name<input id="mineName" type="text" maxlength="40" autocomplete="off"></label>
+          </div>
+          <div class="mine-actions"><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
+          <label class="field" for="mineText">Add words<textarea id="mineText" rows="4" placeholder="apple, banana, cherry, or one word on each line" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
+          <button type="button" id="mineCheck" class="primary-btn">Check my words</button>
+          <p id="mineStatus" class="helper" role="status" aria-live="polite"></p>
+          <div id="mineReview" hidden>
+            <h3 id="mineReviewTitle" tabindex="-1">Check your words</h3>
+            <p id="mineReviewSummary" class="helper"></p>
+            <ul id="mineChips" class="mine-chips"></ul>
+            <div class="mine-lookup" id="mineLookupBlock">
+              <button type="button" id="mineLookup" class="soft-btn" aria-describedby="mineDisclosure">Look up the missing words</button>
+              <button type="button" id="mineCancelLookup" class="text-btn" hidden>Stop looking</button>
+              <p id="mineDisclosure" class="helper">Looking up sends the missing words, and this device's IP address, to Wiktionary (Wikimedia). Nothing is sent until you press this button. A grown-up can turn it off in Grown-ups.</p>
+            </div>
+            <div class="mine-actions"><button type="button" id="mineSave" class="primary-btn">Save these words</button><button type="button" id="mineCancel" class="text-btn">Cancel</button></div>
+          </div>
+          <h3 id="mineWordsHead" class="settings-heading">Words in your list</h3>
+          <p id="mineEmpty" class="helper">No words yet. Add some above.</p>
+          <ul id="mineWordList" class="mine-word-list" aria-labelledby="mineWordsHead"></ul>
+          <div class="mine-actions">
+            <button type="button" id="mineShare" class="soft-btn">Show a link to share this list</button>
+            <button type="button" id="mineExport" class="soft-btn">Download a backup</button>
+            <label class="soft-btn file-btn">Open a backup<input id="mineImportFile" type="file" accept="application/json,.json"></label>
+          </div>
+          <label class="field" for="mineShareUrl"><span class="sr-only">Share link</span><input id="mineShareUrl" type="text" readonly hidden></label>
+          <p class="helper">Definitions and sentences come from the Bee Ready library (Open English WordNet and Wiktionary, see <a href="./library/NOTICE.md" target="_blank" rel="noopener noreferrer">the notice</a>) or from Wiktionary when you ask. Wiktionary text is CC BY-SA 4.0. Pronunciation of rare words by the device voice can be wrong.</p>
+        </section>
         <div class="content-grid">
           <div class="panel" id="roundBuilder">
             <div class="section-title"><div><span class="mini-kicker">YOUR PRACTICE ROUND</span><h2>How many words today?</h2></div><span class="pill">✨ Pick your challenge</span></div>
@@ -96,7 +129,18 @@
       <section class="tab-panel" id="tab-grownups" aria-labelledby="grownups-title">
         <div class="section-intro"><span class="mini-kicker">TOOLS FOR GROWN-UPS</span><h1 id="grownups-title" tabindex="-1">Practice that builds confidence</h1><p>Simple, repeatable spelling activities plus your printable word resources.</p></div>
         <div class="content-grid"><div class="panel"><h2>Try the 10-minute routine</h2><ol class="routine"><li><b>Warm up</b> with a few older words.</li><li><b>Say the new word</b>, explain what it means and use it in a sentence.</li><li><b>Notice the tricky letters</b> before hiding the spelling.</li><li><b>Spell from memory</b>, then check each letter.</li><li><b>Review missed words</b> tomorrow and later in the week.</li></ol><p class="helper">Study tips align with spaced retrieval and explicit letter-sound study.</p></div><div class="panel"><h2>Printable practice pack</h2><div class="downloads"><a href="./assets/Spelling_Bee_Practice_Workbook.pdf" download><span aria-hidden="true">📄</span> Practice workbook <span>PDF ↗</span></a><a href="./assets/Spelling_Bee_Alphabetical_List.pdf" download><span aria-hidden="true">📄</span> Alphabetical checklist <span>PDF ↗</span></a><a href="./assets/Spelling_Bee_Definitions_Reference.pdf" download><span aria-hidden="true">📄</span> Complete definitions <span>PDF ↗</span></a></div><p class="helper">For unusual pronunciations or meanings, consult the linked dictionaries or the competition's pronouncer.</p></div></div>
-        <div class="panel foot-note"><h3>About the clues and audio</h3><p>“Origin” uses the booklet's language group. Some words traveled through multiple languages; the group is not a complete etymology. Definitions are simplified study explanations, not official competition definitions. Spelling bee rules vary by organizer.</p><p>Words and sentences play from short recordings, with no download. If one has no recording yet, your device voice reads it. The optional live voice needs a first download of model files, which the browser caches when storage allows. Speech uses no account or API key. For words such as <i>learned</i> and <i>dogged</i>, pronunciation can depend on meaning and should be confirmed with a grown-up.</p><p>Practice history, stars and voice settings stay in this browser. This site is hosted by GitHub, which can see a visitor's IP address. If a grown-up turns on the live voice, files load from cdn.jsdelivr.net, esm.sh and huggingface.co, and those services also see the IP address.</p><div class="clear-actions"><button id="clearHistory" class="text-btn">Clear this device's practice history</button><button id="clearStars" class="text-btn">Clear this device's starred words</button><span id="clearStarsStatus" class="clear-status" role="status" aria-live="polite"></span></div></div>
+        <div class="panel" id="mineGrownups" hidden>
+          <h2>Practice with your own words</h2>
+          <div id="mineEnterBlock"><p>Practice this week's spelling list, or any list of words. They stay in this browser.</p><a class="soft-btn link-btn" href="?mode=mine#practice">Use your own words</a></div>
+          <div id="mineSettingsBlock" hidden>
+            <label class="check-row"><input type="checkbox" id="mineLive" checked> Allow looking up missing words on Wiktionary</label>
+            <p class="helper">When this is on and someone presses "Look up the missing words", those words and the device's IP address go to simple.wiktionary.org and en.wiktionary.org (Wikimedia). Turn it off to keep everything in this browser.</p>
+            <button type="button" id="mineDeleteAll" class="text-btn">Delete all my words from this device</button>
+            <p class="helper">To clear everything this site saved, including My words, clear this site's data in your browser settings.</p>
+            <a class="soft-btn link-btn" href="./">Back to the Bee Ready list</a>
+          </div>
+        </div>
+        <div class="panel foot-note"><h3>About the clues and audio</h3><p>“Origin” uses the booklet's language group. Some words traveled through multiple languages; the group is not a complete etymology. Definitions are simplified study explanations, not official competition definitions. Spelling bee rules vary by organizer.</p><p>Words and sentences play from short recordings, with no download. If one has no recording yet, your device voice reads it. The optional live voice needs a first download of model files, which the browser caches when storage allows. Speech uses no account or API key. For words such as <i>learned</i> and <i>dogged</i>, pronunciation can depend on meaning and should be confirmed with a grown-up.</p><p>Practice history, stars and voice settings stay in this browser. Lists made with My words also stay in this browser. This site is hosted by GitHub, which can see a visitor's IP address. If a grown-up uses "Look up the missing words" in My words, those words and the IP address go to Wiktionary (Wikimedia). If a grown-up turns on the live voice, files load from cdn.jsdelivr.net, esm.sh and huggingface.co, and those services also see the IP address.</p><div class="clear-actions"><button id="clearHistory" class="text-btn">Clear this device's practice history</button><button id="clearStars" class="text-btn">Clear this device's starred words</button><span id="clearStarsStatus" class="clear-status" role="status" aria-live="polite"></span></div></div>
       </section>
     </main>
     <footer class="footer"><span>🐝 Bee Ready · Every word is a new adventure</span><span>No account required · Made for curious spellers</span></footer>

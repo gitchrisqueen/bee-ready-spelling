@@ -1,6 +1,14 @@
 // Word-bank card markup. Pure functions: no DOM access, so they run in tests with no browser.
 // The caller passes the word object, the part-of-speech map and the sentence lookup. All text is escaped here.
 export const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Hosts a looked-up definition can be credited to (CC BY-SA 4.0). Anything else in `credit` is ignored.
+const CREDIT_HOSTS = ['simple.wiktionary.org', 'en.wiktionary.org'];
+const creditHtml = w => {
+  const hosts = Array.isArray(w.credit) ? w.credit.filter(h => CREDIT_HOSTS.includes(h)) : [];
+  if (!hosts.length) return '';
+  const links = hosts.map(h => `<a href="https://${h}/wiki/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer">${h}</a>`);
+  return `<p class="source-credit">Source: ${links.join(', ')} (CC BY-SA 4.0)</p>`;
+};
 export const ORIGIN_NOTE = "This group is only a hint. It is not the whole story of where the word came from.";
 export const BOOKLET_NOTE = "These are the original booklet's fixed groups. To save your own words, press the Star button (☆) on a word.";
 const idKey = id => String(id).replace(/[^A-Za-z0-9_-]/g,'_');
@@ -31,8 +39,8 @@ export function wordCardHtml(w,POS,sentenceFor,{starred=false,open=false,starLab
     + `<div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${id}" aria-label="Listen to ${word}"><span aria-hidden="true">🔊</span> Listen</button><button class="star-btn" data-star-id="${id}" aria-pressed="${starred}" aria-label="${escapeHtml(starLabel(w,starred))}"><span class="star-glyph" aria-hidden="true">${starred?'★':'☆'}</span></button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer" aria-label="Dictionary entry for ${word} (opens in a new tab)">Dictionary <span aria-hidden="true">↗</span></a></div>`
     + `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w))}">Details <span class="chev" aria-hidden="true">▸</span></button>`
     + `<div class="word-details" id="${panel}"${open?'':' hidden'}><dl class="details-list">`
-    + row('Part of speech',d.part) + row('Origin',d.origin,ORIGIN_NOTE) + row('Booklet list',d.booklet,BOOKLET_NOTE) + row('In a sentence',d.sentence)
-    + `</dl><div class="details-audio" role="group" aria-label="Listen to ${word}">`
+    + row('Part of speech',d.part) + row('Origin',d.origin,ORIGIN_NOTE) + (w.custom ? '' : row('Booklet list',d.booklet,BOOKLET_NOTE)) + row('In a sentence',d.sentence)
+    + `</dl>${creditHtml(w)}<div class="details-audio" role="group" aria-label="Listen to ${word}">`
     + `<button type="button" class="mini-btn" data-hear="word" data-hear-id="${id}" aria-label="Hear the word: ${word}"><span aria-hidden="true">🔊</span> Hear the word</button>`
     + `<button type="button" class="mini-btn" data-hear="slow" data-hear-id="${id}" aria-label="Hear it slowly: ${word}"><span aria-hidden="true">🐢</span> Hear it slowly</button>`
     + `<button type="button" class="mini-btn" data-hear="sentence" data-hear-id="${id}" aria-label="Hear the sentence for ${word}"><span aria-hidden="true">💬</span> Hear the sentence</button>`

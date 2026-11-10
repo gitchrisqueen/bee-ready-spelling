@@ -1,0 +1,87 @@
+// My words: the privacy rules in docs/my-words-plan.md, checked as source text so they run under `npm test`.
+// This is static analysis: a URL built at runtime could evade it, so tools/device-test also watches real requests.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
+const root = resolve(import.meta.dirname, '..');
+const read = name => readFileSync(join(root, name), 'utf8');
+const mineFiles = readdirSync(join(root, 'mine')).filter(f => f.endsWith('.js')).map(f => `mine/${f}`);
+const hostsIn = text => [...new Set([...text.matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)].map(m => m[1]))];
+
+// Hosts the default page already named before My words existed (the optional live voice, the dictionary link, the SVG namespace).
+const DEFAULT_PAGE_HOSTS = new Set(['huggingface.co', 'www.merriam-webster.com', 'esm.sh', 'cdn.jsdelivr.net', 'www.w3.org']);
+const DEFAULT_PAGE_FILES = ['index.html', 'app.js', 'voice-service.js', 'stars.js', 'wordcard.js', 'sentences.js', 'styles.css'];
+// github.com appears in mine/ only inside the User-Agent contact text; it is never requested.
+const MINE_HOSTS = new Set(['simple.wiktionary.org', 'en.wiktionary.org', 'github.com']);
+
+test('the default page files name no host beyond the ones they already used', () => {
+  for (const file of DEFAULT_PAGE_FILES) {
+    for (const host of hostsIn(read(file))) assert.ok(DEFAULT_PAGE_HOSTS.has(host), `${file} names ${host}`);
+  }
+});
+
+test('default mode loads only the tiny config file from mine/; the rest is imported only for ?mode=mine', () => {
+  const app = read('app.js');
+  const staticImports = [...app.matchAll(/^import .* from '(\.\/mine\/[^']+)'/gm)].map(m => m[1]);
+  assert.deepEqual(staticImports, ['./mine/config.js']);
+  const dynamic = [...app.matchAll(/import\('\.\/mine\/([^']+)'\)/g)].map(m => m[1]);
+  assert.deepEqual(dynamic, ['ui.js']);
+  assert.match(app, /if\(MINE_ENABLED&&new URLSearchParams\(location\.search\)\.get\('mode'\)==='mine'\)\{try\{mine=await import/);
+  assert.equal(/^import /m.test(read('mine/config.js')), false, 'config.js imports nothing');
+});
+
+test('mine/ names no host beyond the two dictionary hosts, and makes no request to a literal URL', () => {
+  for (const file of mineFiles) {
+    const text = read(file);
+    for (const host of hostsIn(text)) assert.ok(MINE_HOSTS.has(host), `${file} names ${host}`);
+    assert.equal(/fetch(Fn)?\(\s*['"`]https?:/.test(text), false, `${file} fetches a literal URL`);
+  }
+  assert.equal((read('mine/lookup.js').match(/https:\/\/\$\{host\}/g) || []).length, 2, 'two templated URLs, both built from HOSTS');
+});
+
+test('mine/ uses no way to send data or run text as code', () => {
+  const banned = [/XMLHttpRequest/, /WebSocket/, /sendBeacon/, /new Image\(/, /importScripts/, /\beval\(/, /new Function/,
+    /innerHTML/, /insertAdjacentHTML/, /outerHTML/, /document\.write/, /\bimport\(/, /EventSource/, /postMessage/];
+  for (const file of mineFiles) {
+    const text = read(file);
+    for (const re of banned) assert.equal(re.test(text), false, `${file} uses ${re}`);
+  }
+});
+
+test('mine/ never touches the default history or stars keys, except to map the stars key', () => {
+  for (const file of mineFiles) {
+    const text = read(file);
+    assert.equal(text.includes('bee-ready-history-v2'), false, `${file} names the default history key`);
+    if (file !== 'mine/lists.js') assert.equal(text.includes('bee-ready-starred-v1'), false, `${file} names the default stars key`);
+  }
+  assert.equal(read('app.js').includes("mine?'bee-ready-mine-history-v1':'bee-ready-history-v2'"), true);
+  assert.match(read('app.js'), /return mine\?mine\.starsStorage\(localStorage\):localStorage/);
+});
+
+test('a dictionary request starts only from the "Look up the missing words" button, and only if the switches are on', () => {
+  const ui = read('mine/ui.js');
+  assert.equal((ui.match(/lookupMissing\(/g) || []).length, 1, 'one call site');
+  assert.match(ui, /async function onLookup\(\) \{[\s\S]*?await lookupMissing\(/);
+  assert.match(ui, /\$\('mineLookup'\)\.addEventListener\('click', onLookup\)/);
+  assert.match(ui, /LIVE_LOOKUP_ENABLED && state\.settings\.liveLookup/);
+  for (const file of mineFiles.filter(f => f !== 'mine/ui.js' && f !== 'mine/lookup.js')) {
+    assert.equal(/lookupMissing|lookupOne/.test(read(file)), false, `${file} must not start a lookup`);
+  }
+  assert.equal(/lookupMissing|lookupOne/.test(read('mine/import.js')), false, 'checking words never calls the dictionary');
+});
+
+test('the kill switches exist and the safe values are the shipped ones for photos', () => {
+  const config = read('mine/config.js');
+  for (const name of ['MINE_ENABLED', 'LIVE_LOOKUP_ENABLED', 'OCR_ENABLED']) assert.match(config, new RegExp(`export const ${name} =`));
+  assert.match(config, /export const OCR_ENABLED = false;/, 'photo import is not part of this phase');
+});
+
+test('the page tells grown-ups what is sent, where, and how to turn it off', () => {
+  const html = read('index.html');
+  assert.match(html, /sends the missing words, and this device's IP address, to Wiktionary \(Wikimedia\)/);
+  assert.match(html, /id="mineLookup"[^>]*aria-describedby="mineDisclosure"/);
+  assert.match(html, /id="mineLive"/);
+  assert.match(html, /If a grown-up uses "Look up the missing words" in My words, those words and the IP address go to Wiktionary/);
+});

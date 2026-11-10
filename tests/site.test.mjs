@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -352,4 +353,15 @@ test('every character allowed in say is in the Kokoro vocabulary (when the model
   if (!existsSync(cached)) return; // CI does not download the model; the generator checks again at run time.
   const vocab = new Set(Object.keys(JSON.parse(readFileSync(cached, 'utf8')).model.vocab));
   for (const ch of SAY_CHARS) assert.ok(vocab.has(ch), `U+${ch.codePointAt(0).toString(16)} is not in the vocabulary`);
+});
+
+test('the build stages the My words code and library, so a missing folder cannot ship silently', () => {
+  execFileSync(process.execPath, [join(root, 'scripts/build.mjs')], { cwd: root, stdio: 'pipe' });
+  const nonEmpty = dir => existsSync(join(root, '_site', dir)) && readdirSync(join(root, '_site', dir)).length > 0;
+  assert.ok(nonEmpty('mine'), '_site/mine must exist and not be empty');
+  assert.ok(nonEmpty('library'), '_site/library must exist and not be empty');
+  assert.ok(existsSync(join(root, '_site/mine/filter.sha256')), 'the safety list ships with the page code');
+  assert.ok(existsSync(join(root, '_site/library/a.json')));
+  assert.ok(!existsSync(join(root, '_site/mine/FILTER-NOTICE.md')), 'only page code and the safety list are copied from mine/');
+  assert.equal(existsSync(join(root, '_site/lists')), existsSync(join(root, 'lists')), '_site/lists exists only when lists/ does');
 });
