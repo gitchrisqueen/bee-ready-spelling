@@ -1,6 +1,6 @@
 // My words, photo import: a picture is never persisted. Everything the browser would supply is faked, and the fakes
 // record
-// what the import touches: storage (localStorage and IndexedDB), object URLs, the canvas, the bitmap and the OCR worker.
+// what the import touches: storage (localStorage and IndexedDB), object URLs, the canvas, the bitmap and the worker.
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

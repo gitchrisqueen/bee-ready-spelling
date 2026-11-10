@@ -27,7 +27,8 @@ const FILES = [
   ['voices/am_fenrir.bin', 522240, 'c27989f741f7ee34d273a39d8a595cc0837d35f5ced9a29b7cc162614616df43'],
 ];
 
-// Tesseract.js, for "My words" photo import (docs/my-words-plan.md). Served from this site so the page asks no one else.
+// Tesseract.js, for "My words" photo import (docs/my-words-plan.md).
+// Served from this site so the page asks no one else.
 // Pinned by exact package version, with size and SHA-256 checked like the model files. All Apache-2.0.
 // [path under voice-assets/ocr/, URL, size in bytes, SHA-256]
 const NPM = 'https://cdn.jsdelivr.net/npm';
