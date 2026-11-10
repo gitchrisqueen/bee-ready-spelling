@@ -37,7 +37,7 @@ function fakeFetch(files) {
 const file = (id, data) => (
   { [`./lists/${id}.json`]: typeof data === 'string' ? data : JSON.stringify(data) });
 
-test('a published list loads, with the request made to this site only and without credentials or a referrer', async () => {
+test('a published list loads; the request is same-site, with no credentials and no referrer', async () => {
   const { id, text } = buildRegistryEntry('Sample list: animals', WORDS);
   assert.equal(id, ID);
   const f = fakeFetch(file(id, text));
