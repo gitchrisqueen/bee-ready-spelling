@@ -18,7 +18,7 @@ I called each endpoint with `curl` and an `Origin` header on 2026-11-10.
 | Endpoint | CORS | What it returns | Verdict |
 |---|---|---|---|
 | `https://en.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=<word>&format=json&origin=*` | `access-control-allow-origin: *` | Plain-text page extract with the Etymology section, parts of speech and definitions. Must be parsed. | **Chosen** (with the Simple English site first) |
-| `https://simple.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&titles=<word>&format=json&formatversion=2&origin=*` | `access-control-allow-origin: *` (curl with an `Origin` header, 2026-11-10) | Child-readable definition and example, but thin coverage. An unknown word returns `"missing": true`. | **Chosen**, first in order |
+| `https://simple.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&titles=<word>&format=json&formatversion=2&origin=*` | `access-control-allow-origin: *` (curl with an `Origin` header, 2026-11-10) | Child-readable definition and example, but thin coverage. An unknown word returns `"missing": true`. | Chosen, pending the parse check below; first in order |
 | `https://api.dictionaryapi.dev/api/v2/entries/en/<word>` | `*` | Clean JSON: part of speech, definitions, sometimes an example, a CC BY-SA licence field. No etymology in the responses checked. One 502 was seen during research. The maintainer asks for donations to cover server costs. | Optional fallback only |
 | `https://en.wiktionary.org/api/rest_v1/page/definition/<word>` | `*` | Definitions as HTML, no etymology. The MediaWiki documentation calls it experimental and says RESTBase is being deprecated. | Not used |
 | `https://api.datamuse.com/words?sp=<word>&md=dpr` | Reflects the origin | Definitions, part of speech, pronunciation. The site says an API key is required from 2027-02-01. | Not used: it stops being keyless |
@@ -37,7 +37,8 @@ Each open item above has a check that Phase 1 runs before the lookup host is all
 
 | Check | Fallback if it fails |
 |---|---|
-| A parser test over at least 50 named words (listed in the test file, mixing common words, loanwords and words missing from one site) extracts a clean origin label, or correctly reports "not available", from the Etymology section of the English extract | Show "origin not available" for the words the parser cannot read; never show unparsed text |
+| A parser test over at least 50 named words (listed in `tests/mine-lookup-parse.test.mjs`, mixing common words, loanwords and words missing from one site) extracts a clean origin label, or correctly reports "not available", from the Etymology section of the English extract | Show "origin not available" for the words the parser cannot read; never show unparsed text |
+| The same test file parses the Simple English extract (`exsectionformat=plain`): a definition and an example from the plain text, and the `"missing": true` case, over the same 50 words | Fall through to `en.wiktionary.org`, then to manual entry; never show unparsed text |
 | A browser test in `tools/device-test` (WebKit emulation) makes one lookup to each host with the planned request headers and gets a response | Drop the `Api-User-Agent` header (the browser's own `User-Agent` is sent), or use `en.wiktionary.org` only |
 | Request volume for a 200-word list stays under the browser limit of 200 requests per minute with at most 3 requests at a time | Lower the concurrency, or slow the queue and show progress with a Cancel button |
 
@@ -60,7 +61,7 @@ The library and OCR figures in the next two sections were measured by the author
 |---|---|---|---|
 | Open English WordNet 2025 | CC BY 4.0 plus the Princeton WordNet notice | Part of speech, glosses, examples on about 32% of senses. No etymology. Download: 11,363,503 bytes (`content-length`, 2026-11-10). | No share-alike. The only attribution-only candidate. |
 | Simple English Wiktionary (via kaikki.org extract) | CC BY-SA 4.0 | The most child-readable definitions. Etymology on about 11% of records, examples on about 22%. Download: 4,726,754 bytes (`content-length`, 2026-11-10). | Share-alike: any shard that copies its text is CC BY-SA. |
-| English Wiktionary (via kaikki.org) | CC BY-SA 4.0 | Etymology text. The English dump is about 3.4 GB. | Used at build time only, for an origin language label. Definitions are often adult-level or archaic (the `abdicate` entry starts with an obsolete sense). |
+| English Wiktionary (via kaikki.org) | CC BY-SA 4.0 | Etymology text. The file `https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl` has `content-length` 3,431,211,190 bytes (about 3.4 GB; last modified 2026-10-30, read with `curl -sI` on 2026-11-10). The raw all-language dump listed on the kaikki raw-data page is a different, larger file. | Used at build time only, for an origin language label. Definitions are often adult-level or archaic (the `abdicate` entry starts with an obsolete sense). |
 
 Sample definitions fetched during research:
 
