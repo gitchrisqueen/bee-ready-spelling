@@ -46,8 +46,8 @@ export function dropOldestBackup(storage) {
 
 // status: 'empty' (nothing saved), 'ok', or 'corrupt' (unreadable data: the raw text was kept as a backup if there was
 // room).
-// status 'locked' means the safety list is not loaded: the validator would drop every entry, so nothing is read, and the
-// caller must not save anything (it would overwrite the child's lists with empty ones).
+// status 'locked' means the safety list is not loaded: the validator would drop every entry,
+// so nothing is read, and the caller must not save anything (it would overwrite the child's lists with empty ones).
 export function loadStore(storage) {
   if (!filterReady()) return { store: emptyStore(), status: 'locked' };
   const raw = read(storage, KEY);
@@ -176,8 +176,8 @@ export function exportJson(store) {
   return JSON.stringify({ kind: EXPORT_KIND, version: 1, lists }, null, 2);
 }
 
-// Validates a backup file like every other entry path. Returns { lists: [{ name, entries }] } (entries without ids) or {
-// error }.
+// Validates a backup file like every other entry path.
+// Returns { lists: [{ name, entries }] } (entries without ids), or { error }.
 export function parseExport(text) {
   if (typeof text !== 'string' || text.length > MAX_IMPORT_BYTES) return { error: 'That file is too big to be a Bee Ready backup.' }; // preflight: ok
   let data = null;

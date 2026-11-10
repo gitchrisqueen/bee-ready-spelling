@@ -379,7 +379,8 @@ function initGrownups(){
     setClearStatus('Starred words cleared.');
   });
 }
-// Swaps the practice screen's word source (called by mine/ui.js). The default path in main() does the same steps inline.
+// Swaps the practice screen's word source (called by mine/ui.js).
+// The default path in main() does the same steps inline.
 function setActiveWords(list){
   words=list;$('wordCount').max=String(Math.max(1,words.length));$('pool').options[0].textContent=`All ${words.length.toLocaleString()} words`; // preflight: ok
   const g=$('groupFilter');while(g.options.length>1)g.remove(1);
