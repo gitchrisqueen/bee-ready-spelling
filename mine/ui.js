@@ -14,6 +14,7 @@ import {
 } from './lists.js';
 import { HOSTS, cleanLookupCache, entryUrl, lookupMissing } from './lookup.js';
 import { MAX_PHOTO_BYTES, OCR_DIR, loadTesseract, ocrOptions, readPhoto } from './ocr.js';
+import { loadRegistryList } from './registry.js';
 import { buildShareUrl, idMatches, listId, parseShareLocation, unpackWords } from './share.js';
 import { LIMITS, cleanField, normalizeWord, parseWords } from './validate.js';
 
@@ -500,6 +501,14 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   } else if (share?.id) {
     const same = state.store.lists.find(l => listId(l.entries.map(e => e.word)) === share.id);
     if (same) { state.store = { ...state.store, active: same.key }; persist(); activate(); }
-    else status('This link does not include the words. Ask the person who sent it for a new link.');
+    else {
+      // A list the owner published: lists/<id>.json on this site. Same files, no third party. It is checked like
+      // any other input and must hash back to the id in the link.
+      const published = await loadRegistryList(fetch, share.id);
+      if (published) {
+        await showReview(published.words,
+          `This is the published list "${published.name}". Nothing is saved until you press Save.`);
+      } else status('This link does not include the words. Ask the person who sent it for a new link.');
+    }
   }
 }

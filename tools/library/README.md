@@ -76,6 +76,32 @@ node tools/library/build.mjs --inputs /tmp/library-inputs --letter a
 
 `--out <dir>` writes somewhere other than `library/`.
 
+### Growing the library
+
+`--extra-words <file>` adds words after the NGSL seed (so the size budget drops them first). The file is plain text: words separated by spaces, commas or new lines, `#` comment lines, and two required comment lines naming where the words come from and their licence:
+
+```
+# source: <where the words come from>
+# licence: <the licence they are available under>
+apple pear kiwi
+```
+
+Only lowercase words of 2 or more letters are used. A word still needs a definition in the pinned open sources, passes the same child-safety and sensitive-topic checks, and is credited in `library/NOTICE.md` under "Extra word list". Words the open sources cannot define are left out, never written by hand or by a model. Use a list whose licence allows it to be shared here; never copy a booklet or a commercial list. Review the regenerated shards by eye before the pull request.
+
+```bash
+node tools/library/build.mjs --inputs /tmp/library-inputs --extra-words /tmp/extra-words.txt
+```
+
+## Publishing a list
+
+`lists/<id>.json` files are not generated from these inputs. Write one with:
+
+```bash
+node tools/library/publish-list.mjs --name "Week 12" --words-file /tmp/week-12.txt
+```
+
+The tool checks the words like typed words (and the safety list), names the file after the list id and prints the link. It writes nothing if a word is not allowed. Publish only lists the owner chose, by pull request.
+
 ## 5. Test
 
 ```bash

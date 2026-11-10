@@ -4,5 +4,5 @@ export const MINE_ENABLED = true;
 // LIVE_LOOKUP_ENABLED: false turns live dictionary lookups off for everyone.
 // Words then use the library or manual entry.
 export const LIVE_LOOKUP_ENABLED = true;
-// OCR_ENABLED: false hides the photo button. Photo import ships in a later phase.
+// OCR_ENABLED: false hides the photo button.
 export const OCR_ENABLED = true;

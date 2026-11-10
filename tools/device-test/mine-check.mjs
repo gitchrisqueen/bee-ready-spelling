@@ -4,7 +4,7 @@
 // site's host as clip file names. This is emulation, not a physical device.
 //   BASE=http://localhost:8080/ node mine-check.mjs       (serve the built _site/ first)
 //   ENGINE=chromium node mine-check.mjs                    (when WebKit cannot start on this machine)
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { chromium, devices, webkit } from 'playwright';
 
 const BASE = process.env.BASE || 'http://localhost:8080/';
@@ -288,6 +288,29 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('mine: Save right after an edit keeps the edited word, and focus is not lost', await p6.evaluate(() =>
     document.querySelector('#mineWordList .mine-word').textContent === 'habits' && document.activeElement.tagName !== 'BODY')); // preflight: ok
   await second.close();
+
+  // a link with only a list id opens the list the owner published; an unknown id says so, and nothing is saved
+  const published = await contextFor(preset);
+  const p7 = await published.newPage();
+  const own7 = [], external7 = [];
+  p7.on('request', r => {
+    const u = new URL(r.url());
+    if (u.origin === new URL(BASE).origin) own7.push(u.pathname);
+    else if (!['blob:', 'data:'].includes(u.protocol)) external7.push(u.host);
+  });
+  const sampleId = readdirSync(new URL('../../lists/', import.meta.url))[0].replace(/\.json$/, '');
+  await p7.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
+  await p7.waitForSelector('#mineChips li');
+  const summary7 = await p7.evaluate(() => document.getElementById('mineReviewSummary').textContent);
+  check('published: the list is shown for review with its name',
+    /published list "Sample list: animals"\. Nothing is saved until you press Save/.test(summary7), summary7);
+  check('published: its three words are listed', (await p7.$$('#mineChips li')).length === 3);
+  check('published: the file came from this site and nothing from a third party',
+    own7.some(p => p.endsWith(`/lists/${sampleId}.json`)) && external7.length === 0, external7.join());
+  check('published: nothing is saved until Save', await p7.evaluate(() => localStorage.getItem('bee-ready-mine-v1') === null)); // preflight: ok
+  await p7.goto(`${BASE}?mode=mine&l=AAAAAAAAAAAAAAAAAAAAAA`, { waitUntil: 'networkidle' });
+  check('published: an unknown id says the link has no words', /does not include the words/.test(await statusOf(p7)), await statusOf(p7)); // preflight: ok
+  await published.close();
 
   // delete everything
   await page.evaluate(() => { location.hash = 'grownups'; });

@@ -21,6 +21,7 @@ import { createGunzip } from 'node:zlib';
 import { originLabel } from '../../mine/origin.js';
 import { isBlockedWord, parseBlocklist, setBlocklist } from '../../mine/filter.js';
 import { LIMITS, cleanField, cleanSourceField, sentenceHasWordOnce, validateEntry } from '../../mine/validate.js';
+import { parseExtraWords } from './wordlist.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SHARD_MAX = 150000;
@@ -81,7 +82,9 @@ function lineReader(path, gzip) {
 
 // ---------- seed words (NGSL 1.2) ----------
 
-function loadSeeds(path, letter) {
+// `extra` is an optional parsed extra word list (wordlist.mjs). Its words rank after every NGSL word, so the budget
+// cut drops them first.
+function loadSeeds(path, letter, extra) {
   const seeds = new Map();
   const lines = readFileSync(path, 'utf8').replace(/^﻿/, '').split(/\r?\n/).slice(1);
   let total = 0;
@@ -94,6 +97,14 @@ function loadSeeds(path, letter) {
     seeds.set(lemma, seeds.size);
   }
   console.log(`seed list: ${total} rows, ${seeds.size} usable${letter ? ` (letter ${letter})` : ''}`);
+  if (extra) {
+    const before = seeds.size;
+    for (const word of extra.words) {
+      if (seeds.has(word) || isBlockedWord(word) || (letter && word[0] !== letter)) continue;
+      seeds.set(word, seeds.size);
+    }
+    console.log(`extra word list: ${extra.words.length} words, ${seeds.size - before} new`);
+  }
   return seeds;
 }
 
@@ -309,7 +320,7 @@ function fitBudget(shards, checkTotal) {
 
 // ---------- NOTICE ----------
 
-function noticeText(sources, stats, counts) {
+function noticeText(sources, stats, counts, extra) {
   const by = Object.fromEntries(sources.inputs.map(i => [i.id, i]));
   const used = id => (id === 'ngsl' ? true : id === 'english-wiktionary' ? stats.group > 0
     : (stats.definition[id] ?? 0) + (stats.sentence[id] ?? 0) > 0);
@@ -342,6 +353,10 @@ function noticeText(sources, stats, counts) {
   ];
   for (const id of ['ngsl', 'simple-wiktionary', 'oewn', 'english-wiktionary']) {
     if (used(id)) out.push(...block(id), '');
+  }
+  if (extra) {
+    out.push('### Extra word list', '', `- Source: ${extra.header.source}`, `- Licence: ${extra.header.licence}`,
+      `- Words offered: ${extra.words.length}; a word is kept only if the open sources above give it a definition`, '');
   }
   out.push(
     '## Princeton WordNet notice', '',
@@ -388,20 +403,27 @@ function noticeText(sources, stats, counts) {
 // ---------- main ----------
 
 async function main(argv) {
-  const args = { inputs: null, letter: null, out: join(root, 'library') };
+  const args = { inputs: null, letter: null, out: join(root, 'library'), extraWords: null };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--inputs') args.inputs = resolve(argv[++i] ?? '');
+    else if (argv[i] === '--extra-words') args.extraWords = resolve(argv[++i] ?? '');
     else if (argv[i] === '--letter') args.letter = argv[++i];
     else if (argv[i] === '--out') args.out = resolve(argv[++i] ?? '');
     else fail(`unexpected argument: ${argv[i]}`);
   }
-  if (!args.inputs) fail('usage: node tools/library/build.mjs --inputs <dir> [--letter a] [--out library]');
+  if (!args.inputs) {
+    fail('usage: node tools/library/build.mjs --inputs <dir> [--letter a] [--out library] [--extra-words <file>]');
+  }
   if (args.letter && !/^[a-z]$/.test(args.letter)) fail('--letter must be one lowercase letter a-z');
 
   const sources = JSON.parse(readFileSync(join(root, 'tools', 'library', 'sources.json'), 'utf8'));
   const paths = await verifyInputs(args.inputs, sources);
   loadFilter();
-  const seeds = loadSeeds(paths.ngsl, args.letter);
+  let extra = null;
+  if (args.extraWords) {
+    try { extra = parseExtraWords(readFileSync(args.extraWords, 'utf8')); } catch (e) { fail(e.message); }
+  }
+  const seeds = loadSeeds(paths.ngsl, args.letter, extra);
 
   const [simple, oewn, origins] = await Promise.all([
     readSimple(paths['simple-wiktionary'], seeds), readOewn(paths.oewn, seeds),
@@ -438,7 +460,7 @@ async function main(argv) {
     console.log(`${letter}.json: ${shards.get(letter).size} words, ${Buffer.byteLength(text)} bytes`);
   }
   if (!args.letter) {
-    writeFileSync(join(args.out, 'NOTICE.md'), noticeText(sources, stats, { words }));
+    writeFileSync(join(args.out, 'NOTICE.md'), noticeText(sources, stats, { words }, extra));
     console.log(`library/NOTICE.md written`);
   }
   console.log(`done: ${words} words, ${total} bytes; definitions ${JSON.stringify(stats.definition)},`
