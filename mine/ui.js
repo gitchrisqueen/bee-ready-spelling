@@ -198,7 +198,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     return li;
   }
   // Where keyboard focus is inside the review list, so it can be put back after a chip is rebuilt.
-  // Every focusable control in a chip is covered: word box, Remove, Use it, the Edit summary, its two fields, the source links.
+  // Every focusable control in a chip is covered: word box, Remove, Use it, the Edit summary,
+  // its two fields and the source links.
   const SPOTS = {
     input: '.mine-chip-row input', remove: '[data-chip-remove]', use: '[data-chip-use]', summary: 'summary',
     def: 'textarea[id^="mine-def-"]', sen: 'input[id^="mine-sen-"]', credit: '.mine-chip-credit a',
