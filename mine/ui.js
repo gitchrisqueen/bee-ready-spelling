@@ -345,12 +345,15 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   }
 
   // ---- photo import ----------------------------------------------------------------------------------------------
+  // The picture buttons stay enabled while a read runs (so keyboard focus is never dropped); a second picture is ignored.
+  let photoBusy = false;
   function setPhotoBusy(busy) {
+    photoBusy = busy;
     $('minePhotoBlock').setAttribute('aria-busy', String(busy));
-    for (const id of ['minePhotoCamera', 'minePhotoPick']) $(id).disabled = busy;
   }
   async function onPhoto(file, input) {
     if (!file) return;
+    if (photoBusy) { status('Still reading the first picture. Please wait a moment.'); return; }
     if (file.size > MAX_PHOTO_BYTES) { status('That picture is too big. Try a smaller one.'); return; }
     const base = new URL(OCR_DIR, document.baseURI).href;
     const env = {

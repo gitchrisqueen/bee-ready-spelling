@@ -179,3 +179,14 @@ test('a picture with too many pixels is refused before it is drawn', async () =>
   assert.equal(log.bitmaps[0].closed, true);
   assert.equal(log.workers.length, 0);
 });
+
+test('a bitmap that finishes decoding after the time is up is closed too', async () => {
+  const { env, log, restore } = makeWorld();
+  const createImageBitmap = env.createImageBitmap;
+  env.createImageBitmap = async f => { await new Promise(r => setTimeout(r, 80)); return createImageBitmap(f); };
+  try { await assert.rejects(readPhoto({}, env, { timeoutMs: 20 }), /too long/); } finally { restore(); }
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(log.bitmaps.length, 1);
+  assert.equal(log.bitmaps[0].closed, true, 'the late bitmap was closed');
+  assert.equal(log.canvases.length, 0, 'and no canvas was made for it');
+});

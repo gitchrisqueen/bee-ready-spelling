@@ -75,6 +75,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   const hits = WORDS.filter(w => found.includes(w));
   console.log(`read in ${seconds}s: found ${found.length} tokens, ${hits.length} of ${WORDS.length} expected words`);
   check('at least 10 of the 12 words were read', hits.length >= 10, `found: ${found.join(' ')}`);
+  check('focus moves into the review screen after a successful read', await page.evaluate(() => !!document.activeElement.closest('#mineReview')));
   check('the review screen says the words came from a picture', await page.evaluate(() =>
     /Read from a picture\. Check every word/.test(document.getElementById('mineReviewSummary').textContent)));
   check('the OCR files came from this site', ['worker.min.js', 'tesseract.min.js', 'eng.traineddata.gz'].every(f => own.some(p => p.endsWith(f))), // preflight: ok

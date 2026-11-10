@@ -131,10 +131,12 @@ async function run(file, env, onStage, state) {
   onStage('opening');
   const bitmap = await env.createImageBitmap(file);
   state.bitmap = bitmap;
+  if (state.finished) { bitmap.close?.(); throw new Error('The read was stopped.'); }
   if (bitmap.width * bitmap.height > MAX_PIXELS) throw new Error('The picture is too large.');
   const { width, height } = fitSize(bitmap.width, bitmap.height);
   const canvas = env.makeCanvas();
   state.canvas = canvas;
+  if (state.finished) { canvas.width = 0; canvas.height = 0; throw new Error('The read was stopped.'); }
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
