@@ -135,7 +135,8 @@ test('a published list is asked for only from this site, by a validated id, with
   assert.equal(/https?:|\/\//.test(registry.replace(/^\s*\/\/.*$/gm, '')), false, 'no absolute URL in registry.js');
   assert.match(registry, /credentials: 'omit'/);
   assert.match(registry, /referrerPolicy: 'no-referrer'/);
-  assert.match(read('mine/share.js'), /registryPath = id => \(LIST_ID_RE\.test\(id\) \? `\.\/lists\/\$\{id\}\.json` : null\)/);
+  assert.match(read('mine/share.js'),
+    /registryPath = id => \(LIST_ID_RE\.test\(id\) \? `\.\/lists\/\$\{id\}\.json` : null\)/);
   assert.match(read('mine/ui.js'), /loadRegistryList\(fetch, share\.id\)/);
 });
 

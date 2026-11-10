@@ -27,7 +27,10 @@ if (!args.name || (!args.words && !args.file)) {
   fail('usage: node tools/library/publish-list.mjs --name "<list name>"'
     + ' (--words a,b,c | --words-file <file>) [--out lists]');
 }
-setBlocklist(parseBlocklist(readFileSync(join(root, 'mine', 'filter.sha256'), 'utf8')));
+const hashes = parseBlocklist(readFileSync(join(root, 'mine', 'filter.sha256'), 'utf8'));
+// Same guard as build.mjs: a truncated or empty safety list must stop the run, never let a list through unchecked.
+if (hashes.length < 100) fail(`mine/filter.sha256 has only ${hashes.length} hashes`);
+setBlocklist(hashes);
 const text = args.file ? readFileSync(resolve(args.file), 'utf8') : args.words;
 let entry;
 try { entry = buildRegistryEntry(args.name, text.split(/[\s,;]+/).filter(Boolean)); } catch (e) { fail(e.message); }
@@ -35,3 +38,4 @@ mkdirSync(args.out, { recursive: true });
 writeFileSync(join(args.out, `${entry.id}.json`), entry.text);
 console.log(`wrote ${join(args.out, `${entry.id}.json`)}`);
 console.log(`link: ?mode=mine&l=${entry.id}`);
+console.log('Before you commit: the list is public. Check that its name and words hold no person\'s name.');

@@ -2,7 +2,9 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import {
+  copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseBlocklist, setBlocklist } from '../mine/filter.js';
@@ -32,7 +34,8 @@ function fakeFetch(files) {
   fn.calls = calls;
   return fn;
 }
-const file = (id, data) => ({ [`./lists/${id}.json`]: typeof data === 'string' ? data : JSON.stringify(data) });
+const file = (id, data) => (
+  { [`./lists/${id}.json`]: typeof data === 'string' ? data : JSON.stringify(data) });
 
 test('a published list loads, with the request made to this site only and without credentials or a referrer', async () => {
   const { id, text } = buildRegistryEntry('Sample list: animals', WORDS);
@@ -146,4 +149,24 @@ test('an extra word list needs a source and a licence, keeps only plain lowercas
   assert.throws(() => parseExtraWords('apple\npear'), /source/);
   assert.throws(() => parseExtraWords('# source: x\napple'), /licence/);
   assert.equal(parseExtraWords('# source: x\n# license: y\n').words.length, 0);
+});
+
+test('the publish tool refuses to run when the safety list is truncated', () => {
+  const copy = mkdtempSync(join(tmpdir(), 'bee-root-'));
+  try {
+    const tools = join(copy, 'tools', 'library'), mine = join(copy, 'mine');
+    mkdirSync(tools, { recursive: true });
+    mkdirSync(mine, { recursive: true });
+    for (const f of readdirSync(join(root, 'mine'))) {
+      if (f.endsWith('.js')) copyFileSync(join(root, 'mine', f), join(mine, f));
+    }
+    copyFileSync(join(root, 'tools/library/publish-list.mjs'), join(tools, 'publish-list.mjs'));
+    writeFileSync(join(mine, 'filter.sha256'), `${sha256Hex(TOKEN)}\n`);
+    const out = join(copy, 'out');
+    const run = spawnSync(process.execPath, [join(tools, 'publish-list.mjs'), '--name', 'x', '--words', 'apple',
+      '--out', out], { encoding: 'utf8' });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /only 1 hashes/);
+    assert.equal(existsSync(out), false, 'nothing written');
+  } finally { rmSync(copy, { recursive: true, force: true }); }
 });

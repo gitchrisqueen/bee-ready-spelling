@@ -504,8 +504,10 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     else {
       // A list the owner published: lists/<id>.json on this site. Same files, no third party. It is checked like
       // any other input and must hash back to the id in the link.
+      status('Looking for this list.');
       const published = await loadRegistryList(fetch, share.id);
       if (published) {
+        status('');
         await showReview(published.words,
           `This is the published list "${published.name}". Nothing is saved until you press Save.`);
       } else status('This link does not include the words. Ask the person who sent it for a new link.');

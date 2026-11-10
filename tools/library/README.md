@@ -86,7 +86,7 @@ node tools/library/build.mjs --inputs /tmp/library-inputs --letter a
 apple pear kiwi
 ```
 
-Only lowercase words of 2 or more letters are used. A word still needs a definition in the pinned open sources, passes the same child-safety and sensitive-topic checks, and is credited in `library/NOTICE.md` under "Extra word list". Words the open sources cannot define are left out, never written by hand or by a model. Use a list whose licence allows it to be shared here; never copy a booklet or a commercial list. Review the regenerated shards by eye before the pull request.
+Only lowercase words of 2 or more letters are used. A word still needs a definition in the pinned open sources, passes the same child-safety and sensitive-topic checks, and is credited in `library/NOTICE.md` under "Extra word list". The `# source:` and `# licence:` text is copied as written into `library/NOTICE.md`, so the pull request reviewer reads it. Keep the extra word file with the pull request that regrows the library (a later full build without it drops those words). Words the open sources cannot define are left out, never written by hand or by a model. Use a list whose licence allows it to be shared here; never copy a booklet or a commercial list. Review the regenerated shards by eye before the pull request.
 
 ```bash
 node tools/library/build.mjs --inputs /tmp/library-inputs --extra-words /tmp/extra-words.txt
@@ -100,7 +100,7 @@ node tools/library/build.mjs --inputs /tmp/library-inputs --extra-words /tmp/ext
 node tools/library/publish-list.mjs --name "Week 12" --words-file /tmp/week-12.txt
 ```
 
-The tool checks the words like typed words (and the safety list), names the file after the list id and prints the link. It writes nothing if a word is not allowed. Publish only lists the owner chose, by pull request.
+The tool checks the words like typed words (and the safety list), names the file after the list id and prints the link. It writes nothing if a word is not allowed. Publish only lists the owner chose, by pull request. The list is public, and stays in the repository's history: the reviewer checks its name and words for any child's or other person's name. Publishing the same words again with another name overwrites the file, and the link stays the same (the id is made from the words only).
 
 ## 5. Test
 
