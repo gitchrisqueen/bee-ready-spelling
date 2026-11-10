@@ -6,7 +6,10 @@ const CREDIT_HOSTS = ['simple.wiktionary.org', 'en.wiktionary.org'];
 const creditHtml = w => {
   const hosts = Array.isArray(w.credit) ? w.credit.filter(h => CREDIT_HOSTS.includes(h)) : [];
   if (!hosts.length) return '';
-  const links = hosts.map(h => `<a href="https://${h}/wiki/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer">${h}</a>`);
+  const url = h => `https://${h}/wiki/${encodeURIComponent(w.word)}`;
+  const link = h => `<a href="${url(h)}" target="_blank" rel="noopener noreferrer">${h}`
+    + '<span class="sr-only"> (opens in a new tab)</span></a>';
+  const links = hosts.map(link);
   return `<p class="source-credit">Source: ${links.join(', ')} (CC BY-SA 4.0)</p>`;
 };
 export const ORIGIN_NOTE = "This group is only a hint. It is not the whole story of where the word came from.";
@@ -39,7 +42,8 @@ export function wordCardHtml(w,POS,sentenceFor,{starred=false,open=false,starLab
     + `<div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${id}" aria-label="Listen to ${word}"><span aria-hidden="true">🔊</span> Listen</button><button class="star-btn" data-star-id="${id}" aria-pressed="${starred}" aria-label="${escapeHtml(starLabel(w,starred))}"><span class="star-glyph" aria-hidden="true">${starred?'★':'☆'}</span></button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer" aria-label="Dictionary entry for ${word} (opens in a new tab)">Dictionary <span aria-hidden="true">↗</span></a></div>`
     + `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w))}">Details <span class="chev" aria-hidden="true">▸</span></button>`
     + `<div class="word-details" id="${panel}"${open?'':' hidden'}><dl class="details-list">`
-    + row('Part of speech',d.part) + row('Origin',d.origin,ORIGIN_NOTE) + (w.custom ? '' : row('Booklet list',d.booklet,BOOKLET_NOTE)) + row('In a sentence',d.sentence)
+    + row('Part of speech',d.part) + row('Origin',d.origin,ORIGIN_NOTE)
+    + (w.custom ? '' : row('Booklet list',d.booklet,BOOKLET_NOTE)) + row('In a sentence',d.sentence)
     + `</dl>${creditHtml(w)}<div class="details-audio" role="group" aria-label="Listen to ${word}">`
     + `<button type="button" class="mini-btn" data-hear="word" data-hear-id="${id}" aria-label="Hear the word: ${word}"><span aria-hidden="true">🔊</span> Hear the word</button>`
     + `<button type="button" class="mini-btn" data-hear="slow" data-hear-id="${id}" aria-label="Hear it slowly: ${word}"><span aria-hidden="true">🐢</span> Hear it slowly</button>`
