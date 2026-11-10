@@ -5,4 +5,4 @@ export const MINE_ENABLED = true;
 // Words then use the library or manual entry.
 export const LIVE_LOOKUP_ENABLED = true;
 // OCR_ENABLED: false hides the photo button. Photo import ships in a later phase.
-export const OCR_ENABLED = false;
+export const OCR_ENABLED = true;

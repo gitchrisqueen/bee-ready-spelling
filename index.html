@@ -43,6 +43,15 @@
           <div class="mine-actions"><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
           <label class="field" for="mineText">Add words<textarea id="mineText" rows="4" placeholder="apple, banana, cherry, or one word on each line" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
           <button type="button" id="mineCheck" class="primary-btn">Check my words</button>
+          <div id="minePhotoBlock" class="mine-photo" hidden>
+            <p class="helper">Or use a picture of the list:</p>
+            <div class="mine-actions">
+              <label class="soft-btn file-btn">Take a photo of the list<input id="minePhotoCamera" type="file" accept="image/*" capture="environment"></label>
+              <label class="soft-btn file-btn">Choose a picture<input id="minePhotoPick" type="file" accept="image/*"></label>
+            </div>
+            <p class="helper">The words are read on this device. This page never sends or saves the picture. A photo you take with the camera may stay in your phone's own photo gallery, so delete it there when you are done.</p>
+            <p class="helper">The first picture downloads about 7 MB from this site. Printed lists work best. Handwriting is harder to read, so check every word.</p>
+          </div>
           <p id="mineStatus" class="helper" role="status" aria-live="polite"></p>
           <div id="mineReview" hidden>
             <h3 id="mineReviewTitle" tabindex="-1">Check your words</h3>
