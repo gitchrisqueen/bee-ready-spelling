@@ -154,7 +154,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       spellcheck: 'false', 'aria-label': `Word ${index + 1} of ${total}`, 'aria-describedby': statusId,
       'aria-invalid': chip.invalid ? 'true' : null,
     });
-    // "change" fires while focus is still moving to the next control; wait a tick so the list is rebuilt after it settles.
+    // "change" fires while focus is still moving to the next control;
+    // wait a tick so the list is rebuilt after focus settles.
     input.addEventListener('change', () => { const value = input.value; setTimeout(() => editChip(chip, value), 0); });
     li.append(el('div', { class: 'mine-chip-row' }, input,
       el('button', { type: 'button', class: 'text-btn', 'data-chip-remove': chip.uid, 'aria-label': `Remove ${chip.word}`, text: 'Remove' }))); // preflight: ok
@@ -261,7 +262,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       notes.push(`Left out: ${shown}${rejected.length > 5 ? ` and ${rejected.length - 5} more` : ''}. Use letters, hyphens and apostrophes only.`); // preflight: ok
     }
     if (blocked.length) {
-      notes.push(`${blocked.length === 1 ? '1 word' : `${blocked.length} words`} can't be added here (not on our safe list).`);
+      const count = blocked.length === 1 ? '1 word' : `${blocked.length} words`;
+      notes.push(`${count} can't be added here (not on our safe list).`);
     } // preflight: ok
     if (truncated) notes.push(`Only the first ${LIMITS.words} words were kept.`);
     if (!words.length) { status(`No words found. ${notes.join(' ')}`.trim()); return; }
