@@ -2,7 +2,7 @@
 // grown-up taps "Look up the missing words", the Wiktionary API on two hosts (see docs/my-words-plan.md).
 // Everything returned has been through the validator and the child-safety filter; anything that fails is left out.
 import { originLabel } from './origin.js';
-import { HOSTS, LIMITS, cleanSourceField, normalizeWord, sentenceHasWordOnce } from './validate.js';
+import { HOSTS, LIMITS, cleanSourceField, isValidWord, normalizeWord, sentenceHasWordOnce, validateEntry } from './validate.js';
 
 export { HOSTS };
 export const API_USER_AGENT = 'BeeReady/1.0 (https://github.com/gitchrisqueen/bee-ready-spelling)';
@@ -16,7 +16,10 @@ export function lookupUrl(host, word) {
   return `https://${host}/w/api.php?action=query&prop=extracts&explaintext=1&titles=${encodeURIComponent(word)}`
     + '&format=json&formatversion=2&origin=*';
 }
-export const entryUrl = (host, word) => `https://${host}/wiki/${encodeURIComponent(word)}`;
+export function entryUrl(host, word) {
+  if (!HOSTS.includes(host)) throw new Error('host is not allowed');
+  return `https://${host}/wiki/${encodeURIComponent(word)}`;
+}
 
 // ---- parsing a plain-text page extract -------------------------------------------------------------------------
 function headings(text) {
@@ -130,7 +133,7 @@ async function fetchHost(fetchFn, host, word, { signal, timeoutMs, retried = fal
   let response;
   try {
     response = await fetchFn(lookupUrl(host, word), {
-      signal: guard.signal, headers: { 'Api-User-Agent': API_USER_AGENT }, credentials: 'omit',
+      signal: guard.signal, headers: { 'Api-User-Agent': API_USER_AGENT }, credentials: 'omit', referrerPolicy: 'no-referrer',
     });
   } catch {
     if (signal?.aborted) throw new Stop('cancelled');
@@ -233,5 +236,20 @@ export async function libraryEntry(fetchFn, word) {
   if (group) out.group = group;
   const sentence = cleanSourceField(raw.sentence, LIMITS.sentence, { example: true });
   if (sentence && sentenceHasWordOnce(sentence, w)) out.sentence = sentence;
+  return out;
+}
+
+// The cached lookups come back from storage that other pages on the same origin can write, so each one is validated
+// like any other entry: a bad entry is dropped, a `null` ("not found") is kept, and unknown keys and credit hosts go.
+export function cleanLookupCache(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const word of Object.keys(raw).slice(0, LIMITS.lookupEntries)) {
+    if (!isValidWord(word) || word !== normalizeWord(word)) continue;
+    const value = raw[word];
+    if (value === null) { out[word] = null; continue; }
+    const e = validateEntry({ ...(typeof value === 'object' ? value : {}), word, id: 1, src: 'live' });
+    if (e && e.definition) { const { id, ...rest } = e; out[word] = rest; }
+  }
   return out;
 }

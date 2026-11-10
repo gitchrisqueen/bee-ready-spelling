@@ -3,7 +3,7 @@ import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { parseBlocklist, setBlocklist } from '../mine/filter.js';
+import { clearBlocklist, parseBlocklist, setBlocklist } from '../mine/filter.js';
 import {
   BAK_PREFIX, HISTORY_KEY, KEY, LOOKUP_KEY, STARS_KEY, addEntries, addList, backupKeys, deleteAll, deleteList,
   dropOldestBackup, emptyStore, exportJson, loadSettings, loadStore, parseExport, saveSettings, saveStore, starsStorage,
@@ -199,4 +199,22 @@ test('backup file: hostile or oversized files are refused', () => {
   assert.equal(hostile.lists[0].name, 'My words');
   assert.deepEqual(hostile.lists[0].entries, [{ word: 'cat', src: 'manual' }], 'unsafe fields are dropped, not shown');
   assert.ok(parseExport(JSON.stringify({ kind: 'bee-ready-my-words', version: 1, lists: [{ words: [] }] })).error);
+});
+
+test('without the safety list nothing is read or written, so saved lists cannot be wiped', () => {
+  const stored = JSON.stringify({ version: 1, nextId: 1000002, active: 'l-1',
+    lists: [{ key: 'l-1', name: 'Week 1', entries: [{ id: 1000000, word: 'apple', src: 'manual' }] }] });
+  const s = new FakeStorage({ [KEY]: stored });
+  const list = parseBlocklist(readFileSync(join(root, 'mine/filter.sha256'), 'utf8'));
+  clearBlocklist();
+  try {
+    const r = loadStore(s);
+    assert.equal(r.status, 'locked');
+    assert.deepEqual(r.store, emptyStore());
+    assert.equal(r.backup, undefined, 'no backup is written either');
+    assert.deepEqual(backupKeys(s), []);
+    assert.equal(s.getItem(KEY), stored, 'the stored lists are untouched');
+  } finally { setBlocklist(list); }
+  assert.equal(loadStore(s).status, 'ok', 'with the list loaded the same data reads fine');
+  assert.equal(loadStore(s).store.lists[0].entries[0].word, 'apple');
 });

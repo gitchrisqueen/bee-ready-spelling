@@ -11,8 +11,11 @@ const scrollBehavior=()=>window.matchMedia&&window.matchMedia('(prefers-reduced-
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
 // "My words" (docs/my-words-plan.md): ?mode=mine swaps the word source and the storage keys. Default mode never loads mine/ code.
 const initialHash=location.hash;
-let mine=null;
-if(MINE_ENABLED&&new URLSearchParams(location.search).get('mode')==='mine'){try{mine=await import('./mine/ui.js');}catch{mine=null;}}
+let mine=null;let mineFailed=false;
+// A share link's words are read once (initialHash) and then taken out of the address bar. (`history` is the practice
+// history further down, so the window's is named in full.)
+if(MINE_ENABLED&&/^#w=/.test(initialHash)&&new URLSearchParams(location.search).get('mode')==='mine')window.history.replaceState(null,'',location.pathname+location.search);
+if(MINE_ENABLED&&new URLSearchParams(location.search).get('mode')==='mine'){try{mine=await import('./mine/ui.js');}catch(err){mine=null;mineFailed=true;console.error('My words could not load',err);}}
 const historyKey=mine?'bee-ready-mine-history-v1':'bee-ready-history-v2';
 const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection'};
 // Returns safe HTML: everything is escaped, and each blank is a span a screen reader announces as "blank".
@@ -386,6 +389,7 @@ function setActiveWords(list){
 async function main(){
   initNavigation();initBuilder();initRound();initAnswerBox();initWordBank();initVoiceSettings();initGrownups();
   if(MINE_ENABLED&&!mine)$('mineGrownups').hidden=false;
+  if(mineFailed)$('roundBuilder').insertAdjacentHTML('beforeend','<p class="toast" role="alert">My words could not load, so this is the main Bee Ready list. Please refresh the page to try again.</p>');
   updateStats();updateVoiceStatus(voiceService.status);
   try{
     const response=await fetch('./words.json');if(!response.ok)throw new Error(`Word bank download failed (${response.status})`);

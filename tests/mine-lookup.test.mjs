@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseBlocklist, setBlocklist } from '../mine/filter.js';
 import {
-  CONCURRENCY, HOSTS, libraryEntry, lookupMissing, lookupOne, lookupUrl, resetShardCache, shardUrl,
+  CONCURRENCY, HOSTS, cleanLookupCache, entryUrl, libraryEntry, lookupMissing, lookupOne, lookupUrl, resetShardCache,
+  shardUrl,
 } from '../mine/lookup.js';
 
 const root = resolve(import.meta.dirname, '..');
@@ -172,4 +173,37 @@ test('a failed or malformed shard download gives nothing and does not throw', as
   assert.equal(await libraryEntry(async () => { throw new TypeError('offline'); }, 'apple'), null);
   resetShardCache();
   assert.equal(await libraryEntry(async () => reply([1, 2]), 'apple'), null);
+});
+
+test('a lookup request sends no referrer and no cookies', async () => {
+  let init = null;
+  await lookupOne(async (url, i) => { init = i; return reply(MISSING); }, 'cat');
+  assert.equal(init.referrerPolicy, 'no-referrer');
+  assert.equal(init.credentials, 'omit');
+});
+
+test('credit links are built only for the two allowed hosts', () => {
+  assert.equal(entryUrl('simple.wiktionary.org', 'cat'), 'https://simple.wiktionary.org/wiki/cat');
+  for (const host of ['evil.example', '../x', '']) assert.throws(() => entryUrl(host, 'cat'), /not allowed/);
+});
+
+test('the cached lookups are validated on read: bad entries, hosts and shapes are dropped', () => {
+  const raw = {
+    cat: { word: 'cat', definition: 'A small animal.', part: 'n', credit: ['simple.wiktionary.org', 'evil.example'] },
+    dog: { definition: 'x', credit: { length: 1 } },
+    fish: { definition: '<b>x</b>' },
+    bird: null,
+    'not a word': { definition: 'x' },
+    toString: { definition: 'x' },
+    cow: 'a string', pig: 5, hen: [1, 2],
+  };
+  const clean = cleanLookupCache(raw);
+  assert.deepEqual(clean.cat, { word: 'cat', src: 'live', part: 'n', definition: 'A small animal.', credit: ['simple.wiktionary.org'] });
+  assert.deepEqual(clean.dog, { word: 'dog', src: 'live', definition: 'x' }, 'a credit that is not an array is dropped');
+  assert.equal('fish' in clean, false);
+  assert.equal(clean.bird, null, 'a "not found" is kept');
+  for (const k of ['not a word', 'cow', 'pig', 'hen']) assert.equal(k in clean, false, k);
+  assert.deepEqual(cleanLookupCache(null), {});
+  assert.deepEqual(cleanLookupCache([1]), {});
+  assert.deepEqual(cleanLookupCache('x'), {});
 });

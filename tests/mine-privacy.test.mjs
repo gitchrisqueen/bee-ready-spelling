@@ -11,7 +11,9 @@ const mineFiles = readdirSync(join(root, 'mine')).filter(f => f.endsWith('.js'))
 const hostsIn = text => [...new Set([...text.matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)].map(m => m[1]))];
 
 // Hosts the default page already named before My words existed (the optional live voice, the dictionary link, the SVG namespace).
-const DEFAULT_PAGE_HOSTS = new Set(['huggingface.co', 'www.merriam-webster.com', 'esm.sh', 'cdn.jsdelivr.net', 'www.w3.org']);
+// foundation.wikimedia.org is a link-out to a privacy policy, never a request.
+const DEFAULT_PAGE_HOSTS = new Set(['huggingface.co', 'www.merriam-webster.com', 'esm.sh', 'cdn.jsdelivr.net', 'www.w3.org',
+  'foundation.wikimedia.org']);
 const DEFAULT_PAGE_FILES = ['index.html', 'app.js', 'voice-service.js', 'stars.js', 'wordcard.js', 'sentences.js', 'styles.css'];
 // github.com appears in mine/ only inside the User-Agent contact text; it is never requested.
 const MINE_HOSTS = new Set(['simple.wiktionary.org', 'en.wiktionary.org', 'github.com']);
@@ -80,8 +82,25 @@ test('the kill switches exist and the safe values are the shipped ones for photo
 
 test('the page tells grown-ups what is sent, where, and how to turn it off', () => {
   const html = read('index.html');
-  assert.match(html, /sends the missing words, and this device's IP address, to Wiktionary \(Wikimedia\)/);
+  assert.match(html, /Ask a grown-up before you press this/);
+  assert.match(html, /sends the words that were not found, and this device's IP address, to Wiktionary/);
+  assert.match(html, /first letter of each word you check/);
   assert.match(html, /id="mineLookup"[^>]*aria-describedby="mineDisclosure"/);
   assert.match(html, /id="mineLive"/);
   assert.match(html, /If a grown-up uses "Look up the missing words" in My words, those words and the IP address go to Wiktionary/);
+});
+
+test('a grown-up must confirm before the first Wikimedia request, and custom words never reach the site host as clip names', () => {
+  const ui = read('mine/ui.js');
+  assert.match(ui, /async function onLookup\(\) \{[\s\S]*?if \(!confirm\(CONFIRM_LOOKUP\)\)[\s\S]*?await lookupMissing\(/);
+  assert.match(ui, /installClipGuard\(globalThis, allowedClipKeys\(defaultWords/);
+  assert.match(read('mine/lookup.js'), /referrerPolicy: 'no-referrer'/);
+  assert.match(read('mine/lookup.js'), /credentials: 'omit'/);
+});
+
+test('a failed My words load is visible, and a share link is taken out of the address bar', () => {
+  const app = read('app.js');
+  assert.match(app, /console\.error\('My words could not load'/);
+  assert.match(app, /if\(mineFailed\)\$\('roundBuilder'\)\.insertAdjacentHTML\([^)]*My words could not load/);
+  assert.match(app, /history\.replaceState\(null,'',location\.pathname\+location\.search\)/);
 });

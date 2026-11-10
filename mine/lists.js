@@ -2,6 +2,7 @@
 // (getItem, setItem, removeItem, key, length) so it runs in tests with a fake one. None of them throws.
 // Keys: lists `bee-ready-mine-v1`, history `bee-ready-mine-history-v1`, stars `bee-ready-mine-starred-v1`,
 // cached lookups `bee-ready-mine-lookup-v1`, backups `bee-ready-mine-v1.bak.<n>`. The default keys are never touched.
+import { filterReady } from './filter.js';
 import { FIRST_CUSTOM_ID, LIMITS, cleanField, hasForbiddenKeys, validateEntry, validateStore } from './validate.js';
 
 export const KEY = 'bee-ready-mine-v1';
@@ -44,7 +45,10 @@ export function dropOldestBackup(storage) {
 }
 
 // status: 'empty' (nothing saved), 'ok', or 'corrupt' (unreadable data: the raw text was kept as a backup if there was room).
+// status 'locked' means the safety list is not loaded: the validator would drop every entry, so nothing is read, and the
+// caller must not save anything (it would overwrite the child's lists with empty ones).
 export function loadStore(storage) {
+  if (!filterReady()) return { store: emptyStore(), status: 'locked' };
   const raw = read(storage, KEY);
   if (raw === null) return { store: emptyStore(), status: 'empty' };
   let parsed = null;

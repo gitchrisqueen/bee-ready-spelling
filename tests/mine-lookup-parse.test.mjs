@@ -99,3 +99,27 @@ test('originLabel: first non-English language wins; older English only gives Old
   assert.equal(originLabel(undefined), null);
   assert.equal(originLabel('Borrowed from Neapolitan pizza.'), 'Italian');
 });
+
+test('the figures quoted in docs/my-words-phase0-findings.md ("Phase 1 results") come from these fixtures', () => {
+  const tally = { words: 0, simpleMissingPage: 0, simpleDefinition: 0, simpleExample: 0, englishDefinition: 0, englishOrigin: 0 };
+  for (const w of WORDS) {
+    tally.words++;
+    if (!fixtures[w].simple) tally.simpleMissingPage++;
+    const s = parseSimple(w), e = parseEnglish(w);
+    if (s?.definition) tally.simpleDefinition++;
+    if (s?.example) tally.simpleExample++;
+    if (e?.definition) tally.englishDefinition++;
+    if (e?.origin) tally.englishOrigin++;
+  }
+  assert.deepEqual(tally, {
+    words: 50, simpleMissingPage: 1, simpleDefinition: 49, simpleExample: 32, englishDefinition: 50, englishOrigin: 46,
+  });
+});
+
+test('hostile page text does not make the parser slow', () => {
+  const started = performance.now();
+  const hostile = ['='.repeat(200000), `== ${' '.repeat(200000)} ==`, '== a ==\n'.repeat(20000),
+    `== English ==\n=== Noun ===\n${'x '.repeat(100000)}`, `=== ${'= '.repeat(50000)}`];
+  for (const text of hostile) parseExtract(text, 'cat', { english: true });
+  assert.ok(performance.now() - started < 3000, `${Math.round(performance.now() - started)} ms`);
+});
