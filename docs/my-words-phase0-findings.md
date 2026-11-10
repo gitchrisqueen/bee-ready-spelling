@@ -9,7 +9,7 @@ Measured and read on 2026-11-10. Anything marked **not verified** was not checke
 | Live dictionary API (import time) | The Wikimedia Action API with `origin=*`: `simple.wiktionary.org` first (child-readable definition and example), then `en.wiktionary.org` for etymology and for words Simple lacks. Keyless, CORS enabled. |
 | Seed for the static library | Open English WordNet 2025 (CC BY 4.0) for part of speech, definition and example; an origin label from English Wiktionary etymology; Simple English Wiktionary (CC BY-SA 4.0) as a gap filler, with provenance kept per field. |
 | OCR | Tesseract.js 7.0.0 (Apache-2.0), default `eng` model `4.0.0_best_int`, self-hosted, with a photo pre-processing step. |
-| Merriam-Webster | Link-out only. Its terms: free use is non-commercial, at most 1,000 queries per day per key, at most two reference works, and no automated or recorded queries without written approval (terms of service, `dictionaryapi.com/info/terms-of-service`, §2 and §5(a)). |
+| Merriam-Webster | Link-out only. Its terms: free use is non-commercial, at most 1,000 queries per day per reference work, at most two reference works, and no automated or recorded queries without written approval (terms of service, `dictionaryapi.com/info/terms-of-service`, §2 and §5(a)). |
 
 ## Live dictionary API
 
@@ -18,7 +18,7 @@ I called each endpoint with `curl` and an `Origin` header on 2026-11-10.
 | Endpoint | CORS | What it returns | Verdict |
 |---|---|---|---|
 | `https://en.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=<word>&format=json&origin=*` | `access-control-allow-origin: *` | Plain-text page extract with the Etymology section, parts of speech and definitions. Must be parsed. | **Chosen** (with the Simple English site first) |
-| `https://simple.wiktionary.org/w/api.php?...` (same query) | `*` per the source research; not re-tested by me | Child-readable definition and example, but thin coverage | **Chosen**, first in order |
+| `https://simple.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&titles=<word>&format=json&formatversion=2&origin=*` | `access-control-allow-origin: *` (curl with an `Origin` header, 2026-11-10) | Child-readable definition and example, but thin coverage. An unknown word returns `"missing": true`. | **Chosen**, first in order |
 | `https://api.dictionaryapi.dev/api/v2/entries/en/<word>` | `*` | Clean JSON: part of speech, definitions, sometimes an example, a CC BY-SA licence field. No etymology in the responses checked. One 502 was seen during research. The maintainer asks for donations to cover server costs. | Optional fallback only |
 | `https://en.wiktionary.org/api/rest_v1/page/definition/<word>` | `*` | Definitions as HTML, no etymology. The MediaWiki documentation calls it experimental and says RESTBase is being deprecated. | Not used |
 | `https://api.datamuse.com/words?sp=<word>&md=dpr` | Reflects the origin | Definitions, part of speech, pronunciation. The site says an API key is required from 2027-02-01. | Not used: it stops being keyless |
@@ -27,14 +27,39 @@ Wikimedia limits (https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits, new
 
 Text from Wiktionary is CC BY-SA 4.0. The page must credit the source and link to the entry.
 
-**Not verified:** that the Action API accepts a cross-origin request that carries an `Api-User-Agent` header (a browser preflight); that `simple.wiktionary.org` sends the same CORS header as the English site (the source research reported it, I did not re-run it); how the Etymology parser behaves across many words.
+**Verified on 2026-11-10 with `curl`:** both `en.wiktionary.org` and `simple.wiktionary.org` answer a preflight (`OPTIONS` with `Access-Control-Request-Headers: api-user-agent`) with status 200, `access-control-allow-headers: api-user-agent` and `access-control-allow-origin: *`; both answer a `GET` with `origin=*` with `access-control-allow-origin: *`. This is the server side only: no browser was used.
+
+**Not verified:** how an Etymology parser behaves across many words (see the entry checks below); the `dictionaryapi.dev` rate-limit window; the one `502` from `dictionaryapi.dev` was seen once by the source research and is not reproduced here.
+
+### Phase 1 entry checks
+
+Each open item above has a check that Phase 1 runs before the lookup host is allowed, with a decided fallback:
+
+| Check | Fallback if it fails |
+|---|---|
+| A parser test over at least 50 named words (listed in the test file, mixing common words, loanwords and words missing from one site) extracts a clean origin label, or correctly reports "not available", from the Etymology section of the English extract | Show "origin not available" for the words the parser cannot read; never show unparsed text |
+| A browser test in `tools/device-test` (WebKit emulation) makes one lookup to each host with the planned request headers and gets a response | Drop the `Api-User-Agent` header (the browser's own `User-Agent` is sent), or use `en.wiktionary.org` only |
+| Request volume for a 200-word list stays under the browser limit of 200 requests per minute with at most 3 requests at a time | Lower the concurrency, or slow the queue and show progress with a Cancel button |
+
+Contact for the Wikimedia User-Agent policy: the policy asks for contact details in the `User-Agent`. A page script cannot set `User-Agent`, so the planned header is `Api-User-Agent: BeeReady/1.0 (https://github.com/gitchrisqueen/bee-ready-spelling)`, whose contact is the repository, owned by the repository owner.
+
+## How to read the figures below
+
+The library and OCR figures in the next two sections were measured by the author during the spike. The scripts and test images were kept outside this repository, so they are **author-measured and not reproducible from this repository alone**. Where a figure comes from a public source, the source is named so a reader can re-derive it:
+
+- Package versions and licences: `npm view tesseract.js@7.0.0 version license` and `npm view tesseract.js-core@7.0.0 version license`.
+- Model and core sizes: `curl -sI https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz` (the `content-length` header), the same for the files under `https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0/` and `https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/`, and the `fast` model from the `tessdata_fast` repository on GitHub.
+- Library source sizes: the `content-length` of `https://en-word.net/static/english-wordnet-2025.xml.gz` and of the files listed at `https://kaikki.org/dictionary/rawdata.html`.
+- Coverage figures (examples and etymology on the Simple English records): counted by streaming `simple-extract.jsonl.gz` from that page.
+- Word count of NGSL 1.2: the list's own page, `https://www.newgeneralservicelist.com/new-general-service-list`.
+- OCR accuracy and timing: produced by the author's own scripts on synthetic images. No public artifact exists; Phase 2 adds generated fixtures and tests to the repository so the figures can be re-run.
 
 ## Seed data for the static library
 
 | Source | Licence | What it has | Notes |
 |---|---|---|---|
-| Open English WordNet 2025 | CC BY 4.0 plus the Princeton WordNet notice | Part of speech, glosses, examples on about 32% of senses. No etymology. 11.4 MB download. | No share-alike. The only attribution-only candidate. |
-| Simple English Wiktionary (via kaikki.org extract) | CC BY-SA 4.0 | The most child-readable definitions. Etymology on about 11% of records, examples on about 22%. 4.5 MB download. | Share-alike: any shard that copies its text is CC BY-SA. |
+| Open English WordNet 2025 | CC BY 4.0 plus the Princeton WordNet notice | Part of speech, glosses, examples on about 32% of senses. No etymology. Download: 11,363,503 bytes (`content-length`, 2026-11-10). | No share-alike. The only attribution-only candidate. |
+| Simple English Wiktionary (via kaikki.org extract) | CC BY-SA 4.0 | The most child-readable definitions. Etymology on about 11% of records, examples on about 22%. Download: 4,726,754 bytes (`content-length`, 2026-11-10). | Share-alike: any shard that copies its text is CC BY-SA. |
 | English Wiktionary (via kaikki.org) | CC BY-SA 4.0 | Etymology text. The English dump is about 3.4 GB. | Used at build time only, for an origin language label. Definitions are often adult-level or archaic (the `abdicate` entry starts with an obsolete sense). |
 
 Sample definitions fetched during research:
@@ -82,5 +107,5 @@ Findings that shape Phase 2:
 ## Effects on the plan
 
 - Library data starts from OEWN plus a Wiktionary origin label, with Simple English Wiktionary as a gap filler. Coverage of reviewed example sentences will be partial, so the sentence fallback tiers matter.
-- The `mine/` lookup module uses the Wikimedia Action API; its hosts (`simple.wiktionary.org`, `en.wiktionary.org`) are the only third-party hosts the `mine` mode device-test check allows. Credit and link to the source entry are shown next to any text taken from it.
+- The `mine/` lookup module uses the Wikimedia Action API; its hosts (`simple.wiktionary.org`, `en.wiktionary.org`) are the only third-party hosts the `mine` mode device-test check will allow once Phase 1 adds that assertion (today `tools/device-test/device-test.mjs` flags every request that is not to the page's own origin). Credit and link to the source entry are shown next to any text taken from it.
 - The OCR files are about 7 MB on first load and are fetched only when a photo import starts.
