@@ -18,12 +18,12 @@ I called each endpoint with `curl` and an `Origin` header on 2026-11-10.
 | Endpoint | CORS | What it returns | Verdict |
 |---|---|---|---|
 | `https://en.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=<word>&format=json&origin=*` | `access-control-allow-origin: *` | Plain-text page extract with the Etymology section, parts of speech and definitions. Must be parsed. | **Chosen** (with the Simple English site first) |
-| `https://simple.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&titles=<word>&format=json&formatversion=2&origin=*` | `access-control-allow-origin: *` (curl with an `Origin` header, 2026-11-10) | Child-readable definition and example, but thin coverage. An unknown word returns `"missing": true`. | Chosen, pending the parse check below; first in order |
+| `https://simple.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=<word>&format=json&formatversion=2&origin=*` | `access-control-allow-origin: *` (curl with an `Origin` header, 2026-11-10) | Child-readable definition and example, but thin coverage. An unknown word returns `"missing": true`. | Chosen, pending the parse check below; first in order |
 | `https://api.dictionaryapi.dev/api/v2/entries/en/<word>` | `*` | Clean JSON: part of speech, definitions, sometimes an example, a CC BY-SA licence field. No etymology in the responses checked. One 502 was seen during research. The maintainer asks for donations to cover server costs. | Optional fallback only |
 | `https://en.wiktionary.org/api/rest_v1/page/definition/<word>` | `*` | Definitions as HTML, no etymology. The MediaWiki documentation calls it experimental and says RESTBase is being deprecated. | Not used |
 | `https://api.datamuse.com/words?sp=<word>&md=dpr` | Reflects the origin | Definitions, part of speech, pronunciation. The site says an API key is required from 2027-02-01. | Not used: it stops being keyless |
 
-Wikimedia limits (https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits, new for 2026 and may change): 200 requests per minute for unauthenticated browser requests, 3 or fewer concurrent, honour `Retry-After` on a 429. The import code will use at most 3 concurrent lookups and cache each result in the browser. A 200-word list is well inside the limit.
+Wikimedia limits (https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits, new for 2026 and may change): 200 requests per minute for unauthenticated browser requests, 3 or fewer concurrent, honour `Retry-After` on a 429. The import code will use at most 3 concurrent lookups and cache each result in the browser. A typical weekly list is well inside the limit; a very long list of missing words can reach it (see Phase 1 results).
 
 Text from Wiktionary is CC BY-SA 4.0. The page must credit the source and link to the entry.
 
@@ -38,7 +38,7 @@ Each open item above has a check that Phase 1 runs before the lookup host is all
 | Check | Fallback if it fails |
 |---|---|
 | A parser test over at least 50 named words (listed in `tests/mine-lookup-parse.test.mjs`, mixing common words, loanwords and words missing from one site) extracts a clean origin label, or correctly reports "not available", from the Etymology section of the English extract | Show "origin not available" for the words the parser cannot read; never show unparsed text |
-| The same test file parses the Simple English extract (`exsectionformat=plain`): a definition and an example from the plain text, and the `"missing": true` case, over the same 50 words | Fall through to `en.wiktionary.org`, then to manual entry; never show unparsed text |
+| The same test file parses the Simple English extract (the page's default heading format, `== Heading ==`): a definition and an example from the plain text, and the `"missing": true` case, over the same 50 words | Fall through to `en.wiktionary.org`, then to manual entry; never show unparsed text |
 | A browser test in `tools/device-test` (WebKit emulation) makes one lookup to each host with the planned request headers and gets a response | Drop the `Api-User-Agent` header (the browser's own `User-Agent` is sent), or use `en.wiktionary.org` only |
 | Request volume for a 200-word list stays under the browser limit of 200 requests per minute with at most 3 requests at a time | Lower the concurrency, or slow the queue and show progress with a Cancel button |
 
@@ -110,3 +110,14 @@ Findings that shape Phase 2:
 - Library data starts from OEWN plus a Wiktionary origin label, with Simple English Wiktionary as a gap filler. Coverage of reviewed example sentences will be partial, so the sentence fallback tiers matter.
 - The `mine/` lookup module uses the Wikimedia Action API; its hosts (`simple.wiktionary.org`, `en.wiktionary.org`) are the only third-party hosts the `mine` mode device-test check will allow once Phase 1 adds that assertion (today `tools/device-test/device-test.mjs` flags every request that is not to the page's own origin). Credit and link to the source entry are shown next to any text taken from it.
 - The OCR files are about 7 MB on first load and are fetched only when a photo import starts.
+
+## Phase 1 results
+
+The entry checks above were run in the Phase 1 pull request. The parser figures are asserted by `tests/mine-lookup-parse.test.mjs` (the test named "the figures quoted in docs/my-words-phase0-findings.md") on the recorded responses in `tests/fixtures/wiktionary-extracts.json` (50 words, fetched 2026-11-10).
+
+| Check | Result |
+|---|---|
+| Parser over the 50 words | The English page gave a definition for all 50 and an origin label for 46; the other four (igloo, kangaroo, sandwich, fluorescent) correctly report "origin not available". The Simple English page was missing for 1 word and gave a definition for 49 and an example sentence for 32. Every result passes the validator; no unparsed text reaches the page. |
+| Simple extract format | The page uses `== Heading ==` for parts of speech (level 2) and has no language heading; the English page has `== English ==`. The first version of the parser assumed otherwise and returned nothing for every Simple page; the test over all 50 words caught it. |
+| Browser check | `tools/device-test/mine-check.mjs`, iPhone SE and iPad (gen 7) presets, Chromium emulation (WebKit could not start on the build machine), with Wikimedia answered from the fixtures. It confirms default mode requests only `mine/config.js` from `mine/` and nothing from the library, and makes no third-party request, that nothing is sent before the lookup button, that a dialog asks a grown-up first, that lookups go only to the two hosts, that no custom word is requested from this site's host as an audio clip, that a failed safety-list download leaves the saved lists untouched, and that the keys written are the My words keys. A real cross-origin request from a browser to the live Wikimedia hosts was not exercised; only the server-side CORS and preflight `curl` results above support it. |
+| Request volume | At most 3 requests at a time; two hosts per word, so a list of 200 missing words is at most 400 requests. The Wikimedia browser limit is 200 per minute per client, so a very long list can reach a `429`, which stops the lookup and leaves the rest for manual entry. Only words found in neither the Bee Ready list nor the library are looked up, so a typical weekly list makes few requests. |

@@ -2,13 +2,23 @@ import { BeeVoiceService, VOICES, SPEEDS } from './voice-service.js';
 import { sentenceFor } from './sentences.js';
 import { loadStars, saveStars, toggleStar, clearStars } from './stars.js';
 import { wordCardHtml } from './wordcard.js';
+import { MINE_ENABLED } from './mine/config.js';
 const $ = id => document.getElementById(id);
 const escapeHtml = (v='') => String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeText = value => String(value??'');
 // Smooth scrolling only when the visitor has not asked for reduced motion.
 const scrollBehavior=()=>window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms));
-const historyKey='bee-ready-history-v2';
+// "My words" (docs/my-words-plan.md): ?mode=mine swaps the word source and the storage keys. Default mode never loads
+// mine/ code.
+const initialHash=location.hash;
+let mine=null;let mineFailed=false;
+const NO_SAVE={getItem:()=>null,setItem(){},removeItem(){}};
+// A share link's words are read once (initialHash) and then taken out of the address bar. (`history` is the practice
+// history further down, so the window's is named in full.)
+if(MINE_ENABLED&&/^#w=/.test(initialHash)&&new URLSearchParams(location.search).get('mode')==='mine')window.history.replaceState(null,'',location.pathname+location.search); // preflight: ok
+if(MINE_ENABLED&&new URLSearchParams(location.search).get('mode')==='mine'){try{mine=await import('./mine/ui.js');}catch(err){mine=null;mineFailed=true;console.error('My words could not load',err);}} // preflight: ok
+const historyKey=mine?'bee-ready-mine-history-v1':'bee-ready-history-v2';
 const POS = {n:'noun',v:'verb',adj:'adjective',adv:'adverb',interj:'interjection'};
 // Returns safe HTML: everything is escaped, and each blank is a span a screen reader announces as "blank".
 // The blank is one solid line of the same width for every word (drawn with CSS, not with underscore
@@ -25,9 +35,12 @@ function hideWord(sentence,word,reveal=false){
 }
 function comparison(s){return String(s).trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US').replace(/[^\p{L}]/gu,'');}
 function getHistory(){try{return JSON.parse(localStorage.getItem(historyKey))||{attempts:{},missed:{},rounds:0};}catch{return {attempts:{},missed:{},rounds:0};}}
-function writeHistory(){try{localStorage.setItem(historyKey,JSON.stringify(history));}catch{} updateStats();}
+function writeHistory(){
+  try{if(!mineFailed)localStorage.setItem(historyKey,JSON.stringify(history));}catch{}
+  updateStats();
+}
 // Stars live in their own key (see stars.js). Reading `localStorage` can itself throw when storage is blocked, so go through store().
-function store(){try{return localStorage;}catch{return null;}}
+function store(){try{return mineFailed?NO_SAVE:mine?mine.starsStorage(localStorage):localStorage;}catch{return null;}}
 let history=getHistory();let stars=loadStars(store());let openCards=new Set();let words=[];let currentRound=null;let displayLimit=44;let selectedCount=5;
 let noticeTimer=0;let voiceService=new BeeVoiceService({onStatus:updateVoiceStatus});
 const appState={activeTab:'practice'};
@@ -138,7 +151,7 @@ function showClue(type,{speak=true}={}){
   // One-off slow playback, like hearFromCard: the saved speed (Voices tab) is never changed.
   if(type==='repeat'){voiceService.speak(w.word,{kind:'word',instant:true,speedId:'slow'});return;}
   const clueText = type==='definition'?`<strong>Definition</strong>${escapeHtml(w.definition)}`:
-    type==='origin'?`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`:
+    type==='origin'?(w.custom?`<strong>Origin</strong>${escapeHtml(w.group)}`:`<strong>Original booklet group</strong>${escapeHtml(w.group)}<div class="helper">The booklet's category is a study clue, not the full history of the word.</div>`): // preflight: ok
     type==='part'?`<strong>Part of speech</strong>${escapeHtml(POS[w.part]||'Word')}`:
     `<strong>In a sentence</strong>${hideWord(sentenceFor(w),w.word,Boolean(currentRound.answered))}`;
   $('clueResult').innerHTML=clueText;$('clueResult').hidden=false;currentRound.lastClue=type;
@@ -370,8 +383,19 @@ function initGrownups(){
     setClearStatus('Starred words cleared.');
   });
 }
+// Swaps the practice screen's word source (called by mine/ui.js).
+// The default path in main() does the same steps inline.
+function setActiveWords(list){
+  words=list;$('wordCount').max=String(Math.max(1,words.length));$('pool').options[0].textContent=`All ${words.length.toLocaleString()} words`; // preflight: ok
+  const g=$('groupFilter');while(g.options.length>1)g.remove(1);
+  [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(x=>g.add(new Option(x,x)));
+  $('startRound').disabled=!words.length;displayLimit=44;updateStats();renderWordBank();
+  if(!words.length){$('wordGrid').textContent='';$('resultCount').textContent='No words yet.';$('loadMore').classList.add('hidden');} // preflight: ok
+}
 async function main(){
   initNavigation();initBuilder();initRound();initAnswerBox();initWordBank();initVoiceSettings();initGrownups();
+  if(MINE_ENABLED&&!mine)$('mineGrownups').hidden=false;
+  if(mineFailed)$('roundBuilder').insertAdjacentHTML('beforeend','<p class="toast" role="alert">My words could not load, so this is the main Bee Ready list. Please refresh the page to try again.</p>'); // preflight: ok
   updateStats();updateVoiceStatus(voiceService.status);
   try{
     const response=await fetch('./words.json');if(!response.ok)throw new Error(`Word bank download failed (${response.status})`);
@@ -380,6 +404,8 @@ async function main(){
     $('wordCount').max=String(words.length);$('pool').options[0].textContent=`All ${words.length.toLocaleString()} words`;
     [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(g=>{$('groupFilter').add(new Option(g,g));});
     updateStats();renderWordBank();
+    if(mine)try{await mine.start({defaultWords:words,setWords:setActiveWords,shareHash:initialHash});}
+    catch{$('roundBuilder').insertAdjacentHTML('beforeend','<p class="toast" role="alert">My words could not start. Please refresh the page.</p>');} // preflight: ok
   }catch(err){
     $('roundBuilder').insertAdjacentHTML('beforeend',`<p class="toast" role="alert">The word list could not load. Please refresh the page. (${escapeHtml(err.message)})</p>`);
     $('startRound').disabled=true;

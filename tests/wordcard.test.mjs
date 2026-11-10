@@ -150,3 +150,16 @@ test('the star state and label come from the caller', () => {
 test('importing the module needs no DOM', () => {
   assert.equal(typeof document, 'undefined');
 });
+
+test('a My words card has no booklet row, and credits only the two Wiktionary hosts', () => {
+  const html = card({ custom: true, level: 'Mine', credit: ['simple.wiktionary.org', 'evil.example', '"><script>'], word: 'cat' }); // preflight: ok
+  assert.equal(html.includes('Booklet list'), false);
+  assert.ok(html.includes('<dt>Origin</dt>'));
+  assert.ok(html.includes('<a href="https://simple.wiktionary.org/wiki/cat" target="_blank" rel="noopener noreferrer">'
+    + 'simple.wiktionary.org<span class="sr-only"> (opens in a new tab)</span></a>'));
+  assert.ok(html.includes('(CC BY-SA 4.0)'));
+  assert.equal(html.includes('evil.example'), false);
+  assert.equal(html.includes('<script>'), false);
+  assert.ok(card({ word: 'cat' }).includes('Booklet list'), 'a default card is unchanged');
+  assert.equal(card({ word: 'cat' }).includes('source-credit'), false);
+});
