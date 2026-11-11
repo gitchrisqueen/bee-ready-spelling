@@ -69,7 +69,7 @@ test('a dictionary request starts only from a lookup button, only if the switche
   assert.equal((ui.match(/lookupMissing\(/g) || []).length, 2, 'two call sites');
   assert.match(ui, /async function onLookup\(\) \{[\s\S]*?confirm\(CONFIRM_LOOKUP\)[\s\S]*?await lookupMissing\(/);
   assert.match(ui, /\$\('mineLookup'\)\.addEventListener\('click', onLookup\)/);
-  assert.match(ui, /async function onFill\(\) \{[\s\S]*?LIVE_LOOKUP_ENABLED && state\.settings\.liveLookup[\s\S]*?confirm\(CONFIRM_LOOKUP\)[\s\S]*?await lookupMissing\(/);
+  assert.match(ui, /async function onFill\(\) \{[\s\S]*?LIVE_LOOKUP_ENABLED && state\.settings\.liveLookup[\s\S]*?confirm\(CONFIRM_LOOKUP\)[\s\S]*?await lookupMissing\(/); // preflight: ok
   assert.match(ui, /\$\('mineFill'\)\.addEventListener\('click', onFill\)/);
   assert.match(ui, /LIVE_LOOKUP_ENABLED && state\.settings\.liveLookup/);
   for (const file of mineFiles.filter(f => f !== 'mine/ui.js' && f !== 'mine/lookup.js')) {
@@ -92,7 +92,7 @@ test('the page tells grown-ups what is sent, where, and how to turn it off', () 
   assert.match(html, /sends the words that were not found, and this device's IP address, to Wiktionary/);
   assert.match(html, /first letter of each word you check/);
   assert.match(html, /id="mineLookup"[^>]*aria-describedby="mineDisclosure"/);
-  assert.match(html, /Ask a grown-up before you press it:<\/strong> for words the library does not have, it can ask Wiktionary/);
+  assert.match(html, /Ask a grown-up before you press it:<\/strong> for words the library does not have, it can ask Wiktionary/); // preflight: ok
   assert.match(html, /id="mineLive"/);
   assert.match(html, /If a grown-up uses "Look up the missing words" in My words, those words and the IP address go to Wiktionary/); // preflight: ok
 });

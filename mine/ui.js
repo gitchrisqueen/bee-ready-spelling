@@ -444,7 +444,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     } else if (rest.length) note = ' Looking up on Wiktionary is turned off in Grown-ups.';
     if (found.size) {
       state.store = updateList(state.store, a.key, l => ({
-        entries: l.entries.map(e => (found.has(e.word) ? fillEntry(e, found.get(e.word).entry, found.get(e.word).src) : e)),
+        entries: l.entries.map(e => (found.has(e.word) ? fillEntry(e, found.get(e.word).entry, found.get(e.word).src) : e)), // preflight: ok
       }));
       persist();
       activate();
@@ -645,7 +645,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     state.store = store; persist(); activate();
     const left = parsed.lists.length - added;
     status(`Backup restored: ${added} ${added === 1 ? 'list' : 'lists'} added.`
-      + `${left ? ` ${left} did not fit, because you can keep ${LIMITS.lists} lists. Delete one, then restore again.` : ''}`);
+      + `${left ? ` ${left} did not fit, because you can keep ${LIMITS.lists} lists. Delete one, then restore again.` : ''}`); // preflight: ok
   });
   $('mineLive').checked = LIVE_LOOKUP_ENABLED && state.settings.liveLookup;
   $('mineLive').disabled = !LIVE_LOOKUP_ENABLED;

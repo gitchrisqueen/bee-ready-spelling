@@ -382,17 +382,17 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     name: document.getElementById('mineFill').textContent,
   }));
   check('fill: words with no definition offer "Get missing definitions" and say how many',
-    fill9.shown && /^2 words have no definition yet/.test(fill9.text) && fill9.name === 'Get missing definitions', JSON.stringify(fill9));
+    fill9.shown && /^2 words have no definition yet/.test(fill9.text) && fill9.name === 'Get missing definitions', JSON.stringify(fill9)); // preflight: ok
   await p9.tap('#mineFill');
   await p9.waitForTimeout(400);
   check('fill: it asked first, and "no" sent nothing to Wiktionary',
-    ext9.length === 0 && /Nothing was sent to Wiktionary/.test(await statusOf(p9)), `${ext9.join()} ${await statusOf(p9)}`);
+    ext9.length === 0 && /Nothing was sent to Wiktionary/.test(await statusOf(p9)), `${ext9.join()} ${await statusOf(p9)}`); // preflight: ok
   ans9 = 'accept';
   await p9.tap('#mineFill');
-  await p9.waitForFunction(() => /^Found definitions for/.test(document.getElementById('mineStatus').textContent), null, { timeout: 15000 });
+  await p9.waitForFunction(() => /^Found definitions for/.test(document.getElementById('mineStatus').textContent), null, { timeout: 15000 }); // preflight: ok
   const got9 = await p9.evaluate(() => ({
     text: document.getElementById('mineFillText').textContent,
-    quay: [...document.querySelectorAll('#wordGrid .word-card')].find(c => c.querySelector('h3').textContent === 'quay')?.innerText ?? '',
+    quay: [...document.querySelectorAll('#wordGrid .word-card')].find(c => c.querySelector('h3').textContent === 'quay')?.innerText ?? '', // preflight: ok
     focus: document.activeElement.id,
     saved: JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists[0].entries.find(e => e.word === 'quay'),
   }));
@@ -400,28 +400,28 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     ext9.length > 0 && ext9.every(h => ALLOWED.has(h)), [...new Set(ext9)].join());
   check('fill: the found word now has its definition, saved, with its source; the other still has none',
     /^1 word has no definition yet/.test(got9.text) && !/No definition yet/.test(got9.quay) && !!got9.saved.definition
-    && got9.saved.src === 'live' && /Found definitions for 1 of 2 words\. 1 still has none\./.test(await statusOf(p9)), JSON.stringify(got9).slice(0, 300));
+    && got9.saved.src === 'live' && /Found definitions for 1 of 2 words\. 1 still has none\./.test(await statusOf(p9)), JSON.stringify(got9).slice(0, 300)); // preflight: ok
   check('fill: focus stays on the button, so it can be pressed again', got9.focus === 'mineFill', got9.focus);
 
   // backup: the file holds the definitions; restoring adds the lists and never replaces them
   const labels9 = await p9.evaluate(() => ({
-    save: document.getElementById('mineExport').textContent, restore: document.getElementById('mineImportFile').parentElement.textContent.trim(),
+    save: document.getElementById('mineExport').textContent, restore: document.getElementById('mineImportFile').parentElement.textContent.trim(), // preflight: ok
     text: document.getElementById('mineBank').innerText,
   }));
   check('backup: the buttons are named plainly, with what each does written beside them',
     labels9.save === 'Save a backup file' && labels9.restore === 'Restore from a backup file'
     && /A backup is a file with all your lists and their definitions/.test(labels9.text)
-    && /never replaces or deletes them/.test(labels9.text) && !/Download a backup|Open a backup/.test(labels9.text), JSON.stringify(labels9).slice(0, 200));
+    && /never replaces or deletes them/.test(labels9.text) && !/Download a backup|Open a backup/.test(labels9.text), JSON.stringify(labels9).slice(0, 200)); // preflight: ok
   const [download] = await Promise.all([p9.waitForEvent('download'), p9.tap('#mineExport')]);
   const file9 = await download.path();
   const backup9 = JSON.parse(readFileSync(file9, 'utf8'));
   check('backup: Save a backup file downloads my-words.json with the definitions in it',
     download.suggestedFilename() === 'my-words.json' && backup9.kind === 'bee-ready-my-words'
     && backup9.lists[0].words.some(w => w.word === 'quay' && w.definition), download.suggestedFilename());
-  check('backup: the message says where the file went', /Backup file saved as my-words\.json/.test(await statusOf(p9)), await statusOf(p9));
+  check('backup: the message says where the file went', /Backup file saved as my-words\.json/.test(await statusOf(p9)), await statusOf(p9)); // preflight: ok
   await p9.setInputFiles('#mineImportFile', file9);
   await p9.waitForFunction(() => /^Backup restored/.test(document.getElementById('mineStatus').textContent));
-  const rest9 = await p9.evaluate(() => JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists.map(l => `${l.name}:${l.entries.length}`));
+  const rest9 = await p9.evaluate(() => JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists.map(l => `${l.name}:${l.entries.length}`)); // preflight: ok
   check('backup: Restore adds the list next to the one already there, and says so',
     rest9.length === 2 && /^Backup restored: 1 list added\./.test(await statusOf(p9)), rest9.join());
   await fresh.close();

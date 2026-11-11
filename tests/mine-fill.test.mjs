@@ -16,7 +16,7 @@ test('needsDefinition: only a saved word with no definition, never a default-lis
 
 test('fillEntry fills what is empty and keeps what a grown-up typed', () => {
   const entry = { id: 1000001, word: 'quay', src: 'manual', group: 'Typed origin' };
-  const found = { definition: 'A place where boats load.', part: 'n', group: 'French', sentence: 'The boat reached the quay.' };
+  const found = { definition: 'A place where boats load.', part: 'n', group: 'French', sentence: 'The boat reached the quay.' }; // preflight: ok
   const out = fillEntry(entry, found, 'library');
   assert.equal(out.definition, 'A place where boats load.');
   assert.equal(out.part, 'n');
