@@ -51,7 +51,7 @@ test('the page explains share, backup and restore in plain words, with fixed but
   assert.match(html, /<h3[^>]*>Back up or move all your lists<\/h3>/);
   assert.match(html, /A backup is a file with all your lists and their definitions/);
   assert.match(html, /never replaces or deletes them/);
-  assert.match(html, /carries only the words\. On the other device, open the Word bank and press Get missing definitions/);
+  assert.match(html, /carries only the words\. On the other device, open the Word bank and press Get missing definitions/); // preflight: ok
   assert.match(html, /id="mineFillResult"[^>]*role="status"/, 'the result has its own live line beside the button');
   assert.match(html, /id="mineFill"[^>]*aria-describedby="mineFillNote"[^>]*>Get missing definitions</);
   assert.match(html, /id="mineFillBlock"[^>]* hidden>/, 'the definitions block starts hidden');

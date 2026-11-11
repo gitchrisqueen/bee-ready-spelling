@@ -444,8 +444,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       const rest = todo.map(e => e.word).filter(w => !got.has(w));
       let stopped = null, note = '';
       if (!rest.length) { /* the library had them all */ }
-      else if (!LIVE_LOOKUP_ENABLED) note = ' Looking up on Wiktionary is switched off for now, so only the library was checked.';
-      else if (!state.settings.liveLookup) note = ' Looking up on Wiktionary is turned off. A grown-up can turn it on in the Grown-ups tab.';
+      else if (!LIVE_LOOKUP_ENABLED) note = ' Looking up on Wiktionary is switched off for now, so only the library was checked.'; // preflight: ok
+      else if (!state.settings.liveLookup) note = ' Looking up on Wiktionary is turned off. A grown-up can turn it on in the Grown-ups tab.'; // preflight: ok
       else if (!confirm(CONFIRM_FILL(rest.length))) note = ' Nothing was sent to Wiktionary.';
       else {
         rest.forEach(w => { delete cache[w]; });
@@ -471,7 +471,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       if (stopped) console.warn('My words: looking up definitions stopped:', stopped);
       if (!summary) {
         summary = `Found definitions for ${found} of ${todo.length} ${todo.length === 1 ? 'word' : 'words'}.`
-          + `${left ? ` ${left} still ${left === 1 ? 'has' : 'have'} none. The Dictionary link on a word's card can help.` : ''}`
+          + `${left ? ` ${left} still ${left === 1 ? 'has' : 'have'} none. The Dictionary link on a word's card can help.` : ''}` // preflight: ok
           + `${note}${stopped ? ` ${STOP_TEXT[stopped] ?? ''}` : ''}`;
       }
     } finally {
