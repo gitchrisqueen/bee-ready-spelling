@@ -360,6 +360,142 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('share: a damaged link is refused with a message', /looks damaged/.test(await statusOf(p2)));
   await other.close();
 
+  // a link carries only the words, so a saved word with no definition can be looked up again, after a yes
+  const watch = async ctxFor => {
+    const pg = await ctxFor.newPage();
+    const w = { ext: [], asks: 0, answer: 'dismiss' };
+    pg.on('request', r => {
+      const u = new URL(r.url());
+      if (u.origin !== new URL(BASE).origin && !['blob:', 'data:'].includes(u.protocol)) w.ext.push(u.host);
+    });
+    pg.on('dialog', d => { w.asks++; return w.answer === 'accept' ? d.accept() : d.dismiss(); });
+    await pg.goto(local, { waitUntil: 'networkidle' });
+    await pg.waitForSelector('#mineLinkCard:not([hidden])');
+    await pg.tap('#mineLinkStart');
+    await pg.waitForSelector('#roundArea:not(.hidden)');
+    await goTo(pg, 'words');
+    return { pg, w };
+  };
+  const fillResult = pg => pg.evaluate(() => document.getElementById('mineFillResult').textContent.replace(/\u00a0/g, '')); // preflight: ok
+  const fresh = await contextFor(preset);
+  await routeWiki(fresh);
+  const { pg: p9, w: w9 } = await watch(fresh);
+  const fill9 = await p9.evaluate(() => ({
+    shown: document.getElementById('mineFillBlock').checkVisibility(),
+    text: document.getElementById('mineFillText').textContent,
+    name: document.getElementById('mineFill').textContent,
+  }));
+  check('fill: words with no definition offer "Get missing definitions", say how many, and say what to press',
+    fill9.shown && /^2 words have no definition yet\./.test(fill9.text) && /Press Get missing definitions/.test(fill9.text) // preflight: ok
+    && fill9.name === 'Get missing definitions', JSON.stringify(fill9));
+  // the first press asks, "no" sends nothing, and the result is on the screen beside the button
+  await p9.tap('#mineFill');
+  await p9.waitForFunction(() => /Nothing was sent to Wiktionary/.test(document.getElementById('mineFillResult').textContent)); // preflight: ok
+  const shown9 = await p9.evaluate(() => {
+    const r = document.getElementById('mineFillResult').getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, h: innerHeight };
+  });
+  check('fill: "no" sends nothing to Wiktionary, and the result is on the screen beside the button',
+    w9.asks === 1 && w9.ext.length === 0 && shown9.top >= 0 && shown9.bottom <= shown9.h, `${w9.asks} ${w9.ext.join()} ${JSON.stringify(shown9)}`); // preflight: ok
+  // two quick presses run once and ask once
+  await p9.evaluate(() => { const b = document.getElementById('mineFill'); b.click(); b.click(); });
+  await p9.waitForTimeout(600);
+  check('fill: two quick presses ask once', w9.asks === 2, String(w9.asks));
+  // a grown-up who turned lookups off in Grown-ups: the library is checked, the note says where to turn it on, nothing is sent // preflight: ok
+  await goTo(p9, 'grownups');
+  await p9.uncheck('#mineLive');
+  await goTo(p9, 'words');
+  w9.answer = 'accept';
+  const asksBefore = w9.asks;
+  await p9.tap('#mineFill');
+  await p9.waitForFunction(() => /turned off/.test(document.getElementById('mineFillResult').textContent));
+  check('fill: with lookups turned off it says where to turn them on, asks nothing and sends nothing',
+    /Grown-ups tab/.test(await fillResult(p9)) && w9.asks === asksBefore && w9.ext.length === 0, await fillResult(p9));
+  await goTo(p9, 'grownups');
+  await p9.check('#mineLive');
+  await goTo(p9, 'words');
+  // the yes: only the two Wiktionary hosts, the dialog says how many words
+  let askText = '';
+  p9.removeAllListeners('dialog');
+  p9.on('dialog', d => { askText = d.message(); w9.asks++; return d.accept(); });
+  await p9.tap('#mineFill');
+  await p9.waitForFunction(() => /^Found definitions for/.test(document.getElementById('mineFillResult').textContent), null, { timeout: 15000 }); // preflight: ok
+  const got9 = await p9.evaluate(() => ({
+    text: document.getElementById('mineFillText').textContent,
+    quay: [...document.querySelectorAll('#wordGrid .word-card')].find(c => c.querySelector('h3').textContent === 'quay')?.innerText ?? '', // preflight: ok
+    focus: document.activeElement.id,
+    locked: document.getElementById('mineFill').hasAttribute('aria-disabled'),
+    saved: JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists[0].entries.find(e => e.word === 'quay'),
+  }));
+  check('fill: the dialog says how many words are sent', /^This sends 2 words/.test(askText), askText);
+  check('fill: only the two Wiktionary hosts were asked, and after the yes',
+    w9.ext.length > 0 && w9.ext.every(h => ALLOWED.has(h)), [...new Set(w9.ext)].join());
+  check('fill: the found word now has its definition, saved, with its source; the other still has none',
+    /^1 word has no definition yet/.test(got9.text) && !/No definition yet/.test(got9.quay) && !!got9.saved.definition
+    && got9.saved.src === 'live' && /^Found definitions for 1 of 2 words\. 1 still has none\./.test(await fillResult(p9)), // preflight: ok
+    JSON.stringify(got9).slice(0, 300));
+  check('fill: focus returns to the button, which is usable again', got9.focus === 'mineFill' && !got9.locked, got9.focus); // preflight: ok
+
+  // backup: the file holds the definitions; restoring adds the lists and never replaces them
+  const labels9 = await p9.evaluate(() => ({
+    save: document.getElementById('mineExport').textContent,
+    restore: document.getElementById('mineImportFile').parentElement.textContent.trim(),
+    share: document.getElementById('mineShare').textContent,
+    text: document.getElementById('mineBank').innerText,
+  }));
+  check('backup: the buttons are named plainly, with what each does written beside them',
+    labels9.save === 'Save a backup file' && labels9.restore === 'Restore from a backup file'
+    && labels9.share === 'Copy a link to share this list'
+    && /A backup is a file with all your lists and their definitions/.test(labels9.text)
+    && /never replaces or deletes them/.test(labels9.text) && !/Download a backup|Open a backup/.test(labels9.text)
+    && /open the Word bank and press Get missing definitions/.test(labels9.text), JSON.stringify(labels9).slice(0, 200)); // preflight: ok
+  const [download] = await Promise.all([p9.waitForEvent('download'), p9.tap('#mineExport')]);
+  const file9 = await download.path();
+  const backup9 = JSON.parse(readFileSync(file9, 'utf8'));
+  check('backup: Save a backup file downloads my-words.json with the definitions in it',
+    download.suggestedFilename() === 'my-words.json' && backup9.kind === 'bee-ready-my-words'
+    && backup9.lists[0].words.some(w => w.word === 'quay' && w.definition), download.suggestedFilename());
+  check('backup: the message says where to look and does not claim the file is saved',
+    /Your browser is saving my-words\.json\. Look in your Downloads folder/.test(await statusOf(p9)), await statusOf(p9)); // preflight: ok
+  await p9.setInputFiles('#mineImportFile', file9);
+  await p9.waitForFunction(() => /^Backup restored/.test(document.getElementById('mineStatus').textContent));
+  const rest9 = await p9.evaluate(() => JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists.map(l => `${l.name}:${l.entries.length}`)); // preflight: ok
+  check('backup: Restore adds the list next to the one already there, and says so',
+    rest9.length === 2 && /^Backup restored: 1 list added\./.test(await statusOf(p9)), rest9.join());
+  await fresh.close();
+
+  // the operator's kill switch (LIVE_LOOKUP_ENABLED = false): the note and result say so, nothing is asked or sent
+  const off = await contextFor(preset);
+  await routeWiki(off);
+  await off.route('**/mine/config.js', async route => {
+    const res = await route.fetch();
+    const body = (await res.text()).replace(/LIVE_LOOKUP_ENABLED\s*=\s*true/, 'LIVE_LOOKUP_ENABLED = false');
+    await route.fulfill({ response: res, body });
+  });
+  const { pg: p11, w: w11 } = await watch(off);
+  w11.answer = 'accept';
+  const note11 = await p11.locator('#mineFillNote').innerText();
+  await p11.tap('#mineFill');
+  await p11.waitForFunction(() => /switched off/.test(document.getElementById('mineFillResult').textContent), null, { timeout: 10000 }); // preflight: ok
+  const res11 = await fillResult(p11);
+  check('kill switch: the note and result say Wiktionary is switched off, no dialog, nothing sent',
+    /switched off/.test(note11) && !/ask Wiktionary|asked to confirm/.test(note11)
+    && /Looking up on Wiktionary is switched off for now/.test(res11) && !/Grown-ups/.test(res11)
+    && w11.asks === 0 && w11.ext.length === 0, `${note11.slice(0, 80)} | ${res11} | ${w11.asks} ${w11.ext.join()}`);
+  await off.close();
+
+  // a device that cannot save: the fill says so instead of claiming it worked
+  const fresh2 = await contextFor(preset);
+  await routeWiki(fresh2);
+  const { pg: p10, w: w10 } = await watch(fresh2);
+  w10.answer = 'accept';
+  await p10.evaluate(() => { Storage.prototype.setItem = () => { throw new Error('full'); }; });
+  await p10.tap('#mineFill');
+  await p10.waitForFunction(() => document.getElementById('mineFillResult').textContent.length > 40 && !document.getElementById('mineFill').hasAttribute('aria-busy'), null, { timeout: 15000 }); // preflight: ok
+  const failed10 = await fillResult(p10);
+  check('fill: if the words cannot be saved, the result says so and does not say Found', /could not save/.test(failed10) && !/^Found/.test(failed10), failed10); // preflight: ok
+  await fresh2.close();
+
   // the safety list fails to load: nothing is read or written, and the saved lists survive
   const locked = await contextFor(preset);
   await locked.addInitScript(seed => { if (!localStorage.getItem('bee-ready-mine-v1')) localStorage.setItem('bee-ready-mine-v1', seed); }, // preflight: ok
