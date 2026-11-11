@@ -161,3 +161,11 @@ The owner's review: the custom list editor sat on the Practice tab, and the Word
 - Trade-off the owner chose: anyone who taps Word bank can read the whole list. The link's start card is the only place words stay hidden, until Start.
 - Not changed: a saved word's definition and sentence cannot be edited after saving (remove it and add it again).
 
+## Definitions that did not travel, and the backup buttons (follow-up)
+
+Two problems from the owner's use of a shared link.
+
+- **Definitions do not travel in a link.** A link carries only the words (by design: short, no text from a third party in a URL). A word the library lacks therefore arrives with no definition, and after Start the review is gone, so there was no way to fetch one. A saved list now shows **Get missing definitions** in the Word bank when any word has none, with how many. It checks the Bee Ready library on this site first, then (only if lookups are on in Grown-ups, and only after the same confirm dialog as **Look up the missing words**) Wiktionary. It fills only empty fields, so anything a grown-up typed is kept, and it asks again for a word Wiktionary earlier answered "not found" for. The link card also says a grown-up can look words up now or later in the Word bank.
+- **Backup buttons were unclear.** "Download a backup" and "Open a backup" are now **Save a backup file** and **Restore from a backup file**, under a heading "Back up or move all your lists" that says what a backup is (all lists and their definitions), when to use it (keep a copy, or move to another browser or device) and that restoring adds lists and never replaces or deletes. "Share this list" is a separate heading that says the link carries only the words. The messages after each action say what happened (where the file went, how many lists were added, and if some did not fit within the 20-list limit).
+- The privacy test now requires exactly two lookup call sites, each behind the toggle and the confirm dialog.
+- Not changed: there is still no way to re-fetch a definition for a word that has one; a saved word's text cannot be edited after saving.

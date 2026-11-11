@@ -106,12 +106,17 @@
             <label class="field">List name<input id="mineName" type="text" maxlength="40" autocomplete="off"></label>
           </div>
           <div class="mine-actions"><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
-          <div class="mine-actions">
-            <button type="button" id="mineShare" class="soft-btn">Show a link to share this list</button>
-            <button type="button" id="mineExport" class="soft-btn">Download a backup</button>
-            <label class="soft-btn file-btn">Open a backup<input id="mineImportFile" type="file" accept="application/json,.json"></label>
-          </div>
+          <h3 class="settings-heading">Share this list</h3>
+          <p class="helper">Make a link that opens this list on another phone or computer. The link carries only the words, so the other device looks up the definitions again.</p>
+          <div class="mine-actions"><button type="button" id="mineShare" class="soft-btn">Show a link to share this list</button></div>
           <label class="field" for="mineShareUrl"><span class="sr-only">Share link</span><input id="mineShareUrl" type="text" readonly hidden></label>
+          <h3 class="settings-heading">Back up or move all your lists</h3>
+          <p class="helper">A backup is a file with all your lists and their definitions. Save one to keep a copy, or to move your lists to another browser or device. On that device, restore it to put the lists back.</p>
+          <div class="mine-actions">
+            <button type="button" id="mineExport" class="soft-btn">Save a backup file</button>
+            <label class="soft-btn file-btn">Restore from a backup file<input id="mineImportFile" type="file" accept="application/json,.json"></label>
+          </div>
+          <p class="helper">Restoring adds the lists in the file next to the ones you have. It never replaces or deletes them.</p>
         </section>
         <section id="mineAdd" class="panel mine-panel" aria-labelledby="mineAddTitle" hidden>
           <h2 id="mineAddTitle">Add words</h2>
@@ -144,7 +149,16 @@
             <div class="mine-actions"><button type="button" id="mineSave" class="primary-btn">Save these words</button><button type="button" id="mineCancel" class="text-btn">Cancel</button></div>
           </div>
         </section>
-        <div class="panel" id="wordBankPanel"><h2 id="mineWordsHead" class="settings-heading" tabindex="-1" hidden></h2><div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by origin<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
+        <div class="panel" id="wordBankPanel"><h2 id="mineWordsHead" class="settings-heading" tabindex="-1" hidden></h2>
+        <div id="mineFillBlock" class="mine-fill" hidden>
+          <p id="mineFillText" class="helper"></p>
+          <div class="mine-actions">
+            <button type="button" id="mineFill" class="soft-btn" aria-describedby="mineFillNote">Get missing definitions</button>
+            <button type="button" id="mineFillStop" class="text-btn" hidden>Stop looking</button>
+          </div>
+          <p id="mineFillNote" class="helper">This checks the Bee Ready library on this site first. <strong>Ask a grown-up before you press it:</strong> for words the library does not have, it can ask Wiktionary (Wikimedia). That sends those words and this device's IP address, and you will be asked to confirm. Nothing is sent to Wikimedia before that. This site's own host also sees the first letter of each word.</p>
+        </div>
+        <div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by origin<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
         <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">Loading words…</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button>
         <p id="mineCredits" class="helper" hidden>Definitions and sentences come from the Bee Ready library (Open English WordNet and Wiktionary, see <a href="./library/NOTICE.md" target="_blank" rel="noopener noreferrer">the library notice<span class="sr-only"> (opens in a new tab)</span></a>) or from Wiktionary when you ask. Wiktionary text is CC BY-SA 4.0. Pronunciation of rare words by the device voice can be wrong.</p></div>
       </section>

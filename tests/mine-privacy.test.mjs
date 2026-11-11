@@ -63,11 +63,14 @@ test('mine/ never touches the default history or stars keys, except to map the s
   assert.match(read('app.js'), /mine\?mine\.starsStorage\(localStorage\):localStorage/);
 });
 
-test('a dictionary request starts only from the "Look up the missing words" button, and only if the switches are on', () => { // preflight: ok
+test('a dictionary request starts only from a lookup button, only if the switches are on, and only after a yes', () => { // preflight: ok
   const ui = read('mine/ui.js');
-  assert.equal((ui.match(/lookupMissing\(/g) || []).length, 1, 'one call site');
-  assert.match(ui, /async function onLookup\(\) \{[\s\S]*?await lookupMissing\(/);
+  // Two call sites: "Look up the missing words" (the review) and "Get missing definitions" (a saved list).
+  assert.equal((ui.match(/lookupMissing\(/g) || []).length, 2, 'two call sites');
+  assert.match(ui, /async function onLookup\(\) \{[\s\S]*?confirm\(CONFIRM_LOOKUP\)[\s\S]*?await lookupMissing\(/);
   assert.match(ui, /\$\('mineLookup'\)\.addEventListener\('click', onLookup\)/);
+  assert.match(ui, /async function onFill\(\) \{[\s\S]*?LIVE_LOOKUP_ENABLED && state\.settings\.liveLookup[\s\S]*?confirm\(CONFIRM_LOOKUP\)[\s\S]*?await lookupMissing\(/);
+  assert.match(ui, /\$\('mineFill'\)\.addEventListener\('click', onFill\)/);
   assert.match(ui, /LIVE_LOOKUP_ENABLED && state\.settings\.liveLookup/);
   for (const file of mineFiles.filter(f => f !== 'mine/ui.js' && f !== 'mine/lookup.js')) {
     assert.equal(/lookupMissing|lookupOne/.test(read(file)), false, `${file} must not start a lookup`);
@@ -89,6 +92,7 @@ test('the page tells grown-ups what is sent, where, and how to turn it off', () 
   assert.match(html, /sends the words that were not found, and this device's IP address, to Wiktionary/);
   assert.match(html, /first letter of each word you check/);
   assert.match(html, /id="mineLookup"[^>]*aria-describedby="mineDisclosure"/);
+  assert.match(html, /Ask a grown-up before you press it:<\/strong> for words the library does not have, it can ask Wiktionary/);
   assert.match(html, /id="mineLive"/);
   assert.match(html, /If a grown-up uses "Look up the missing words" in My words, those words and the IP address go to Wiktionary/); // preflight: ok
 });

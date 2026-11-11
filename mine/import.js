@@ -4,7 +4,7 @@
 // anything.
 import { libraryEntry, loadShard } from './lookup.js';
 import { NO_DEFINITION } from '../wordcard.js';
-import { HOSTS, normalizeWord } from './validate.js';
+import { HOSTS, normalizeWord, validateEntry } from './validate.js';
 
 // A chip is { word, status: 'default' | 'library' | 'live' | 'missing', entry?, suggestion? }.
 // `defaultByWord` is a Map of lowercase word -> the words.json entry.
@@ -60,6 +60,23 @@ export function chipsToEntries(chips) {
       part: e.part, definition: e.definition, group: e.group, sentence: e.sentence, credit: e.credit,
     };
   });
+}
+
+// A saved entry that has no definition. A share link carries only the words, so a word the library did not have when
+// the link was opened stays like this until it is looked up again. Words from the default list always have one.
+export const needsDefinition = e => e.src !== 'default' && !String(e.definition ?? '').trim();
+
+// A saved entry with what a lookup found (`found` is a library or Wiktionary entry; `src` is 'library' or 'live').
+// Only empty fields are filled, so anything a grown-up typed is kept. Returns the entry unchanged if the result is
+// not usable.
+export function fillEntry(entry, found, src) {
+  if (!found || typeof found.definition !== 'string') return entry;
+  const keep = (key, value) => (entry[key] ? entry[key] : value);
+  const filled = validateEntry({
+    ...entry, src, definition: found.definition, part: keep('part', found.part), group: keep('group', found.group),
+    sentence: keep('sentence', found.sentence), ...(src === 'live' ? { credit: found.credit } : {}),
+  });
+  return filled?.definition ? filled : entry;
 }
 
 // What the practice screen reads: the same fields as a words.json entry, plus `custom` and a Mine level.
