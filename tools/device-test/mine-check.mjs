@@ -476,7 +476,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   w11.answer = 'accept';
   const note11 = await p11.locator('#mineFillNote').innerText();
   await p11.tap('#mineFill');
-  await p11.waitForFunction(() => /switched off/.test(document.getElementById('mineFillResult').textContent), null, { timeout: 10000 });
+  await p11.waitForFunction(() => /switched off/.test(document.getElementById('mineFillResult').textContent), null, { timeout: 10000 }); // preflight: ok
   const res11 = await fillResult(p11);
   check('kill switch: the note and result say Wiktionary is switched off, no dialog, nothing sent',
     /switched off/.test(note11) && !/ask Wiktionary|asked to confirm/.test(note11)

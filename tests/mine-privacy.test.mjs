@@ -89,7 +89,7 @@ test('the kill switches exist and their shipped values are as documented', () =>
 test('the page tells grown-ups what is sent, where, and how to turn it off', () => {
   const html = read('index.html');
   assert.match(html, /Ask a grown-up before you press this/);
-  assert.match(html, /sends the words that were not found, and this device's internet address \(IP address\), to Wiktionary, a free online dictionary/);
+  assert.match(html, /sends the words that were not found, and this device's internet address \(IP address\), to Wiktionary, a free online dictionary/); // preflight: ok
   assert.match(html, /first letter of each word you check/);
   assert.match(html, /id="mineLookup"[^>]*aria-describedby="mineDisclosure"/);
   assert.match(html, /Ask a grown-up before you press it:<\/strong> for words the library does not have, it can ask Wiktionary/); // preflight: ok
