@@ -46,13 +46,15 @@ export function detailsData(w,POS,sentenceFor){
     sentence: sentence || 'No sentence yet.',
   };
 }
-export function wordCardHtml(w,POS,sentenceFor,{starred=false,open=false,starLabel=starLabelDefault}={}){
+// removable=true (My words cards only) adds a Remove button beside Details. Its name keeps the visible word "Remove" (WCAG 2.5.3).
+export function wordCardHtml(w,POS,sentenceFor,{starred=false,open=false,removable=false,starLabel=starLabelDefault}={}){
   const d = detailsData(w,POS,sentenceFor), id = escapeHtml(w.id), panel = detailsPanelId(w.id), title = wordTitleId(w.id), word = escapeHtml(w.word);
   const metaPart = POS && Object.hasOwn(POS,w.part) ? POS[w.part] : '';
+  const detailsBtn = `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w))}">Details <span class="chev" aria-hidden="true">▸</span></button>`;
   const row = (label,value,note='') => `<div class="details-row"><dt>${label}</dt><dd>${escapeHtml(value)}${note?`<small class="details-note">${escapeHtml(note)}</small>`:''}</dd></div>`;
   return `<article class="word-card" aria-labelledby="${title}"><div class="word-meta">${metaLine(w,metaPart)}</div><h3 id="${title}">${word}</h3><p>${escapeHtml(w.definition)}</p>` // preflight: ok
     + `<div class="word-card-actions"><span class="card-btns"><button class="mini-btn" data-say-id="${id}" aria-label="Listen to ${word}"><span aria-hidden="true">🔊</span> Listen</button><button class="star-btn" data-star-id="${id}" aria-pressed="${starred}" aria-label="${escapeHtml(starLabel(w,starred))}"><span class="star-glyph" aria-hidden="true">${starred?'★':'☆'}</span></button></span><a href="https://www.merriam-webster.com/dictionary/${encodeURIComponent(w.word)}" target="_blank" rel="noopener noreferrer" aria-label="Dictionary entry for ${word} (opens in a new tab)">Dictionary <span aria-hidden="true">↗</span></a></div>`
-    + `<button type="button" class="details-btn" data-details-id="${id}" aria-expanded="${open}" aria-controls="${panel}" aria-label="${escapeHtml(toggleLabel(w))}">Details <span class="chev" aria-hidden="true">▸</span></button>`
+    + (removable ? `<div class="card-foot">${detailsBtn}<button type="button" class="text-btn remove-btn" data-remove-id="${id}" aria-label="Remove ${word} from my list">Remove</button></div>` : detailsBtn)
     + `<div class="word-details" id="${panel}"${open?'':' hidden'}><dl class="details-list">`
     + row('Part of speech',d.part) + row('Origin',d.origin,d.origin===NOT_KNOWN_YET?'':ORIGIN_NOTE)
     + (w.custom ? '' : row('Booklet list',d.booklet,BOOKLET_NOTE)) + row('In a sentence',d.sentence)

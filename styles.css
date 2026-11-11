@@ -51,14 +51,16 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .mine-panel h3:focus{outline:3px solid #8a6bd9;outline-offset:3px}
 .mine-photo{margin:12px 0}
 .mine-link-card{background:var(--cream);border:2px solid #f3dda4;border-radius:20px;padding:16px;margin:12px 0}
-.mine-link-card h3{margin:0 0 6px}
+.mine-link-card h2{margin:0 0 6px}
 .mine-link-open [data-editor]{display:none}
 .mine-reveal{margin:12px 0}
 .mine-reveal>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800;color:#6551a6}
-.mine-reveal>summary::before,.mine-bank-gate>summary::before{content:"▸";margin-right:8px;flex:none}
-.mine-reveal>summary::before,.mine-bank-gate>summary::before{content:"▸" / ""}
-.mine-reveal[open]>summary::before,.mine-bank-gate[open]>summary::before{content:"▾";transform:none}
-.mine-reveal[open]>summary::before,.mine-bank-gate[open]>summary::before{content:"▾" / ""}
-.mine-bank-gate{margin:12px 0}
-.mine-bank-gate>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800;color:#6551a6;font-size:16px}
+.mine-reveal>summary::before{content:"▸";margin-right:8px;flex:none}
+.mine-reveal>summary::before{content:"▸" / ""}
+.mine-reveal[open]>summary::before{content:"▾";transform:none}
+.mine-reveal[open]>summary::before{content:"▾" / ""}
+.card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.card-foot .details-btn{margin-top:0}
+.mine-link-wait{background:var(--cream);border:2px solid #f3dda4;border-radius:20px;padding:12px 16px;margin:12px 0}
+.mine-link-wait .helper{margin:0 0 8px}
 .mine-photo[aria-busy=true] .file-btn{opacity:.5}

@@ -80,8 +80,15 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   // Words typed here must not reach this site's host as clip file names (see mine/clipguard.js).
   installClipGuard(globalThis, allowedClipKeys(defaultWords, { sentenceFor, clipKey, sentenceKey }));
 
-  // A status message in the polite live region. The trailing no-break space makes a repeated message read again.
-  const status = text => { flip = !flip; $('mineStatus').textContent = text ? text + (flip ? '' : ' ') : ''; };
+  // A status message in the polite live region of the tab the person is on (a region inside a hidden tab is never
+  // read out). The trailing no-break space makes a repeated message read again.
+  const status = text => {
+    flip = !flip;
+    const out = text ? text + (flip ? '' : '\u00a0') : '';
+    const onPractice = $('tab-practice').classList.contains('active');
+    $('minePracticeStatus').textContent = onPractice ? out : '';
+    $('mineStatus').textContent = onPractice ? '' : out;
+  };
   const persist = () => {
     if (state.readOnly) return;
     if (!saveStore(store0, state.store)) status('This device could not save your words. Download a backup.');
@@ -90,7 +97,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   const focusSoon = target => { if (target) requestAnimationFrame(() => target.focus({ preventScroll: false })); };
 
   // ---- screen set-up ---------------------------------------------------------------------------------------------
-  $('mineRoot').hidden = false;
+  // Practice tab: which list is in use and a link's start card. Word bank tab: the lists, adding words and the words.
+  for (const id of ['mineRoot', 'mineBank', 'mineAdd', 'mineWordsHead', 'mineCredits']) $(id).hidden = false;
+  document.querySelector('#wordBankPanel > h2.sr-only')?.setAttribute('hidden', ''); // the visible list heading replaces it
   $('mineGrownups').hidden = false;
   $('mineEnterBlock').hidden = true;
   $('mineSettingsBlock').hidden = false;
@@ -101,18 +110,11 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   document.querySelectorAll('#roundBuilder .helper').forEach(p => { if (/booklet/i.test(p.textContent)) p.hidden = true; }); // preflight: ok
   const bankIntro = document.querySelector('#tab-words .section-intro p');
   if (bankIntro) {
-    bankIntro.textContent = 'Your words are hidden so a speller can practice without peeking. '
-      + 'A grown-up can open the list below to see each word with its definition, origin and sentence.';
+    bankIntro.textContent = 'Keep your own lists here. Add words, then look through them: press Details on a word '
+      + 'for its sentence, origin and slow audio, and tap the star (☆) on a word you want to practice again.';
   }
   const bankNote = document.querySelector('#tab-words .results-head span');
-  if (bankNote) bankNote.textContent = 'Tap the star (☆) on a word you want to practice again.';
-  const bankPanel = document.querySelector('#tab-words > .panel');
-  if (bankPanel) {
-    const gate = el('details', { id: 'mineBankGate', class: 'mine-bank-gate' },
-      el('summary', { text: 'Show the words in this list (for grown-ups)' }));
-    bankPanel.replaceWith(gate);
-    gate.append(bankPanel);
-  }
+  if (bankNote) bankNote.textContent = 'Press Remove on a word to take it out of this list.';
   const aboutClues = document.querySelector('.foot-note p');
   if (aboutClues) {
     aboutClues.textContent = '“Origin” is the language a word came from, taken from the Bee Ready library or '
@@ -128,8 +130,9 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     state.readOnly = true;
     state.store = loadStore(store0).store;
     status('The safety list could not load, so My words is turned off for now. Your lists are safe. Please refresh the page.'); // preflight: ok
-    document.querySelectorAll('#mineRoot button, #mineRoot input, #mineRoot textarea, #mineRoot select, #mineSettingsBlock button, #mineSettingsBlock input') // preflight: ok
-      .forEach(c => { c.disabled = true; });
+    const off = '#mineBank button, #mineBank input, #mineBank select, #mineAdd button, #mineAdd input, #mineAdd textarea, ' // preflight: ok
+      + '#mineSettingsBlock button, #mineSettingsBlock input';
+    document.querySelectorAll(off).forEach(c => { c.disabled = true; });
     setWords([]);
     return;
   }
@@ -165,18 +168,16 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     $('mineDelete').disabled = !a;
     $('mineShare').disabled = !a?.entries.length;
     $('mineExport').disabled = !state.store.lists.length;
-    const ul = $('mineWordList');
-    ul.replaceChildren();
-    for (const e of a?.entries ?? []) {
-      const id = `mine-w-${e.id}`;
-      ul.append(el('li', {},
-        el('span', { id, class: 'mine-word', text: e.word }),
-        el('span', { class: 'mine-word-def', text: ` ${e.definition ?? (e.src === 'default' ? 'In the Bee Ready list' : '')}` }), // preflight: ok
-        el('button', { type: 'button', class: 'text-btn', 'data-remove': e.id, 'aria-label': `Remove ${e.word}`, text: 'Remove' }))); // preflight: ok
-    }
     const count = a?.entries.length ?? 0;
-    $('mineWordsHead').textContent = a ? `${a.name}: ${count} ${count === 1 ? 'word' : 'words'}` : 'Your list';
-    $('mineEmpty').hidden = Boolean(a?.entries.length);
+    const plural = `${count} ${count === 1 ? 'word' : 'words'}`;
+    $('mineWordsHead').textContent = a ? `${a.name}: ${plural}` : 'Your list';
+    // The Practice tab says which list the round uses, and points to the Word bank to change it.
+    $('minePracticeTitle').textContent = count ? `Practicing: ${a.name}` : 'Add your words to begin';
+    $('minePracticeText').textContent = count
+      ? `${plural} in this list. Choose how many to practice below.`
+      : 'You have no words yet. Add the words you want to practice in the Word bank.';
+    $('minePracticeAdd').hidden = count > 0;
+    $('minePracticeChange').hidden = count === 0;
   }
   function activate() {
     const a = active();
@@ -294,13 +295,17 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
       + `The words stay hidden so you can practice without peeking.${roundNote}${noDefinition}`;
     $('mineLinkStart').disabled = n === 0;
   }
-  // While the start card shows, the list editor, the photo controls and the round builder are out of sight, so
-  // there is one start button and none of the words.
+  // While the start card shows on the Practice tab, the round builder is out of sight, so there is one start button.
+  // The Word bank tab keeps its lists and words, but its Add words box (typing and photo) gives way to a note: a
+  // second review would replace the link's words. The review block moves into the card's grown-up check, and back.
   function setLinkOpen(open) {
-    $('mineRoot').classList.toggle('mine-link-open', open);
+    document.documentElement.classList.toggle('mine-link-open', open);
     $('mineLinkCard').hidden = !open;
+    $('mineLinkWait').hidden = !open;
+    $('minePractice').hidden = open;
     $('roundBuilder').hidden = open;
     $('mineLinkGrownups').open = false;
+    (open ? $('mineLinkGrownups') : $('mineAdd')).append($('mineReview'));
     if (!open) linkName = null;
   }
   // `name` is the list's name; `words` stay hidden until a grown-up opens the check.
@@ -348,8 +353,10 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     renderReview();
     status(`Removed ${gone.word}.`);
     const next = chips[at] ?? chips[at - 1];
-    focusSoon(next ? document.querySelector(`#mineChips li[data-uid="${next.uid}"] .mine-chip-row input`) : $('mineText')); // preflight: ok
+    focusSoon(next ? document.querySelector(`#mineChips li[data-uid="${next.uid}"] .mine-chip-row input`) : addBox()); // preflight: ok
   }
+  // Where focus goes when the review has nothing left: Add words, or (for a link's list) the grown-up check.
+  const addBox = () => (linkName !== null ? $('mineLinkGrownups').querySelector('summary') : $('mineText'));
 
   async function onCheck() {
     const { words, rejected, blocked, truncated } = parseWords($('mineText').value);
@@ -412,7 +419,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
         $('wordCount').value = String(Math.min(count, ROUND_MAX));
         $('wordCount').dispatchEvent(new Event('input'));
         $('startRound').click();
-      } else focusSoon($('mineWordsHead'));
+      } else focusSoon($('minePracticeTitle'));
       return;
     }
     if (!active()) {
@@ -489,8 +496,10 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   });
   $('mineCancel').addEventListener('click', () => {
     chips = []; sharedNote = ''; openUids.clear();
-    if (linkName !== null) setLinkOpen(false);
-    renderReview(); status('Nothing was saved.'); focusSoon($('mineText')); // preflight: ok
+    const fromLink = linkName !== null;
+    if (fromLink) setLinkOpen(false);
+    renderReview(); status('Nothing was saved.'); // preflight: ok
+    focusSoon(fromLink ? $('minePracticeTitle') : $('mineText'));
   });
   $('mineChips').addEventListener('click', async e => {
     const rm = e.target.closest('[data-chip-remove]');
@@ -525,17 +534,20 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     activate(); status('List deleted.');
     focusSoon($('mineName').disabled ? $('mineText') : $('mineList'));
   });
-  $('mineWordList').addEventListener('click', e => {
-    const rm = e.target.closest('[data-remove]');
+  // Remove sits on each word's card in the Word bank. app.js re-draws the cards when the list changes.
+  $('wordGrid').addEventListener('click', e => {
+    const rm = e.target.closest('[data-remove-id]');
     const a = active();
     if (!rm || !a) return;
-    const gone = a.entries.find(x => x.id === Number(rm.dataset.remove));
-    const at = a.entries.indexOf(gone);
-    state.store = updateList(state.store, a.key, l => ({ entries: l.entries.filter(x => x.id !== Number(rm.dataset.remove)) })); // preflight: ok
+    const id = Number(rm.dataset.removeId);
+    const gone = a.entries.find(x => x.id === id);
+    const at = [...$('wordGrid').querySelectorAll('[data-remove-id]')].indexOf(rm);
+    state.store = updateList(state.store, a.key, l => ({ entries: l.entries.filter(x => x.id !== id) }));
     persist(); activate();
     status(`Removed ${gone?.word ?? 'the word'}.`);
-    const buttons = [...$('mineWordList').querySelectorAll('[data-remove]')];
-    focusSoon(buttons[at] ?? buttons[at - 1] ?? $('mineWordsHead'));
+    // Focus goes to the next card's Remove button, so it is never lost to the page.
+    const buttons = [...$('wordGrid').querySelectorAll('[data-remove-id]')];
+    focusSoon(buttons[Math.min(at, buttons.length - 1)] ?? $('mineWordsHead'));
   });
   $('mineShare').addEventListener('click', async () => {
     const a = active();

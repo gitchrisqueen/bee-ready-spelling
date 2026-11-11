@@ -48,7 +48,10 @@ async function tap(page, selector) {
   await page.tap(selector);
 }
 const tabbable = page => page.evaluate(() => document.activeElement && document.activeElement.tagName !== 'BODY');
-const statusOf = page => page.evaluate(() => document.getElementById('mineStatus').textContent);
+// The message shows in the live region of the tab the person is on; the other one is empty.
+const statusOf = page => page.evaluate(() => ['mineStatus', 'minePracticeStatus']
+  .map(id => document.getElementById(id).textContent).join(''));
+const goTo = (page, tab) => tap(page, `[data-tab=${tab}]`);
 
 for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   console.log(`\n== ${preset} (${engine} emulation)`);
@@ -71,7 +74,13 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   const mineRequests = own.filter(p => /\/mine\/|\/library\//.test(p));
   check('default: only mine/config.js is requested from mine/, and nothing from the library',
     mineRequests.length === 1 && mineRequests[0].endsWith('/mine/config.js'), mineRequests.join());
-  check('default: My words panel is hidden', await page.evaluate(() => document.getElementById('mineRoot').hidden));
+  check('default: the My words panels are hidden', await page.evaluate(() =>
+    ['mineRoot', 'mineBank', 'mineAdd'].every(id => document.getElementById(id).hidden)));
+  await goTo(page, 'words');
+  await page.waitForSelector('#wordGrid .word-card');
+  check('default: the Word bank shows its cards, with no Remove button and no gate', await page.evaluate(() =>
+    document.getElementById('wordGrid').checkVisibility() && !document.querySelector('.remove-btn')
+    && !document.getElementById('mineBankGate') && !document.getElementById('mineWordsHead').checkVisibility()));
   check('default: no third-party request', external.length === 0, external.join());
   check('default: the Grown-ups tab offers the entry link',
     await page.evaluate(() => !document.getElementById('mineGrownups').hidden));
@@ -83,6 +92,21 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await page.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
   check('mine: panel is shown', await page.evaluate(() => !document.getElementById('mineRoot').hidden));
   check('mine: Study and Challenge are gone', await page.evaluate(() => !document.querySelector('#pool option[value="study"]'))); // preflight: ok
+  // Practice holds no editor: with no words yet it points to the Word bank, where the lists and Add words live.
+  const empty = await page.evaluate(() => ({
+    title: document.getElementById('minePracticeTitle').textContent,
+    add: document.getElementById('minePracticeAdd').checkVisibility(),
+    change: document.getElementById('minePracticeChange').checkVisibility(),
+    editor: ['mineText', 'mineCheck', 'mineList', 'mineShare'].some(id => document.getElementById(id).checkVisibility()),
+    start: document.getElementById('startRound').disabled,
+  }));
+  check('mine: Practice has no editor, and with no words it offers "Add my words"',
+    empty.add && !empty.change && !empty.editor && empty.start && /Add your words/.test(empty.title), JSON.stringify(empty));
+  await tap(page, '#minePracticeAdd');
+  await page.waitForSelector('#mineText:visible');
+  check('mine: "Add my words" opens the Word bank, with the lists and Add words on it', await page.evaluate(() =>
+    document.getElementById('tab-words').classList.contains('active')
+    && ['mineBank', 'mineAdd', 'mineList', 'mineText', 'mineCheck'].every(id => document.getElementById(id).checkVisibility())));
   await page.fill('#mineText', 'abdicate, abide, habit, quay\nzzzxq, qqqzz');
   await page.tap('#mineCheck');
   await page.waitForSelector('#mineChips li');
@@ -138,13 +162,32 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     && !!(await page.$('.mine-chip-credit a[href^="https://simple.wiktionary.org/wiki/quay"]')));
   check('mine: a word nobody has stays missing', /Not found/.test(t2.zzzxq));
   await page.tap('#mineSave');
-  await page.waitForFunction(() => document.querySelectorAll('#mineWordList li').length === 5);
+  await page.waitForFunction(() => document.querySelectorAll('#wordGrid .word-card').length === 5);
+  const bank = await page.evaluate(() => ({
+    grid: document.getElementById('wordGrid').checkVisibility(),
+    removes: document.querySelectorAll('#wordGrid .remove-btn').length,
+    head: document.getElementById('mineWordsHead').textContent,
+    focus: document.activeElement.id,
+    gate: !!document.getElementById('mineBankGate'),
+  }));
+  check('mine: after Save the words are in the open Word bank, each with Remove, and focus is on the list heading',
+    bank.grid && bank.removes === 5 && !bank.gate && /: 5 words$/.test(bank.head) && bank.focus === 'mineWordsHead', JSON.stringify(bank));
   const k0 = await keys();
   check('mine: only My words keys are written',
     k0.includes('bee-ready-mine-v1') && !k0.some(k => ['bee-ready-history-v2', 'bee-ready-starred-v1'].includes(k)), k0.join()); // preflight: ok
 
   // practice by touch with the custom list; custom words are never requested from this site's host as clips
   own.length = 0;
+  await goTo(page, 'practice');
+  const practiceInfo = await page.evaluate(() => ({
+    title: document.getElementById('minePracticeTitle').textContent,
+    text: document.getElementById('minePracticeText').textContent,
+    change: document.getElementById('minePracticeChange').checkVisibility(),
+    add: document.getElementById('minePracticeAdd').checkVisibility(),
+  }));
+  check('mine: Practice names the list in use and links to the Word bank to change it',
+    /^Practicing: My words$/.test(practiceInfo.title) && /^5 words in this list/.test(practiceInfo.text)
+    && practiceInfo.change && !practiceInfo.add, JSON.stringify(practiceInfo));
   await page.tap('[data-count="5"]');
   await page.tap('#startRound');
   await page.waitForSelector('#answerInput:visible');
@@ -171,22 +214,25 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('mine: history and stars use their own keys', k.includes('bee-ready-mine-history-v1')
     && k.includes('bee-ready-mine-starred-v1') && !k.includes('bee-ready-history-v2') && !k.includes('bee-ready-starred-v1'), k.join()); // preflight: ok
 
-  // layout of the My words panel
-  await page.evaluate(() => { location.hash = 'practice'; });
-  const layout = await page.evaluate(() => {
-    const root = document.getElementById('mineRoot');
-    const small = [...root.querySelectorAll('button,a,select,summary,.file-btn')]
-      .filter(e => e.offsetParent && !e.closest('p') && e.getBoundingClientRect().height < 43.5).map(e => e.id || e.textContent.slice(0, 20)); // preflight: ok
-    const fields = [...root.querySelectorAll('input:not([type=file]),textarea,select')]
-      .filter(e => e.offsetParent && parseFloat(getComputedStyle(e).fontSize) < 16).map(e => e.id);
-    const tiny = [...root.querySelectorAll('*')]
-      .filter(e => e.children.length === 0 && e.textContent.trim() && parseFloat(getComputedStyle(e).fontSize) < 12).map(e => e.tagName); // preflight: ok
-    return { small, fields, tiny, overflow: document.scrollingElement.scrollWidth - innerWidth };
-  });
-  check('mine: every control is at least 44px tall', layout.small.length === 0, layout.small.join());
-  check('mine: form fields are at least 16px', layout.fields.length === 0, layout.fields.join());
-  check('mine: no text under 12px', layout.tiny.length === 0, layout.tiny.join());
-  check('mine: nothing overflows sideways', layout.overflow <= 1, String(layout.overflow));
+  // layout of the My words controls on both tabs: the list in use on Practice, the lists and words in the Word bank
+  for (const [tab, scope] of [['practice', '#mineRoot'], ['words', '#tab-words']]) {
+    await page.evaluate(t => { location.hash = t; }, tab);
+    await page.waitForFunction(t => document.getElementById(`tab-${t}`).classList.contains('active'), tab);
+    const layout = await page.evaluate(sel => {
+      const root = document.querySelector(sel);
+      const small = [...root.querySelectorAll('button,a,select,summary,.file-btn')]
+        .filter(e => e.offsetParent && !e.closest('p') && e.getBoundingClientRect().height < 43.5).map(e => e.id || e.textContent.slice(0, 20)); // preflight: ok
+      const fields = [...root.querySelectorAll('input:not([type=file]),textarea,select')]
+        .filter(e => e.offsetParent && parseFloat(getComputedStyle(e).fontSize) < 16).map(e => e.id);
+      const tiny = [...root.querySelectorAll('*')]
+        .filter(e => e.children.length === 0 && e.textContent.trim() && parseFloat(getComputedStyle(e).fontSize) < 12).map(e => e.tagName); // preflight: ok
+      return { small, fields, tiny, overflow: document.scrollingElement.scrollWidth - innerWidth };
+    }, scope);
+    check(`mine (${tab}): every control is at least 44px tall`, layout.small.length === 0, layout.small.join());
+    check(`mine (${tab}): form fields are at least 16px`, layout.fields.length === 0, layout.fields.join());
+    check(`mine (${tab}): no text under 12px`, layout.tiny.length === 0, layout.tiny.join());
+    check(`mine (${tab}): nothing overflows sideways`, layout.overflow <= 1, String(layout.overflow));
+  }
 
   // a share link opens in a fresh browser profile, saves nothing until Save, and leaves the address bar clean
   await page.tap('#mineShare');
@@ -203,14 +249,29 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p2.goto(local, { waitUntil: 'networkidle' });
   await p2.waitForSelector('#mineLinkCard:not([hidden])');
   const seen2 = await p2.evaluate(() => ({
-    start: !!document.getElementById('mineLinkStart')?.offsetParent,
-    chips: !!document.getElementById('mineChips').offsetParent,
-    editor: !!document.getElementById('mineText').offsetParent,
+    start: document.getElementById('mineLinkStart').checkVisibility(),
+    chips: document.getElementById('mineChips').checkVisibility(),
+    editor: document.getElementById('mineText').checkVisibility(),
+    builder: document.getElementById('roundBuilder').checkVisibility(),
     text: document.body.innerText,
   }));
   check('share: the speller sees a start button and none of the words',
-    seen2.start && !seen2.chips && !seen2.editor && !/\b(habit|quay|abide|abdicate)\b/.test(seen2.text),
+    seen2.start && !seen2.chips && !seen2.editor && !seen2.builder && !/\b(habit|quay|abide|abdicate)\b/.test(seen2.text),
     JSON.stringify({ ...seen2, text: '' }));
+  // The Word bank stays usable while the link waits, but has no second way to add words, and does not show the link's.
+  await goTo(p2, 'words');
+  const wait2 = await p2.evaluate(() => ({
+    note: document.getElementById('mineLinkWait').checkVisibility(),
+    lists: document.getElementById('mineBank').checkVisibility(),
+    text: document.getElementById('mineText').checkVisibility(),
+    check: document.getElementById('mineCheck').checkVisibility(),
+    photo: document.getElementById('minePhotoBlock').checkVisibility(),
+    words: /\b(habit|quay|abide|abdicate)\b/.test(document.getElementById('tab-words').innerText),
+  }));
+  check('share: while a link waits, the Word bank keeps its lists, drops Add words for a note, and shows none of the link\'s words',
+    wait2.note && wait2.lists && !wait2.text && !wait2.check && !wait2.photo && !wait2.words, JSON.stringify(wait2));
+  await tap(p2, '#mineLinkWait [data-go=practice]');
+  await p2.waitForSelector('#mineLinkCard:not([hidden])');
   await p2.tap('#mineLinkGrownups summary');
   await p2.waitForSelector('#mineChips li');
   check('share: a grown-up can open the words to check them', (await p2.locator('#mineChips li').count()) === 5);
@@ -221,30 +282,41 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p2.waitForSelector('#roundArea:not(.hidden)');
   const after2 = await p2.evaluate(() => ({
     lists: JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists.map(l => l.name + ':' + l.entries.length),
-    boxOpen: document.getElementById('mineWordsBox').open,
-    listShown: document.getElementById('mineWordList').checkVisibility(),
     count: document.getElementById('roundNumber').textContent,
+    card: document.getElementById('mineLinkCard').checkVisibility(),
+    review: document.getElementById('mineReview').parentElement.id,
   }));
   check('share: Start my spelling bee saves the list under its own name and starts a round',
-    after2.lists.join() === 'Shared list:5' && /OF 5/.test(after2.count), JSON.stringify(after2));
-  check('share: the saved words stay hidden until a grown-up opens them', !after2.boxOpen && !after2.listShown);
+    after2.lists.join() === 'Shared list:5' && /OF 5/.test(after2.count) && !after2.card, JSON.stringify(after2));
+  check('share: the review block goes back to Add words in the Word bank', after2.review === 'mineAdd', after2.review);
   await p2.tap('[data-clue=definition]');
   const clue2 = await p2.locator('#clueResult').innerText();
   check('share: the Definition clue does not show the word itself',
     clue2.length > 12 && !/\b(habit|quay|abide|abdicate|zzzxq)\b/i.test(clue2), clue2);
-  await p2.tap('[data-tab=words]');
-  const bank2 = await p2.evaluate(() => ({
-    gate: !!document.getElementById('mineBankGate'), open: document.getElementById('mineBankGate')?.open,
-    grid: document.getElementById('wordGrid').checkVisibility(), text: document.getElementById('tab-words').innerText,
-  }));
-  check('share: the Word bank keeps the words hidden until a grown-up opens them',
-    bank2.gate && !bank2.open && !bank2.grid && !/\b(habit|quay|abide)\b/.test(bank2.text),
-    JSON.stringify({ ...bank2, text: '' }));
-  await p2.tap('#mineBankGate summary');
+  await goTo(p2, 'words');
   await p2.waitForSelector('#wordGrid .word-card');
+  const bank2 = await p2.evaluate(() => ({
+    gate: !!document.getElementById('mineBankGate'), grid: document.getElementById('wordGrid').checkVisibility(),
+    text: document.getElementById('tab-words').innerText, removes: document.querySelectorAll('#wordGrid .remove-btn').length,
+    wait: document.getElementById('mineLinkWait').checkVisibility(), add: document.getElementById('mineText').checkVisibility(),
+  }));
+  check('share: the Word bank is always open: the saved words are listed, each with Remove, and Add words is back',
+    !bank2.gate && bank2.grid && bank2.removes === 5 && /\b(habit|quay|abide)\b/.test(bank2.text) && !bank2.wait && bank2.add,
+    JSON.stringify({ ...bank2, text: '' }));
   const meta2 = await p2.$$eval('#wordGrid .word-meta', els => els.map(e => e.textContent));
   check('share: word cards show no "Mine" or "word" tag',
     meta2.length > 0 && meta2.every(t => !/\bMine\b|(^|· )word$/.test(t)), meta2.join(' | '));
+  // Remove on a card takes the word out of the list, says so, and keeps focus on a Remove button
+  await p2.tap('#wordGrid .word-card:first-child .remove-btn');
+  await p2.waitForFunction(() => document.querySelectorAll('#wordGrid .word-card').length === 4);
+  const removed2 = await p2.evaluate(() => ({
+    saved: JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists[0].entries.length,
+    focus: document.activeElement.matches('#wordGrid .remove-btn'),
+    head: document.getElementById('mineWordsHead').textContent,
+  }));
+  check('share: Remove on a card saves the shorter list, announces it, and focus stays on a Remove button',
+    removed2.saved === 4 && removed2.focus && /: 4 words$/.test(removed2.head) && /^Removed /.test(await statusOf(p2)),
+    JSON.stringify(removed2));
   await p2.goto('about:blank');
   await p2.goto(local.replace(/#w=./, '#w=x'), { waitUntil: 'networkidle' });
   check('share: a damaged link is refused with a message', /looks damaged/.test(await statusOf(p2)));
@@ -278,6 +350,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   p4.on('pageerror', e => errors4.push(String(e).slice(0, 100)));
   p4.on('dialog', d => d.accept());
   await p4.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
+  await goTo(p4, 'words');
   await p4.fill('#mineText', 'zzzxq qqqzz');
   await p4.tap('#mineCheck');
   await p4.waitForSelector('#mineChips li');
@@ -315,6 +388,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   const second = await contextFor(preset);
   const p6 = await second.newPage();
   await p6.goto(`${BASE}?mode=mine`, { waitUntil: 'networkidle' });
+  await goTo(p6, 'words');
   await p6.fill('#mineText', 'habbit');
   await p6.tap('#mineCheck');
   await p6.waitForSelector('[data-chip-use]');
@@ -324,9 +398,9 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     document.activeElement.matches('#mineChips li .mine-chip-row input') && document.activeElement.value === 'habit'));
   await p6.fill('#mineChips li .mine-chip-row input', 'habits');
   await p6.tap('#mineSave');
-  await p6.waitForFunction(() => document.querySelectorAll('#mineWordList li').length === 1, null, { timeout: 5000 });
+  await p6.waitForFunction(() => document.querySelectorAll('#wordGrid .word-card').length === 1, null, { timeout: 5000 });
   check('mine: Save right after an edit keeps the edited word, and focus is not lost', await p6.evaluate(() =>
-    document.querySelector('#mineWordList .mine-word').textContent === 'habits' && document.activeElement.tagName !== 'BODY')); // preflight: ok
+    document.querySelector('#wordGrid .word-card h3').textContent === 'habits' && document.activeElement.tagName !== 'BODY')); // preflight: ok
   await second.close();
 
   // a link with only a list id opens the list the owner published; an unknown id says so, and nothing is saved
@@ -350,18 +424,28 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('published: the file came from this site and nothing from a third party',
     own7.some(p => p.endsWith(`/lists/${sampleId}.json`)) && external7.length === 0, external7.join());
   check('published: nothing is saved until Save', await p7.evaluate(() => localStorage.getItem('bee-ready-mine-v1') === null)); // preflight: ok
-  // while the card is open there is one start button, and no editor, photo controls or round builder
-  const ids7 = ['mineText', 'minePhotoBlock', 'roundBuilder', 'mineLinkStart'];
-  const shown7 = () => p7.evaluate(ids => Object.fromEntries(
-    ids.map(id => [id, document.getElementById(id).checkVisibility()])), ids7);
-  const open7 = await shown7();
-  check('published: the card hides the editor, the photo controls and the round builder',
-    !open7.mineText && !open7.minePhotoBlock && !open7.roundBuilder && open7.mineLinkStart, JSON.stringify(open7));
+  // while the card is open there is one start button on Practice, and no photo controls or typing box in the Word bank
+  const shown7 = (...ids) => p7.evaluate(list => Object.fromEntries(
+    list.map(id => [id, document.getElementById(id).checkVisibility()])), ids);
+  const open7 = await shown7('roundBuilder', 'mineLinkStart', 'minePractice');
+  check('published: the card hides the round builder, so there is one start button',
+    !open7.roundBuilder && !open7.minePractice && open7.mineLinkStart, JSON.stringify(open7));
+  await goTo(p7, 'words');
+  const bank7 = await shown7('mineText', 'minePhotoBlock', 'mineLinkWait', 'mineBank');
+  check('published: the Word bank drops the typing box and photo controls for a note, and keeps the lists',
+    !bank7.mineText && !bank7.minePhotoBlock && bank7.mineLinkWait && bank7.mineBank, JSON.stringify(bank7));
+  await tap(p7, '#mineLinkWait [data-go=practice]');
+  await p7.waitForSelector('#mineLinkCard:not([hidden])');
   await p7.tap('#mineCancel');
-  const closed7 = await shown7();
-  check('published: Cancel brings the editor, photo controls and round builder back, and focus on Add words',
-    closed7.mineText && closed7.minePhotoBlock && closed7.roundBuilder && !closed7.mineLinkStart
-    && await p7.evaluate(() => document.activeElement.id === 'mineText'), JSON.stringify(closed7));
+  const closed7 = await shown7('roundBuilder', 'mineLinkStart', 'minePractice');
+  check('published: Cancel brings the round builder back, and focus is on the Practice heading',
+    closed7.roundBuilder && closed7.minePractice && !closed7.mineLinkStart
+    && await p7.evaluate(() => document.activeElement.id === 'minePracticeTitle'), JSON.stringify(closed7));
+  await goTo(p7, 'words');
+  const back7 = await shown7('mineText', 'minePhotoBlock', 'mineLinkWait');
+  check('published: after Cancel the Word bank has its typing box and photo controls again',
+    back7.mineText && back7.minePhotoBlock && !back7.mineLinkWait, JSON.stringify(back7));
+  await goTo(p7, 'practice');
   await p7.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
   await p7.waitForSelector('#mineLinkCard:not([hidden])');
   await p7.tap('#mineLinkStart');
