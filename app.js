@@ -278,7 +278,7 @@ function renderWordBank({removed=''}={}){
   const empty=$('starFilter').value==='starred'&&!starredWords().length?'You have no starred words yet. Press the Star button (☆) on any word to save it here.':'No words found. Try a different search.';
   const gone=removed?`${removed} removed from your starred words. ${n.toLocaleString()} left.`:'';
   $('resultCount').innerHTML=gone?`<span aria-hidden="true">${count}</span><span class="sr-only">${escapeHtml(gone)}${n?'':` ${empty}`}</span>`:`${count}${n?'':`<span class="sr-only">. ${empty}</span>`}`;
-  $('wordGrid').innerHTML=shown.length?shown.map(w=>wordCardHtml(w,POS,sentenceFor,{starred:stars.has(w.id),open:openCards.has(w.id),removable:Boolean(w.custom)})).join(''):`<p>${empty}</p>`;
+  $('wordGrid').innerHTML=shown.length?shown.map(w=>wordCardHtml(w,POS,sentenceFor,{starred:stars.has(w.id),open:openCards.has(w.id),removable:Boolean(w.custom)})).join(''):`<p>${empty}</p>`; // preflight: ok
   $('loadMore').classList.toggle('hidden',list.length<=displayLimit);
   document.querySelectorAll('[data-say-id]').forEach(button=>button.addEventListener('click',()=>{const w=words.find(w=>w.id===Number(button.dataset.sayId));if(w)voiceService.speak(w.word,{kind:'word',instant:true});}));
 }

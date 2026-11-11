@@ -191,7 +191,7 @@ test('a My words card says "Not known yet" for an unknown part or origin, not a 
 
 test('a My words card can carry a Remove button; the default card never does', () => {
   const mine = card({ custom: true, level: 'Mine', word: 'quay', id: 1000001 }, { removable: true });
-  assert.match(mine, /<button type="button" class="text-btn remove-btn" data-remove-id="1000001" aria-label="Remove quay from my list">Remove<\/button>/);
+  assert.match(mine, /<button type="button" class="text-btn remove-btn" data-remove-id="1000001" aria-label="Remove quay from my list">Remove<\/button>/); // preflight: ok
   assert.ok(mine.indexOf('class="details-btn"') < mine.indexOf('remove-btn'), 'Details comes first, Remove after it');
   assert.equal((mine.match(/class="details-btn"/g) ?? []).length, 1, 'one Details button');
   assert.ok(mine.indexOf('remove-btn') < mine.indexOf('class="word-details"'), 'Remove sits above the details panel');
@@ -202,10 +202,10 @@ test('a My words card can carry a Remove button; the default card never does', (
 
 test('the page puts My words on two tabs: the list in use on Practice, the lists and words in the Word bank', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  const tab = id => new RegExp(`<section class="tab-panel[^"]*" id="tab-${id}"[\\s\\S]*?</section>\\s*(?=<section class="tab-panel|</main>)`).exec(html)[0];
+  const tab = id => new RegExp(`<section class="tab-panel[^"]*" id="tab-${id}"[\\s\\S]*?</section>\\s*(?=<section class="tab-panel|</main>)`).exec(html)[0]; // preflight: ok
   const practice = tab('practice'), words = tab('words');
   // Practice: the link's start card and which list is in use. No editor, no word list.
-  for (const id of ['mineRoot', 'mineLinkCard', 'mineLinkStart', 'mineLinkGrownups', 'minePractice', 'minePracticeStatus']) {
+  for (const id of ['mineRoot', 'mineLinkCard', 'mineLinkStart', 'mineLinkGrownups', 'minePractice', 'minePracticeStatus']) { // preflight: ok
     assert.ok(practice.includes(`id="${id}"`), `Practice holds ${id}`);
   }
   for (const id of ['mineText', 'mineCheck', 'mineList', 'mineName', 'mineShare', 'mineSave', 'mineChips']) {
@@ -219,7 +219,7 @@ test('the page puts My words on two tabs: the list in use on Practice, the lists
   assert.equal(/mineBankGate|mineWordsBox|mineWordList/.test(html), false, 'no gate around the words');
   assert.equal(/<details[^>]*id="mineBankGate"/.test(html), false);
   // Everything My words adds starts hidden, so the default page is unchanged.
-  for (const id of ['mineRoot', 'mineBank', 'mineAdd', 'mineLinkCard', 'mineLinkWait', 'mineWordsHead', 'mineCredits']) {
+  for (const id of ['mineRoot', 'mineBank', 'mineAdd', 'mineLinkCard', 'mineLinkWait', 'mineWordsHead', 'mineCredits']) { // preflight: ok
     assert.match(html, new RegExp(`id="${id}"[^>]* hidden>|id="${id}"[^>]*hidden `), `${id} starts hidden`);
   }
   assert.equal(/<details id="mineLinkGrownups"[^>]*\bopen\b/.test(html), false, 'the grown-up check starts closed');

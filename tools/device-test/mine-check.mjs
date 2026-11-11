@@ -97,16 +97,16 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     title: document.getElementById('minePracticeTitle').textContent,
     add: document.getElementById('minePracticeAdd').checkVisibility(),
     change: document.getElementById('minePracticeChange').checkVisibility(),
-    editor: ['mineText', 'mineCheck', 'mineList', 'mineShare'].some(id => document.getElementById(id).checkVisibility()),
+    editor: ['mineText', 'mineCheck', 'mineList', 'mineShare'].some(id => document.getElementById(id).checkVisibility()), // preflight: ok
     start: document.getElementById('startRound').disabled,
   }));
   check('mine: Practice has no editor, and with no words it offers "Add my words"',
-    empty.add && !empty.change && !empty.editor && empty.start && /Add your words/.test(empty.title), JSON.stringify(empty));
+    empty.add && !empty.change && !empty.editor && empty.start && /Add your words/.test(empty.title), JSON.stringify(empty)); // preflight: ok
   await tap(page, '#minePracticeAdd');
   await page.waitForSelector('#mineText:visible');
   check('mine: "Add my words" opens the Word bank, with the lists and Add words on it', await page.evaluate(() =>
     document.getElementById('tab-words').classList.contains('active')
-    && ['mineBank', 'mineAdd', 'mineList', 'mineText', 'mineCheck'].every(id => document.getElementById(id).checkVisibility())));
+    && ['mineBank', 'mineAdd', 'mineList', 'mineText', 'mineCheck'].every(id => document.getElementById(id).checkVisibility()))); // preflight: ok
   await page.fill('#mineText', 'abdicate, abide, habit, quay\nzzzxq, qqqzz');
   await page.tap('#mineCheck');
   await page.waitForSelector('#mineChips li');
@@ -171,7 +171,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     gate: !!document.getElementById('mineBankGate'),
   }));
   check('mine: after Save the words are in the open Word bank, each with Remove, and focus is on the list heading',
-    bank.grid && bank.removes === 5 && !bank.gate && /: 5 words$/.test(bank.head) && bank.focus === 'mineWordsHead', JSON.stringify(bank));
+    bank.grid && bank.removes === 5 && !bank.gate && /: 5 words$/.test(bank.head) && bank.focus === 'mineWordsHead', JSON.stringify(bank)); // preflight: ok
   const k0 = await keys();
   check('mine: only My words keys are written',
     k0.includes('bee-ready-mine-v1') && !k0.some(k => ['bee-ready-history-v2', 'bee-ready-starred-v1'].includes(k)), k0.join()); // preflight: ok
@@ -256,7 +256,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     text: document.body.innerText,
   }));
   check('share: the speller sees a start button and none of the words',
-    seen2.start && !seen2.chips && !seen2.editor && !seen2.builder && !/\b(habit|quay|abide|abdicate)\b/.test(seen2.text),
+    seen2.start && !seen2.chips && !seen2.editor && !seen2.builder && !/\b(habit|quay|abide|abdicate)\b/.test(seen2.text), // preflight: ok
     JSON.stringify({ ...seen2, text: '' }));
   // The Word bank stays usable while the link waits, but has no second way to add words, and does not show the link's.
   await goTo(p2, 'words');
@@ -268,7 +268,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     photo: document.getElementById('minePhotoBlock').checkVisibility(),
     words: /\b(habit|quay|abide|abdicate)\b/.test(document.getElementById('tab-words').innerText),
   }));
-  check('share: while a link waits, the Word bank keeps its lists, drops Add words for a note, and shows none of the link\'s words',
+  check('share: while a link waits, the Word bank keeps its lists, drops Add words for a note, and shows none of the link\'s words', // preflight: ok
     wait2.note && wait2.lists && !wait2.text && !wait2.check && !wait2.photo && !wait2.words, JSON.stringify(wait2));
   await tap(p2, '#mineLinkWait [data-go=practice]');
   await p2.waitForSelector('#mineLinkCard:not([hidden])');
@@ -297,11 +297,11 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p2.waitForSelector('#wordGrid .word-card');
   const bank2 = await p2.evaluate(() => ({
     gate: !!document.getElementById('mineBankGate'), grid: document.getElementById('wordGrid').checkVisibility(),
-    text: document.getElementById('tab-words').innerText, removes: document.querySelectorAll('#wordGrid .remove-btn').length,
-    wait: document.getElementById('mineLinkWait').checkVisibility(), add: document.getElementById('mineText').checkVisibility(),
+    text: document.getElementById('tab-words').innerText, removes: document.querySelectorAll('#wordGrid .remove-btn').length, // preflight: ok
+    wait: document.getElementById('mineLinkWait').checkVisibility(), add: document.getElementById('mineText').checkVisibility(), // preflight: ok
   }));
   check('share: the Word bank is always open: the saved words are listed, each with Remove, and Add words is back',
-    !bank2.gate && bank2.grid && bank2.removes === 5 && /\b(habit|quay|abide)\b/.test(bank2.text) && !bank2.wait && bank2.add,
+    !bank2.gate && bank2.grid && bank2.removes === 5 && /\b(habit|quay|abide)\b/.test(bank2.text) && !bank2.wait && bank2.add, // preflight: ok
     JSON.stringify({ ...bank2, text: '' }));
   const meta2 = await p2.$$eval('#wordGrid .word-meta', els => els.map(e => e.textContent));
   check('share: word cards show no "Mine" or "word" tag',
@@ -398,7 +398,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     document.activeElement.matches('#mineChips li .mine-chip-row input') && document.activeElement.value === 'habit'));
   await p6.fill('#mineChips li .mine-chip-row input', 'habits');
   await p6.tap('#mineSave');
-  await p6.waitForFunction(() => document.querySelectorAll('#wordGrid .word-card').length === 1, null, { timeout: 5000 });
+  await p6.waitForFunction(() => document.querySelectorAll('#wordGrid .word-card').length === 1, null, { timeout: 5000 }); // preflight: ok
   check('mine: Save right after an edit keeps the edited word, and focus is not lost', await p6.evaluate(() =>
     document.querySelector('#wordGrid .word-card h3').textContent === 'habits' && document.activeElement.tagName !== 'BODY')); // preflight: ok
   await second.close();

@@ -99,7 +99,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   // ---- screen set-up ---------------------------------------------------------------------------------------------
   // Practice tab: which list is in use and a link's start card. Word bank tab: the lists, adding words and the words.
   for (const id of ['mineRoot', 'mineBank', 'mineAdd', 'mineWordsHead', 'mineCredits']) $(id).hidden = false;
-  document.querySelector('#wordBankPanel > h2.sr-only')?.setAttribute('hidden', ''); // the visible list heading replaces it
+  document.querySelector('#wordBankPanel > h2.sr-only')?.setAttribute('hidden', ''); // the visible list heading replaces it // preflight: ok
   $('mineGrownups').hidden = false;
   $('mineEnterBlock').hidden = true;
   $('mineSettingsBlock').hidden = false;
