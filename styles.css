@@ -65,3 +65,4 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .mine-link-wait .helper{margin:0 0 8px}
 .mine-photo[aria-busy=true] .file-btn{opacity:.5}
 .mine-fill{margin:0 0 16px}
+.soft-btn[aria-disabled=true]{opacity:.6;cursor:progress}

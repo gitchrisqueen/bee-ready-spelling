@@ -464,6 +464,26 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     rest9.length === 2 && /^Backup restored: 1 list added\./.test(await statusOf(p9)), rest9.join());
   await fresh.close();
 
+  // the operator's kill switch (LIVE_LOOKUP_ENABLED = false): the note and result say so, nothing is asked or sent
+  const off = await contextFor(preset);
+  await routeWiki(off);
+  await off.route('**/mine/config.js', async route => {
+    const res = await route.fetch();
+    const body = (await res.text()).replace(/LIVE_LOOKUP_ENABLED\s*=\s*true/, 'LIVE_LOOKUP_ENABLED = false');
+    await route.fulfill({ response: res, body });
+  });
+  const { pg: p11, w: w11 } = await watch(off);
+  w11.answer = 'accept';
+  const note11 = await p11.locator('#mineFillNote').innerText();
+  await p11.tap('#mineFill');
+  await p11.waitForFunction(() => /switched off/.test(document.getElementById('mineFillResult').textContent), null, { timeout: 10000 });
+  const res11 = await fillResult(p11);
+  check('kill switch: the note and result say Wiktionary is switched off, no dialog, nothing sent',
+    /switched off/.test(note11) && !/ask Wiktionary|asked to confirm/.test(note11)
+    && /Looking up on Wiktionary is switched off for now/.test(res11) && !/Grown-ups/.test(res11)
+    && w11.asks === 0 && w11.ext.length === 0, `${note11.slice(0, 80)} | ${res11} | ${w11.asks} ${w11.ext.join()}`);
+  await off.close();
+
   // a device that cannot save: the fill says so instead of claiming it worked
   const fresh2 = await contextFor(preset);
   await routeWiki(fresh2);

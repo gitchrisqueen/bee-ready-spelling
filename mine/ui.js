@@ -62,11 +62,12 @@ function uniqueName(store, name) {
 }
 // The dialog for a saved list says how many words would be sent.
 const CONFIRM_FILL = n => `This sends ${n} ${n === 1 ? 'word' : 'words'} that the library does not have, and this `
-  + 'device\'s IP address, to Wiktionary (Wikimedia). Only a grown-up should say yes. Send them?';
+  + 'device\'s internet address (IP address), to Wiktionary, a free online dictionary. '
+  + 'Only a grown-up should say yes. Send them?';
 const SAVE_FAILED_TEXT = 'This device could not save your words. Press "Save a backup file" under My lists.';
 const SAME_LIST_TEXT = 'You already have this list. It is ready: press Start my spelling bee.';
-const CONFIRM_LOOKUP = 'This sends the words that were not found, and this device\'s IP address, to Wiktionary '
-  + '(Wikimedia). Only a grown-up should say yes. Send them?';
+const CONFIRM_LOOKUP = 'This sends the words that were not found, and this device\'s internet address (IP address), '
+  + 'to Wiktionary, a free online dictionary. Only a grown-up should say yes. Send them?';
 
 export async function start({ defaultWords, setWords, shareHash = '' }) {
   const store0 = storage() ?? nullStorage;
@@ -198,7 +199,6 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const missing = (a?.entries ?? []).filter(needsDefinition).length;
     $('mineFillBlock').hidden = missing === 0;
     $('mineFillText').textContent = `${missing} ${missing === 1 ? 'word has' : 'words have'} no definition yet. `
-      + 'Words from a share link start this way, because a link carries only the words. '
       + 'Press Get missing definitions to fill them in.';
   }
   function activate() {
