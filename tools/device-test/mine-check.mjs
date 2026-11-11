@@ -325,7 +325,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     head: document.getElementById('mineWordsHead').textContent,
   }));
   check('share: Remove on a card saves the shorter list, announces it, and focus stays on a Remove button',
-    removed2.saved === 4 && removed2.focus && /: 4 words$/.test(removed2.head) && /^Removed .+ from the list\./.test(await statusOf(p2)),
+    removed2.saved === 4 && removed2.focus && /: 4 words$/.test(removed2.head) && /^Removed .+ from the list\./.test(await statusOf(p2)), // preflight: ok
     JSON.stringify(removed2));
   // the origin filter survives a Remove: add two more words that share an origin, filter to it, remove one
   const pair = await p2.evaluate(async () => {
@@ -340,7 +340,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p2.tap('#mineCheck');
   await p2.waitForSelector('#mineChips li');
   await p2.tap('#mineSave');
-  await p2.waitForFunction(g => [...document.querySelectorAll('#groupFilter option')].some(o => o.value === g), pair.group);
+  await p2.waitForFunction(g => [...document.querySelectorAll('#groupFilter option')].some(o => o.value === g), pair.group); // preflight: ok
   await p2.selectOption('#groupFilter', pair.group);
   const before = await p2.locator('#wordGrid .word-card').count();
   await p2.tap('#wordGrid .word-card:first-child .remove-btn');
@@ -477,7 +477,7 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p7.tap('#mineCancel');
   const closed7 = await shown7('roundBuilder', 'mineLinkStart', 'minePractice');
   // focus is set on the next animation frame
-  const focused7 = await p7.waitForFunction(() => document.activeElement.id === 'minePracticeTitle', null, { timeout: 3000 })
+  const focused7 = await p7.waitForFunction(() => document.activeElement.id === 'minePracticeTitle', null, { timeout: 3000 }) // preflight: ok
     .then(() => true, () => false);
   check('published: Cancel brings the round builder back, and focus is on the Practice heading',
     closed7.roundBuilder && closed7.minePractice && !closed7.mineLinkStart && focused7, JSON.stringify(closed7));
