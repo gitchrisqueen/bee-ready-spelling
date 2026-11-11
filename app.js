@@ -391,10 +391,12 @@ function initGrownups(){
 // The default path in main() does the same steps inline.
 function setActiveWords(list){
   words=list;$('wordCount').max=String(Math.max(1,words.length));$('pool').options[0].textContent=`All ${words.length.toLocaleString()} words`; // preflight: ok
-  const g=$('groupFilter');while(g.options.length>1)g.remove(1);
+  // The origin filter and "Show more words" are kept across a change to the list (a Remove must not reset them).
+  const g=$('groupFilter'),chosen=g.value;while(g.options.length>1)g.remove(1);
   [...new Set(words.map(w=>w.group))].sort((a,b)=>a.localeCompare(b)).forEach(x=>g.add(new Option(x===UNKNOWN_ORIGIN?NOT_KNOWN_YET:x,x))); // preflight: ok
-  $('startRound').disabled=!words.length;displayLimit=44;updateStats();renderWordBank();
-  if(!words.length){$('wordGrid').textContent='';$('resultCount').textContent='No words yet.';$('loadMore').classList.add('hidden');} // preflight: ok
+  if([...g.options].some(o=>o.value===chosen))g.value=chosen;
+  $('startRound').disabled=!words.length;updateStats();renderWordBank();
+  if(!words.length){$('wordGrid').textContent='';$('resultCount').textContent='No words yet. Add some in Add words above.';$('loadMore').classList.add('hidden');} // preflight: ok
 }
 async function main(){
   initNavigation();initBuilder();initRound();initAnswerBox();initWordBank();initVoiceSettings();initGrownups();

@@ -48,7 +48,7 @@ const STOP_TEXT = {
 const SHARED_NAME = 'Shared list';
 const ROUND_MAX = 20;      // the largest round the count buttons offer
 const LINK_FULL_TEXT = 'You already have the most lists you can keep. A grown-up needs to delete one first: open '
-  + '"Grown-ups: check the words first", press Cancel, delete a list, then open the link again.';
+  + 'the Word bank tab, pick a list in My lists, press Delete this list, then press Start my spelling bee again.';
 // A link's list never takes the name of a list already saved: "Shared list" becomes "Shared list (2)".
 function uniqueName(store, name) {
   const taken = new Set(store.lists.map(l => l.name));
@@ -89,9 +89,12 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     $('minePracticeStatus').textContent = onPractice ? out : '';
     $('mineStatus').textContent = onPractice ? '' : out;
   };
+  // Returns false when the words could not be saved (a message says so).
   const persist = () => {
-    if (state.readOnly) return;
-    if (!saveStore(store0, state.store)) status('This device could not save your words. Download a backup.');
+    if (state.readOnly) return false;
+    if (saveStore(store0, state.store)) return true;
+    status('This device could not save your words. Download a backup.');
+    return false;
   };
   const active = () => state.store.lists.find(l => l.key === state.store.active) ?? null;
   const focusSoon = target => { if (target) requestAnimationFrame(() => target.focus({ preventScroll: false })); };
@@ -111,8 +114,10 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   const bankIntro = document.querySelector('#tab-words .section-intro p');
   if (bankIntro) {
     bankIntro.textContent = 'Keep your own lists here. Add words, then look through them: press Details on a word '
-      + 'for its sentence, origin and slow audio, and tap the star (☆) on a word you want to practice again.';
+      + 'for its sentence, origin and slow audio, and press the star (☆) on a word you want to practice again.';
   }
+  const bankKicker = document.querySelector('#tab-words .section-intro .mini-kicker');
+  if (bankKicker) bankKicker.textContent = 'MY WORDS';
   const bankNote = document.querySelector('#tab-words .results-head span');
   if (bankNote) bankNote.textContent = 'Press Remove on a word to take it out of this list.';
   const aboutClues = document.querySelector('.foot-note p');
@@ -302,6 +307,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     document.documentElement.classList.toggle('mine-link-open', open);
     $('mineLinkCard').hidden = !open;
     $('mineLinkWait').hidden = !open;
+    $('mineRoot').setAttribute('aria-labelledby', open ? 'mineLinkTitle' : 'minePracticeTitle');
     $('minePractice').hidden = open;
     $('roundBuilder').hidden = open;
     $('mineLinkGrownups').open = false;
@@ -541,10 +547,14 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     if (!rm || !a) return;
     const id = Number(rm.dataset.removeId);
     const gone = a.entries.find(x => x.id === id);
+    // Like "Delete this list", a removal asks first: a saved definition cannot be edited, only typed again.
+    if (!gone || !confirm(`Take "${gone.word}" out of "${a.name}"? This cannot be undone.`)) return;
     const at = [...$('wordGrid').querySelectorAll('[data-remove-id]')].indexOf(rm);
     state.store = updateList(state.store, a.key, l => ({ entries: l.entries.filter(x => x.id !== id) }));
-    persist(); activate();
-    status(`Removed ${gone?.word ?? 'the word'}.`);
+    const saved = persist();
+    activate();
+    // If the words could not be saved, keep that message: the card is gone from the page but not from the device.
+    if (saved) status(`Removed ${gone.word} from the list.`);
     // Focus goes to the next card's Remove button, so it is never lost to the page.
     const buttons = [...$('wordGrid').querySelectorAll('[data-remove-id]')];
     focusSoon(buttons[Math.min(at, buttons.length - 1)] ?? $('mineWordsHead'));

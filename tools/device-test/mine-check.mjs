@@ -307,6 +307,16 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   check('share: word cards show no "Mine" or "word" tag',
     meta2.length > 0 && meta2.every(t => !/\bMine\b|(^|· )word$/.test(t)), meta2.join(' | '));
   // Remove on a card takes the word out of the list, says so, and keeps focus on a Remove button
+  // it asks first: "no" keeps the word
+  p2.removeAllListeners('dialog');
+  let ask2 = '';
+  p2.on('dialog', d => { ask2 = d.message(); return d.dismiss(); });
+  await p2.tap('#wordGrid .word-card:first-child .remove-btn');
+  await p2.waitForTimeout(250);
+  check('share: Remove asks first, and "no" keeps the word', /^Take ".+" out of "Shared list"\?/.test(ask2)
+    && (await p2.locator('#wordGrid .word-card').count()) === 5, ask2);
+  p2.removeAllListeners('dialog');
+  p2.on('dialog', d => d.accept());
   await p2.tap('#wordGrid .word-card:first-child .remove-btn');
   await p2.waitForFunction(() => document.querySelectorAll('#wordGrid .word-card').length === 4);
   const removed2 = await p2.evaluate(() => ({
@@ -315,8 +325,36 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     head: document.getElementById('mineWordsHead').textContent,
   }));
   check('share: Remove on a card saves the shorter list, announces it, and focus stays on a Remove button',
-    removed2.saved === 4 && removed2.focus && /: 4 words$/.test(removed2.head) && /^Removed /.test(await statusOf(p2)),
+    removed2.saved === 4 && removed2.focus && /: 4 words$/.test(removed2.head) && /^Removed .+ from the list\./.test(await statusOf(p2)),
     JSON.stringify(removed2));
+  // the origin filter survives a Remove: add two more words that share an origin, filter to it, remove one
+  const pair = await p2.evaluate(async () => {
+    const all = await (await fetch('./words.json')).json();
+    const have = new Set([...document.querySelectorAll('#wordGrid h3')].map(h => h.textContent.toLowerCase()));
+    const by = {};
+    for (const w of all) if (!have.has(w.word.toLowerCase())) (by[w.group] ??= []).push(w.word);
+    const group = Object.keys(by).find(g => by[g].length >= 2);
+    return { group, words: by[group].slice(0, 2) };
+  });
+  await p2.fill('#mineText', pair.words.join(' '));
+  await p2.tap('#mineCheck');
+  await p2.waitForSelector('#mineChips li');
+  await p2.tap('#mineSave');
+  await p2.waitForFunction(g => [...document.querySelectorAll('#groupFilter option')].some(o => o.value === g), pair.group);
+  await p2.selectOption('#groupFilter', pair.group);
+  const before = await p2.locator('#wordGrid .word-card').count();
+  await p2.tap('#wordGrid .word-card:first-child .remove-btn');
+  await p2.waitForFunction(n => document.querySelectorAll('#wordGrid .word-card').length === n - 1, before);
+  check('share: after Remove the origin filter is still chosen and its other words are still listed',
+    await p2.evaluate(g => document.getElementById('groupFilter').value === g, pair.group) && before >= 2, `${pair.group} ${before}`); // preflight: ok
+  // a device that cannot save: the message stays, "Removed" is not claimed
+  await p2.evaluate(() => { Storage.prototype.setItem = () => { throw new Error('full'); }; });
+  await p2.selectOption('#groupFilter', 'all');
+  await p2.tap('#wordGrid .word-card:first-child .remove-btn');
+  await p2.waitForTimeout(300);
+  const failed2 = await statusOf(p2);
+  check('share: if the list cannot be saved, the message says so and does not say Removed',
+    /could not save/.test(failed2) && !/Removed/.test(failed2), failed2);
   await p2.goto('about:blank');
   await p2.goto(local.replace(/#w=./, '#w=x'), { waitUntil: 'networkidle' });
   check('share: a damaged link is refused with a message', /looks damaged/.test(await statusOf(p2)));
@@ -438,9 +476,11 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
   await p7.waitForSelector('#mineLinkCard:not([hidden])');
   await p7.tap('#mineCancel');
   const closed7 = await shown7('roundBuilder', 'mineLinkStart', 'minePractice');
+  // focus is set on the next animation frame
+  const focused7 = await p7.waitForFunction(() => document.activeElement.id === 'minePracticeTitle', null, { timeout: 3000 })
+    .then(() => true, () => false);
   check('published: Cancel brings the round builder back, and focus is on the Practice heading',
-    closed7.roundBuilder && closed7.minePractice && !closed7.mineLinkStart
-    && await p7.evaluate(() => document.activeElement.id === 'minePracticeTitle'), JSON.stringify(closed7));
+    closed7.roundBuilder && closed7.minePractice && !closed7.mineLinkStart && focused7, JSON.stringify(closed7));
   await goTo(p7, 'words');
   const back7 = await shown7('mineText', 'minePhotoBlock', 'mineLinkWait');
   check('published: after Cancel the Word bank has its typing box and photo controls again',
@@ -468,13 +508,22 @@ for (const preset of ['iPhone SE', 'iPad (gen 7)']) {
     JSON.stringify({ version: 1, nextId: 1000020, active: 'l-1', lists: Array.from({ length: 20 }, (_, i) => (
       { key: `l-${i + 1}`, name: `List ${i + 1}`, entries: [{ id: 1000000 + i, word: 'apple', src: 'manual' }] })) }));
   const p8 = await full.newPage();
+  p8.on('dialog', d => d.accept());
   await p8.goto(`${BASE}?mode=mine&l=${sampleId}`, { waitUntil: 'networkidle' });
   await p8.waitForSelector('#mineLinkCard:not([hidden])');
   await p8.tap('#mineLinkStart');
   await p8.waitForTimeout(300);
   check('full: Start says a grown-up must delete a list first, and the card stays',
-    /delete one first/.test(await statusOf(p8))
+    /Word bank tab.+Delete this list/.test(await statusOf(p8)) && !/Cancel/.test(await statusOf(p8))
     && await p8.evaluate(() => document.getElementById('mineLinkCard').checkVisibility()), await statusOf(p8));
+  await goTo(p8, 'words');
+  await p8.tap('#mineDelete');
+  await p8.waitForFunction(() => JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists.length === 19);
+  await goTo(p8, 'practice');
+  await p8.tap('#mineLinkStart');
+  await p8.waitForSelector('#roundArea:not(.hidden)');
+  check('full: after a list is deleted, Start works without opening the link again', await p8.evaluate(() =>
+    JSON.parse(localStorage.getItem('bee-ready-mine-v1')).lists.length === 20));
   await full.close();
 
   // delete everything
