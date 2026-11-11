@@ -144,7 +144,20 @@ The entry checks above were run in the Phase 1 pull request. The parser figures 
 
 The first live use showed two problems. A link opened the full review editor, so a speller saw every word and could not hide them, and the list was not started. Word cards also printed labels a child cannot read ("Mine", and a placeholder "word" where the part of speech was not known).
 
-- A link now opens a card with the list name and word count, a **Start my spelling bee** button, and a closed **Grown-ups: check the words first** control. Start saves the list under its own name and begins a round. The saved word list and the Word bank in My words are closed by default behind "Show the words in this list (for grown-ups)".
+- A link now opens a card with the list name and word count, a **Start my spelling bee** button, and a closed **Grown-ups: check the words first** control. Start saves the list under its own name and begins a round. (An earlier version also hid the saved words and the Word bank behind a closed control; the owner asked for the Word bank to be always open, so that was removed in the next section.)
 - Word cards show only what is known (origin and part of speech), or "My word". An unknown part or origin reads "Not known yet" instead of repeating the label. The default list's cards are unchanged.
 - "Filter by group" is now "Filter by origin".
-- Checks: `tools/device-test/mine-check.mjs` (links, Start, hidden saved words, gated Word bank, card tags) and `tests/wordcard.test.mjs`. Emulation only; not tested on a real device or with a screen reader.
+- Checks: `tools/device-test/mine-check.mjs` (links, Start, card tags) and `tests/wordcard.test.mjs`. Emulation only; not tested on a real device or with a screen reader.
+
+## Lists and words live in the Word bank (follow-up)
+
+The owner's review: the custom list editor sat on the Practice tab, and the Word bank was behind a closed control. Both were wrong for how the site is used.
+
+- **Practice** is for practicing, in both versions. In My words it shows a small panel: "Practicing: <list name>", how many words, and **Change list or add words** (or **Add my words** when the list is empty). It has no editor. It also holds a share link's start card.
+- **Word bank** holds everything about the words, and is always open: **My lists** (pick, rename, new, delete, share link, backup), **Add words** (typing, photo, the check-and-save review), then the searchable word cards. Each card has **Remove**, which replaced the separate saved-word list. It asks first, like **Delete this list**, and if the device cannot save it says so instead of "Removed". The origin filter and **Show more words** are kept after a Remove.
+- A share link still opens the start card on Practice with the words hidden until Start or the grown-up check. While it waits, the Word bank keeps its lists but swaps Add words for a note, because a second review would replace the link's words. The review block moves into the card's grown-up check and back.
+- Messages go to the live region of the tab the person is on, because a region inside a hidden tab is not read out.
+- The default version is unchanged: its markup for the new panels is hidden, and its cards have no Remove.
+- Trade-off the owner chose: anyone who taps Word bank can read the whole list. The link's start card is the only place words stay hidden, until Start.
+- Not changed: a saved word's definition and sentence cannot be edited after saving (remove it and add it again).
+

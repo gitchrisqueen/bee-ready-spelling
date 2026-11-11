@@ -33,10 +33,9 @@
           </div>
           <div class="hero-art" aria-hidden="true"><div class="bee-orbit">✦</div><div class="bee-friend">🐝</div><span class="star star-a">✧</span><span class="star star-b">✶</span><span class="star star-c">★</span><span class="hero-speech">You got this!</span></div>
         </div>
-        <section id="mineRoot" class="panel mine-panel" aria-labelledby="mineTitle" hidden>
-          <div class="section-title"><div><span class="mini-kicker">MY WORDS</span><h2 id="mineTitle" tabindex="-1">Practice your own list</h2></div></div>
+        <section id="mineRoot" class="panel mine-panel" aria-labelledby="minePracticeTitle" hidden>
           <div id="mineLinkCard" class="mine-link-card" hidden>
-            <h3 id="mineLinkTitle" tabindex="-1">Your spelling list is ready</h3>
+            <h2 id="mineLinkTitle" tabindex="-1">Your spelling list is ready</h2>
             <p id="mineLinkText" class="helper"></p>
             <div class="mine-actions"><button type="button" id="mineLinkStart" class="primary-btn">Start my spelling bee</button></div>
             <details id="mineLinkGrownups" class="mine-reveal">
@@ -44,48 +43,15 @@
               <p class="helper">The words stay hidden from the speller until you open this. You can look up missing words, fix a word, or press Save these words to keep the list without starting.</p>
             </details>
           </div>
-          <p class="helper" data-editor>Type or paste this week's words. Words already in Bee Ready come right in. For new words we look for a definition, part of speech, origin and sentence. Your lists stay in this browser.</p>
-          <div class="form-row" data-editor>
-            <label class="field">My list<select id="mineList"></select></label>
-            <label class="field">List name<input id="mineName" type="text" maxlength="40" autocomplete="off"></label>
-          </div>
-          <div class="mine-actions" data-editor><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
-          <label class="field" data-editor for="mineText">Add words<textarea id="mineText" rows="4" placeholder="apple, banana, cherry, or one word on each line" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
-          <button type="button" id="mineCheck" class="primary-btn" data-editor>Check my words</button>
-          <div id="minePhotoBlock" class="mine-photo" data-editor hidden>
-            <p class="helper">Or use a picture of the list:</p>
+          <div id="minePractice">
+            <div class="section-title"><div><span class="mini-kicker">MY WORDS</span><h2 id="minePracticeTitle" tabindex="-1">Your practice list</h2></div></div>
+            <p id="minePracticeText" class="helper"></p>
             <div class="mine-actions">
-              <label class="soft-btn file-btn">Take a photo of the list<input id="minePhotoCamera" type="file" accept="image/*" capture="environment"></label>
-              <label class="soft-btn file-btn">Choose a picture<input id="minePhotoPick" type="file" accept="image/*"></label>
+              <button type="button" id="minePracticeAdd" class="primary-btn" data-go="words" hidden>Add my words</button>
+              <button type="button" id="minePracticeChange" class="soft-btn" data-go="words">Change list or add words</button>
             </div>
-            <p class="helper">The words are read on this device. This page never sends or saves the picture. A photo you take with the camera may stay in your phone's own photo gallery, so delete it there when you are done.</p>
-            <p class="helper">The first picture downloads about 7 MB from this site. Printed lists work best. Handwriting is harder to read, so check every word.</p>
           </div>
-          <p id="mineStatus" class="helper" role="status" aria-live="polite"></p>
-          <div id="mineReview" hidden>
-            <h3 id="mineReviewTitle" tabindex="-1">Check your words</h3>
-            <p id="mineReviewSummary" class="helper"></p>
-            <ul id="mineChips" class="mine-chips"></ul>
-            <div class="mine-lookup" id="mineLookupBlock">
-              <button type="button" id="mineLookup" class="soft-btn" aria-describedby="mineDisclosure">Look up the missing words</button>
-              <button type="button" id="mineCancelLookup" class="text-btn" hidden>Stop looking</button>
-              <p id="mineDisclosure" class="helper"><strong>Ask a grown-up before you press this.</strong> Looking up sends the words that were not found, and this device's IP address, to Wiktionary (Wikimedia, <a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" target="_blank" rel="noopener noreferrer">privacy policy<span class="sr-only"> (opens in a new tab)</span></a>), and you will be asked to confirm. Nothing is sent to Wikimedia before that. This site's own host also sees the first letter of each word you check, because the library is split into one file per letter. A grown-up can turn looking up off in Grown-ups.</p>
-            </div>
-            <div class="mine-actions"><button type="button" id="mineSave" class="primary-btn">Save these words</button><button type="button" id="mineCancel" class="text-btn">Cancel</button></div>
-          </div>
-          <h3 id="mineWordsHead" class="settings-heading" tabindex="-1" data-editor>Your list</h3>
-          <p id="mineEmpty" class="helper" data-editor>No words yet. Add some in the Add words box.</p>
-          <details id="mineWordsBox" class="mine-reveal" data-editor>
-            <summary>Show the words in this list (for grown-ups)</summary>
-            <ul id="mineWordList" class="mine-word-list" aria-labelledby="mineWordsHead"></ul>
-          </details>
-          <div class="mine-actions" data-editor>
-            <button type="button" id="mineShare" class="soft-btn">Show a link to share this list</button>
-            <button type="button" id="mineExport" class="soft-btn">Download a backup</button>
-            <label class="soft-btn file-btn">Open a backup<input id="mineImportFile" type="file" accept="application/json,.json"></label>
-          </div>
-          <label class="field" data-editor for="mineShareUrl"><span class="sr-only">Share link</span><input id="mineShareUrl" type="text" readonly hidden></label>
-          <p class="helper">Definitions and sentences come from the Bee Ready library (Open English WordNet and Wiktionary, see <a href="./library/NOTICE.md" target="_blank" rel="noopener noreferrer">the library notice<span class="sr-only"> (opens in a new tab)</span></a>) or from Wiktionary when you ask. Wiktionary text is CC BY-SA 4.0. Pronunciation of rare words by the device voice can be wrong.</p>
+          <p id="minePracticeStatus" class="helper" role="status" aria-live="polite"></p>
         </section>
         <div class="content-grid">
           <div class="panel" id="roundBuilder">
@@ -133,8 +99,54 @@
       </section>
       <section class="tab-panel" id="tab-words" aria-labelledby="words-title">
         <div class="section-intro"><span class="mini-kicker">THE COMPLETE REFERENCE</span><h1 id="words-title" tabindex="-1">Your word bank</h1><p>Explore all the spelling bee words, their definitions, original booklet groups, and dictionary pronunciation links. Study and Challenge are the original booklet's fixed groups, not grade levels. To save your own words, press the Star button (☆) on any card. Press <strong>Details</strong> on a card for its sentence, origin and slow audio.</p></div>
-        <div class="panel"><div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by origin<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
-        <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">Loading words…</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button></div>
+        <section id="mineBank" class="panel mine-panel" aria-labelledby="mineTitle" hidden>
+          <h2 id="mineTitle" tabindex="-1">My lists</h2>
+          <div class="form-row">
+            <label class="field">My list<select id="mineList"></select></label>
+            <label class="field">List name<input id="mineName" type="text" maxlength="40" autocomplete="off"></label>
+          </div>
+          <div class="mine-actions"><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
+          <div class="mine-actions">
+            <button type="button" id="mineShare" class="soft-btn">Show a link to share this list</button>
+            <button type="button" id="mineExport" class="soft-btn">Download a backup</button>
+            <label class="soft-btn file-btn">Open a backup<input id="mineImportFile" type="file" accept="application/json,.json"></label>
+          </div>
+          <label class="field" for="mineShareUrl"><span class="sr-only">Share link</span><input id="mineShareUrl" type="text" readonly hidden></label>
+        </section>
+        <section id="mineAdd" class="panel mine-panel" aria-labelledby="mineAddTitle" hidden>
+          <h2 id="mineAddTitle">Add words</h2>
+          <div id="mineLinkWait" class="mine-link-wait" hidden>
+            <p class="helper">A list from a link is waiting on the Practice tab. Start it, or check it there, before you add more words.</p>
+            <button type="button" class="soft-btn" data-go="practice">Go to Practice</button>
+          </div>
+          <p class="helper" data-editor>Type or paste this week's words. Words already in Bee Ready come right in. For new words we look for a definition, part of speech, origin and sentence. Your lists stay in this browser.</p>
+          <label class="field" data-editor for="mineText">Words to add<textarea id="mineText" rows="4" placeholder="apple, banana, cherry, or one word on each line" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
+          <button type="button" id="mineCheck" class="primary-btn" data-editor>Check my words</button>
+          <p id="mineStatus" class="helper" role="status" aria-live="polite"></p>
+          <div id="minePhotoBlock" class="mine-photo" data-editor hidden>
+            <p class="helper">Or use a picture of the list:</p>
+            <div class="mine-actions">
+              <label class="soft-btn file-btn">Take a photo of the list<input id="minePhotoCamera" type="file" accept="image/*" capture="environment"></label>
+              <label class="soft-btn file-btn">Choose a picture<input id="minePhotoPick" type="file" accept="image/*"></label>
+            </div>
+            <p class="helper">The words are read on this device. This page never sends or saves the picture. A photo you take with the camera may stay in your phone's own photo gallery, so delete it there when you are done.</p>
+            <p class="helper">The first picture downloads about 7 MB from this site. Printed lists work best. Handwriting is harder to read, so check every word.</p>
+          </div>
+          <div id="mineReview" hidden>
+            <h3 id="mineReviewTitle" tabindex="-1">Check your words</h3>
+            <p id="mineReviewSummary" class="helper"></p>
+            <ul id="mineChips" class="mine-chips"></ul>
+            <div class="mine-lookup" id="mineLookupBlock">
+              <button type="button" id="mineLookup" class="soft-btn" aria-describedby="mineDisclosure">Look up the missing words</button>
+              <button type="button" id="mineCancelLookup" class="text-btn" hidden>Stop looking</button>
+              <p id="mineDisclosure" class="helper"><strong>Ask a grown-up before you press this.</strong> Looking up sends the words that were not found, and this device's IP address, to Wiktionary (Wikimedia, <a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" target="_blank" rel="noopener noreferrer">privacy policy<span class="sr-only"> (opens in a new tab)</span></a>), and you will be asked to confirm. Nothing is sent to Wikimedia before that. This site's own host also sees the first letter of each word you check, because the library is split into one file per letter. A grown-up can turn looking up off in Grown-ups.</p>
+            </div>
+            <div class="mine-actions"><button type="button" id="mineSave" class="primary-btn">Save these words</button><button type="button" id="mineCancel" class="text-btn">Cancel</button></div>
+          </div>
+        </section>
+        <div class="panel" id="wordBankPanel"><h2 id="mineWordsHead" class="settings-heading" tabindex="-1" hidden></h2><div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by origin<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
+        <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">Loading words…</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button>
+        <p id="mineCredits" class="helper" hidden>Definitions and sentences come from the Bee Ready library (Open English WordNet and Wiktionary, see <a href="./library/NOTICE.md" target="_blank" rel="noopener noreferrer">the library notice<span class="sr-only"> (opens in a new tab)</span></a>) or from Wiktionary when you ask. Wiktionary text is CC BY-SA 4.0. Pronunciation of rare words by the device voice can be wrong.</p></div>
       </section>
       <section class="tab-panel" id="tab-voices" aria-labelledby="voices-title">
         <div class="section-intro"><span class="mini-kicker">MEET YOUR BEE HOST</span><h1 id="voices-title" tabindex="-1">Find your favorite voice</h1><p>Natural American English voices, recorded for every word, plus an instant device-voice option. No accounts or keys.</p></div>

@@ -189,15 +189,46 @@ test('a My words card says "Not known yet" for an unknown part or origin, not a 
   assert.equal(detailsData({ ...base, part: '' }, POS, sentenceFor).part, 'Not listed', 'a default card is unchanged');
 });
 
-test('the page ships the My words speller screens closed: words are behind "for grown-ups" controls', () => {
+test('a My words card can carry a Remove button; the default card never does', () => {
+  const mine = card({ custom: true, level: 'Mine', word: 'quay', id: 1000001 }, { removable: true });
+  assert.match(mine, /<button type="button" class="text-btn remove-btn" data-remove-id="1000001" aria-label="Remove quay from my list">Remove<\/button>/); // preflight: ok
+  assert.ok(mine.indexOf('class="details-btn"') < mine.indexOf('remove-btn'), 'Details comes first, Remove after it');
+  assert.equal((mine.match(/class="details-btn"/g) ?? []).length, 1, 'one Details button');
+  assert.ok(mine.indexOf('remove-btn') < mine.indexOf('class="word-details"'), 'Remove sits above the details panel');
+  assert.equal(card({}).includes('remove-btn'), false, 'a default card has no Remove');
+  assert.equal(card({ custom: true, level: 'Mine' }).includes('remove-btn'), false, 'Remove is opt-in');
+  assert.equal(card({}), card({}, { removable: false }), 'the default markup is unchanged');
+});
+
+test('the page puts My words on two tabs: the list in use on Practice, the lists and words in the Word bank', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /<div id="mineLinkCard"[^>]* hidden>/, 'the link card starts hidden');
-  assert.match(html, /<details id="mineWordsBox"[^>]*>(?!.*\bopen\b)/s, 'the saved words start closed');
-  assert.equal(/<details id="mineWordsBox"[^>]*\bopen\b/.test(html), false);
-  assert.equal(/<details id="mineLinkGrownups"[^>]*\bopen\b/.test(html), false);
+  const tab = id => new RegExp(`<section class="tab-panel[^"]*" id="tab-${id}"[\\s\\S]*?</section>\\s*(?=<section class="tab-panel|</main>)`).exec(html)[0]; // preflight: ok
+  const practice = tab('practice'), words = tab('words');
+  // Practice: the link's start card and which list is in use. No editor, no word list.
+  for (const id of ['mineRoot', 'mineLinkCard', 'mineLinkStart', 'mineLinkGrownups', 'minePractice', 'minePracticeStatus']) { // preflight: ok
+    assert.ok(practice.includes(`id="${id}"`), `Practice holds ${id}`);
+  }
+  for (const id of ['mineText', 'mineCheck', 'mineList', 'mineName', 'mineShare', 'mineSave', 'mineChips']) {
+    assert.equal(practice.includes(`id="${id}"`), false, `${id} is not on the Practice tab`);
+  }
+  // Word bank: the editor, the lists and the words. Nothing is behind a "for grown-ups" gate.
+  for (const id of ['mineBank', 'mineAdd', 'mineText', 'mineCheck', 'mineList', 'mineName', 'mineShare', 'mineSave',
+    'mineStatus', 'mineReview', 'wordBankPanel', 'wordGrid']) {
+    assert.ok(words.includes(`id="${id}"`), `the Word bank holds ${id}`);
+  }
+  assert.equal(/mineBankGate|mineWordsBox|mineWordList/.test(html), false, 'no gate around the words');
+  assert.equal(/<details[^>]*id="mineBankGate"/.test(html), false);
+  // Everything My words adds starts hidden, so the default page is unchanged.
+  for (const id of ['mineRoot', 'mineBank', 'mineAdd', 'mineLinkCard', 'mineLinkWait', 'mineWordsHead', 'mineCredits']) { // preflight: ok
+    assert.match(html, new RegExp(`id="${id}"[^>]* hidden>|id="${id}"[^>]*hidden `), `${id} starts hidden`);
+  }
+  assert.equal(/<details id="mineLinkGrownups"[^>]*\bopen\b/.test(html), false, 'the grown-up check starts closed');
   assert.match(html, /Grown-ups: check the words first/);
   assert.match(html, /id="mineLinkStart"[^>]*>Start my spelling bee</);
   const card = /<div id="mineLinkCard"[\s\S]*?<\/details>\s*<\/div>/.exec(html)[0];
-  assert.equal(/mineChips|mineWordList/.test(card), false, 'the link card holds no word list');
+  assert.equal(/mineChips|mineReview/.test(card), false, 'the link card holds no word list in the markup');
+  assert.match(card, /<h2 id="mineLinkTitle"/, 'the start card has an h2, so headings nest under the page h1');
+  // The two Practice buttons that lead to the Word bank keep one fixed name each.
+  assert.match(practice, /id="minePracticeAdd"[^>]*data-go="words"[^>]*>Add my words</);
+  assert.match(practice, /id="minePracticeChange"[^>]*data-go="words"[^>]*>Change list or add words</);
 });
-
