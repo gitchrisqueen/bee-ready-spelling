@@ -45,13 +45,14 @@ test('the page explains share, backup and restore in plain words, with fixed but
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, />Save a backup file</);
   assert.match(html, />Restore from a backup file<input id="mineImportFile"/);
-  assert.match(html, />Show a link to share this list</);
+  assert.match(html, />Copy a link to share this list</);
   assert.equal(/Download a backup|Open a backup/.test(html), false, 'the old, unclear labels are gone');
   assert.match(html, /<h3[^>]*>Share this list<\/h3>/);
   assert.match(html, /<h3[^>]*>Back up or move all your lists<\/h3>/);
   assert.match(html, /A backup is a file with all your lists and their definitions/);
   assert.match(html, /never replaces or deletes them/);
-  assert.match(html, /carries only the words, so the other device looks up the definitions again/);
+  assert.match(html, /carries only the words\. On the other device, open the Word bank and press Get missing definitions/);
+  assert.match(html, /id="mineFillResult"[^>]*role="status"/, 'the result has its own live line beside the button');
   assert.match(html, /id="mineFill"[^>]*aria-describedby="mineFillNote"[^>]*>Get missing definitions</);
   assert.match(html, /id="mineFillBlock"[^>]* hidden>/, 'the definitions block starts hidden');
   assert.match(html, /Ask a grown-up before you press it/);

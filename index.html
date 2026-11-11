@@ -107,8 +107,8 @@
           </div>
           <div class="mine-actions"><button type="button" id="mineNew" class="soft-btn">New list</button><button type="button" id="mineDelete" class="text-btn">Delete this list</button></div>
           <h3 class="settings-heading">Share this list</h3>
-          <p class="helper">Make a link that opens this list on another phone or computer. The link carries only the words, so the other device looks up the definitions again.</p>
-          <div class="mine-actions"><button type="button" id="mineShare" class="soft-btn">Show a link to share this list</button></div>
+          <p class="helper">Make a link that opens this list on another phone or computer. The link carries only the words. On the other device, open the Word bank and press Get missing definitions to add them.</p>
+          <div class="mine-actions"><button type="button" id="mineShare" class="soft-btn">Copy a link to share this list</button></div>
           <label class="field" for="mineShareUrl"><span class="sr-only">Share link</span><input id="mineShareUrl" type="text" readonly hidden></label>
           <h3 class="settings-heading">Back up or move all your lists</h3>
           <p class="helper">A backup is a file with all your lists and their definitions. Save one to keep a copy, or to move your lists to another browser or device. On that device, restore it to put the lists back.</p>
@@ -116,7 +116,7 @@
             <button type="button" id="mineExport" class="soft-btn">Save a backup file</button>
             <label class="soft-btn file-btn">Restore from a backup file<input id="mineImportFile" type="file" accept="application/json,.json"></label>
           </div>
-          <p class="helper">Restoring adds the lists in the file next to the ones you have. It never replaces or deletes them.</p>
+          <p class="helper">Restoring adds the lists in the file to the ones you already have. It never replaces or deletes them.</p>
         </section>
         <section id="mineAdd" class="panel mine-panel" aria-labelledby="mineAddTitle" hidden>
           <h2 id="mineAddTitle">Add words</h2>
@@ -152,12 +152,13 @@
         <div class="panel" id="wordBankPanel"><h2 id="mineWordsHead" class="settings-heading" tabindex="-1" hidden></h2>
         <div id="mineFillBlock" class="mine-fill" hidden>
           <p id="mineFillText" class="helper"></p>
+          <p id="mineFillNote" class="helper">This checks the Bee Ready library on this site first. <strong>Ask a grown-up before you press it:</strong> for words the library does not have, it can ask Wiktionary, a free online dictionary. That tells Wiktionary the words and this device's internet address (IP address), and you will be asked to confirm first. Nothing is sent before you say yes. This site also learns the first letter of each word, because the library is one file per letter.</p>
           <div class="mine-actions">
             <button type="button" id="mineFill" class="soft-btn" aria-describedby="mineFillNote">Get missing definitions</button>
             <button type="button" id="mineFillStop" class="text-btn" hidden>Stop looking</button>
           </div>
-          <p id="mineFillNote" class="helper">This checks the Bee Ready library on this site first. <strong>Ask a grown-up before you press it:</strong> for words the library does not have, it can ask Wiktionary (Wikimedia). That sends those words and this device's IP address, and you will be asked to confirm. Nothing is sent to Wikimedia before that. This site's own host also sees the first letter of each word.</p>
         </div>
+        <p id="mineFillResult" class="helper" role="status" aria-live="polite"></p>
         <div class="form-row"><label class="field">Find a word<input id="searchWord" type="search" placeholder="Search spelling or meaning…" autocomplete="off"></label><label class="field">Filter by origin<select id="groupFilter"><option value="all">All origins</option></select></label><label class="field">Level<select id="levelFilter"><option value="all">All levels</option><option value="Study">Study</option><option value="Challenge">Challenge</option></select></label><label class="field">Show<select id="starFilter"><option value="all">All words</option><option value="starred">My starred words only</option></select></label></div>
         <div class="results-head"><strong id="resultCount" role="status" aria-live="polite" aria-atomic="true">Loading words…</strong><span>Fixed booklet groups, not grade levels. The Star button (☆) saves your own.</span></div><h2 class="sr-only">Words</h2><div id="wordGrid" class="word-grid"></div><button id="loadMore" class="soft-btn block-btn">Show more words</button>
         <p id="mineCredits" class="helper" hidden>Definitions and sentences come from the Bee Ready library (Open English WordNet and Wiktionary, see <a href="./library/NOTICE.md" target="_blank" rel="noopener noreferrer">the library notice<span class="sr-only"> (opens in a new tab)</span></a>) or from Wiktionary when you ask. Wiktionary text is CC BY-SA 4.0. Pronunciation of rare words by the device voice can be wrong.</p></div>
@@ -181,13 +182,13 @@
           <div id="mineEnterBlock"><p>Practice this week's spelling list, or any list of words. They stay in this browser.</p><a class="soft-btn link-btn" href="?mode=mine#practice">Use your own words</a></div>
           <div id="mineSettingsBlock" hidden>
             <label class="check-row"><input type="checkbox" id="mineLive" checked> Allow looking up missing words on Wiktionary</label>
-            <p class="helper">When this is on and someone presses "Look up the missing words", those words and the device's IP address go to simple.wiktionary.org and en.wiktionary.org (Wikimedia). Turn it off to keep everything in this browser.</p>
+            <p class="helper">When this is on and someone presses "Look up the missing words" or "Get missing definitions" and says yes, those words and the device's IP address go to simple.wiktionary.org and en.wiktionary.org (Wikimedia). Turn it off to keep everything in this browser.</p>
             <button type="button" id="mineDeleteAll" class="text-btn">Delete all my words from this device</button>
             <p class="helper">To clear everything this site saved, including My words, clear this site's data in your browser settings.</p>
             <a class="soft-btn link-btn" href="./">Back to the Bee Ready list</a>
           </div>
         </div>
-        <div class="panel foot-note"><h3>About the clues and audio</h3><p>“Origin” uses the booklet's language group. Some words traveled through multiple languages; the group is not a complete etymology. Definitions are simplified study explanations, not official competition definitions. Spelling bee rules vary by organizer.</p><p>Words and sentences play from short recordings, with no download. If one has no recording yet, your device voice reads it. The optional live voice needs a first download of model files, which the browser caches when storage allows. Speech uses no account or API key. For words such as <i>learned</i> and <i>dogged</i>, pronunciation can depend on meaning and should be confirmed with a grown-up.</p><p>Practice history, stars and voice settings stay in this browser. Lists made with My words also stay in this browser. This site is hosted by GitHub, which can see a visitor's IP address. If a grown-up uses "Look up the missing words" in My words, those words and the IP address go to Wiktionary (Wikimedia). When My words checks words, this site's host also sees the first letter of each one. If a grown-up turns on the live voice, files load from cdn.jsdelivr.net, esm.sh and huggingface.co, and those services also see the IP address.</p><div class="clear-actions"><button id="clearHistory" class="text-btn">Clear this device's practice history</button><button id="clearStars" class="text-btn">Clear this device's starred words</button><span id="clearStarsStatus" class="clear-status" role="status" aria-live="polite"></span></div></div>
+        <div class="panel foot-note"><h3>About the clues and audio</h3><p>“Origin” uses the booklet's language group. Some words traveled through multiple languages; the group is not a complete etymology. Definitions are simplified study explanations, not official competition definitions. Spelling bee rules vary by organizer.</p><p>Words and sentences play from short recordings, with no download. If one has no recording yet, your device voice reads it. The optional live voice needs a first download of model files, which the browser caches when storage allows. Speech uses no account or API key. For words such as <i>learned</i> and <i>dogged</i>, pronunciation can depend on meaning and should be confirmed with a grown-up.</p><p>Practice history, stars and voice settings stay in this browser. Lists made with My words also stay in this browser. This site is hosted by GitHub, which can see a visitor's IP address. If a grown-up uses "Look up the missing words" or "Get missing definitions" in My words and says yes, those words and the IP address go to Wiktionary (Wikimedia). When My words checks words, this site's host also sees the first letter of each one. If a grown-up turns on the live voice, files load from cdn.jsdelivr.net, esm.sh and huggingface.co, and those services also see the IP address.</p><div class="clear-actions"><button id="clearHistory" class="text-btn">Clear this device's practice history</button><button id="clearStars" class="text-btn">Clear this device's starred words</button><span id="clearStarsStatus" class="clear-status" role="status" aria-live="polite"></span></div></div>
       </section>
     </main>
     <footer class="footer"><span>🐝 Bee Ready · Every word is a new adventure</span><span>No account required · Made for curious spellers</span></footer>

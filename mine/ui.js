@@ -60,6 +60,10 @@ function uniqueName(store, name) {
     if (!taken.has(next)) return next;
   }
 }
+// The dialog for a saved list says how many words would be sent.
+const CONFIRM_FILL = n => `This sends ${n} ${n === 1 ? 'word' : 'words'} that the library does not have, and this `
+  + 'device\'s IP address, to Wiktionary (Wikimedia). Only a grown-up should say yes. Send them?';
+const SAVE_FAILED_TEXT = 'This device could not save your words. Press "Save a backup file" under My lists.';
 const SAME_LIST_TEXT = 'You already have this list. It is ready: press Start my spelling bee.';
 const CONFIRM_LOOKUP = 'This sends the words that were not found, and this device\'s IP address, to Wiktionary '
   + '(Wikimedia). Only a grown-up should say yes. Send them?';
@@ -74,6 +78,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   let sharedNote = '';       // set when the review came from a share link
   let linkName = null;       // set while a list from a link waits to be started; its words stay hidden
   let lookupAbort = null;
+  let fillAbort = null;      // the saved list's lookup, apart from the review's
   let nextChip = 1;
   let pendingEdits = 0;      // word edits still being looked up; Save waits for them
   let flip = false;
@@ -95,7 +100,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   const persist = () => {
     if (state.readOnly) return false;
     if (saveStore(store0, state.store)) return true;
-    status('This device could not save your words. Use Save a backup file in My lists.');
+    status(SAVE_FAILED_TEXT);
     return false;
   };
   const active = () => state.store.lists.find(l => l.key === state.store.active) ?? null;
@@ -106,6 +111,10 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   for (const id of ['mineRoot', 'mineBank', 'mineAdd', 'mineWordsHead', 'mineCredits']) $(id).hidden = false;
   document.querySelector('#wordBankPanel > h2.sr-only')?.setAttribute('hidden', ''); // the visible list heading replaces it // preflight: ok
   $('mineGrownups').hidden = false;
+  if (!LIVE_LOOKUP_ENABLED) {
+    $('mineFillNote').textContent = 'This checks the Bee Ready library on this site. Looking up on Wiktionary is '
+      + 'switched off for now.';
+  }
   $('mineEnterBlock').hidden = true;
   $('mineSettingsBlock').hidden = false;
   $('minePhotoBlock').hidden = !OCR_ENABLED;
@@ -189,7 +198,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const missing = (a?.entries ?? []).filter(needsDefinition).length;
     $('mineFillBlock').hidden = missing === 0;
     $('mineFillText').textContent = `${missing} ${missing === 1 ? 'word has' : 'words have'} no definition yet. `
-      + 'A share link carries only the words, so definitions are looked up again on this device.';
+      + 'Words from a share link start this way, because a link carries only the words. '
+      + 'Press Get missing definitions to fill them in.';
   }
   function activate() {
     const a = active();
@@ -413,46 +423,65 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
 
   // The saved list's words that still have no definition: the library on this site first, then (only if a grown-up
   // agrees) Wiktionary. A word Wiktionary once answered "not found" for is asked again, because this is a retry.
+  // The result goes to its own line beside the button, and one run at a time: the button is locked from the first tap.
+  let filling = false;
   async function onFill() {
     const a = active();
     const todo = a ? a.entries.filter(needsDefinition) : [];
-    if (!todo.length) return;
-    const found = new Map();
-    for (const e of todo) {
-      const hit = await libraryEntry(fetchFn, e.word);
-      if (hit) found.set(e.word, { entry: hit, src: 'library' });
-    }
-    const rest = todo.map(e => e.word).filter(w => !found.has(w));
-    let stopped = null, note = '';
-    if (rest.length && LIVE_LOOKUP_ENABLED && state.settings.liveLookup) {
-      if (!confirm(CONFIRM_LOOKUP)) note = ' Nothing was sent to Wiktionary.';
+    if (!todo.length || filling) return;
+    filling = true;
+    $('mineFill').setAttribute('aria-disabled', 'true');
+    $('mineFill').setAttribute('aria-busy', 'true');
+    const say = text => { flip = !flip; $('mineFillResult').textContent = text + (flip ? '' : '\u00a0'); };
+    let found = 0, left = todo.length, summary = '';
+    try {
+      say('Checking the Bee Ready library. This can take a moment.');
+      const got = new Map();
+      for (const e of todo) {
+        const hit = await libraryEntry(fetchFn, e.word);
+        if (hit) got.set(e.word, { entry: hit, src: 'library' });
+      }
+      const rest = todo.map(e => e.word).filter(w => !got.has(w));
+      let stopped = null, note = '';
+      if (!rest.length) { /* the library had them all */ }
+      else if (!LIVE_LOOKUP_ENABLED) note = ' Looking up on Wiktionary is switched off for now, so only the library was checked.';
+      else if (!state.settings.liveLookup) note = ' Looking up on Wiktionary is turned off. A grown-up can turn it on in the Grown-ups tab.';
+      else if (!confirm(CONFIRM_FILL(rest.length))) note = ' Nothing was sent to Wiktionary.';
       else {
         rest.forEach(w => { delete cache[w]; });
-        lookupAbort = new AbortController();
+        fillAbort = new AbortController();
         $('mineFillStop').hidden = false;
-        $('mineFill').disabled = true;
         $('mineFillStop').focus();
-        status(`Looking up ${rest.length} ${rest.length === 1 ? 'word' : 'words'}. This can take a moment.`);
-        const out = await lookupMissing(rest, { fetchFn, cache, signal: lookupAbort.signal });
-        lookupAbort = null;
+        say(`Looking up ${rest.length} ${rest.length === 1 ? 'word' : 'words'}. This can take a moment.`);
+        const out = await lookupMissing(rest, { fetchFn, cache, signal: fillAbort.signal });
         stopped = out.stopped;
         saveCache();
-        for (const w of rest) if (out.results[w]) found.set(w, { entry: out.results[w], src: 'live' });
-        $('mineFillStop').hidden = true;
-        $('mineFill').disabled = false;
+        for (const w of rest) if (out.results[w]) got.set(w, { entry: out.results[w], src: 'live' });
       }
-    } else if (rest.length) note = ' Looking up on Wiktionary is turned off in Grown-ups.';
-    if (found.size) {
-      state.store = updateList(state.store, a.key, l => ({
-        entries: l.entries.map(e => (found.has(e.word) ? fillEntry(e, found.get(e.word).entry, found.get(e.word).src) : e)), // preflight: ok
-      }));
-      persist();
-      activate();
+      if (got.size) {
+        state.store = updateList(state.store, a.key, l => ({
+          entries: l.entries.map(e => (got.has(e.word) ? fillEntry(e, got.get(e.word).entry, got.get(e.word).src) : e)),
+        }));
+        // If the words could not be saved, keep that message: the page shows the definitions, the device does not.
+        if (!persist()) summary = SAVE_FAILED_TEXT;
+        activate();
+      }
+      found = got.size;
+      left = (active()?.entries ?? []).filter(needsDefinition).length;
+      if (stopped) console.warn('My words: looking up definitions stopped:', stopped);
+      if (!summary) {
+        summary = `Found definitions for ${found} of ${todo.length} ${todo.length === 1 ? 'word' : 'words'}.`
+          + `${left ? ` ${left} still ${left === 1 ? 'has' : 'have'} none. The Dictionary link on a word's card can help.` : ''}`
+          + `${note}${stopped ? ` ${STOP_TEXT[stopped] ?? ''}` : ''}`;
+      }
+    } finally {
+      fillAbort = null;
+      filling = false;
+      $('mineFillStop').hidden = true;
+      $('mineFill').removeAttribute('aria-disabled');
+      $('mineFill').removeAttribute('aria-busy');
     }
-    const left = (active()?.entries ?? []).filter(needsDefinition).length;
-    status(`Found definitions for ${found.size} of ${todo.length} ${todo.length === 1 ? 'word' : 'words'}.`
-      + `${left ? ` ${left} still ${left === 1 ? 'has' : 'have'} none.` : ''}${note}`
-      + `${stopped ? ` ${STOP_TEXT[stopped] ?? ''}` : ''}`);
+    say(summary || 'Nothing was changed.');
     focusSoon(left ? $('mineFill') : $('mineWordsHead'));
   }
 
@@ -548,7 +577,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   $('mineLookup').addEventListener('click', onLookup);
   $('mineCancelLookup').addEventListener('click', () => lookupAbort?.abort());
   $('mineFill').addEventListener('click', onFill);
-  $('mineFillStop').addEventListener('click', () => lookupAbort?.abort());
+  $('mineFillStop').addEventListener('click', () => fillAbort?.abort());
   $('mineSave').addEventListener('click', () => onSave());
   $('mineLinkStart').addEventListener('click', () => onSave({ start: true }));
   $('mineLinkGrownups').addEventListener('toggle', () => {
@@ -628,7 +657,8 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
     const a = el('a', { href: URL.createObjectURL(new Blob([exportJson(state.store)], { type: 'application/json' })),
       download: 'my-words.json' });
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    status('Backup file saved as my-words.json. Look in your downloads, and keep it somewhere safe.');
+    status('Your browser is saving my-words.json. Look in your Downloads folder (on an iPhone or iPad, the Files app). '
+      + 'If it is not there, press Save a backup file again. Keep it somewhere safe.');
   });
   $('mineImportFile').addEventListener('change', async e => {
     const file = e.target.files?.[0];
@@ -655,6 +685,7 @@ export async function start({ defaultWords, setWords, shareHash = '' }) {
   });
   $('mineDeleteAll').addEventListener('click', () => {
     if (!confirm('Delete all your words, history and stars for My words from this device? This cannot be undone.')) return; // preflight: ok
+    lookupAbort?.abort(); fillAbort?.abort();
     state.store = deleteAll(store0); chips = []; cache = {}; openUids.clear();
     $('mineShareUrl').value = ''; $('mineShareUrl').hidden = true;
     renderReview(); activate(); status('All of your words were deleted from this device.');
